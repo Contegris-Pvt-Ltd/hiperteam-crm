@@ -47,6 +47,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
+    localStorage.setItem('user', JSON.stringify(user));
+    localStorage.setItem('tenant', JSON.stringify(tenant));
     
     set({ user, tenant, isAuthenticated: true });
   },
@@ -57,6 +59,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
+    localStorage.setItem('user', JSON.stringify(user));
+    localStorage.setItem('tenant', JSON.stringify(tenant));
     
     set({ user, tenant, isAuthenticated: true });
   },
@@ -64,16 +68,33 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    localStorage.removeItem('tenant');
     set({ user: null, tenant: null, isAuthenticated: false });
   },
 
   checkAuth: async () => {
     const token = localStorage.getItem('accessToken');
+    const storedUser = localStorage.getItem('user');
+    const storedTenant = localStorage.getItem('tenant');
+
     if (!token) {
       set({ isLoading: false });
       return;
     }
 
+    // First try to use stored user/tenant data
+    if (storedUser && storedTenant) {
+      set({
+        user: JSON.parse(storedUser),
+        tenant: JSON.parse(storedTenant),
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      return;
+    }
+
+    // Fallback to /me endpoint
     try {
       const response = await api.get('/auth/me');
       set({ 
@@ -95,6 +116,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+      localStorage.removeItem('tenant');
       set({ isLoading: false });
     }
   },
