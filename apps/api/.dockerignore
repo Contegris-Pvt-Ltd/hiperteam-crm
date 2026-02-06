@@ -1,6 +1,9 @@
-node_modules
-dist
-.env
-.env.*
-*.log
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+**/*.log
 .git
+.gitignore
+**/.turbo
+**/coverage
