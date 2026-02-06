@@ -10,6 +10,7 @@ export interface JwtPayload {
   tenantSlug: string;
   tenantSchema: string;
   role: string;
+  permissions: Record<string, Record<string, string>>;
 }
 
 @Injectable()

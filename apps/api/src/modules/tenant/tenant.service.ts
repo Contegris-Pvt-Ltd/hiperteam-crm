@@ -39,7 +39,28 @@ export class TenantService {
   private async createTenantSchema(schemaName: string): Promise<void> {
     await this.dataSource.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
 
-    // Create users table in tenant schema
+    // Roles table
+    await this.dataSource.query(`
+      CREATE TABLE "${schemaName}".roles (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name            VARCHAR(100) NOT NULL,
+        description     TEXT,
+        permissions     JSONB DEFAULT '{}',
+        is_system       BOOLEAN DEFAULT false,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Insert default roles
+    await this.dataSource.query(`
+      INSERT INTO "${schemaName}".roles (name, description, permissions, is_system) VALUES
+      ('admin', 'Full access to everything', '{"*": {"*": "all"}}', true),
+      ('manager', 'Manage team and data', '{"contacts": {"*": "team"}, "leads": {"*": "team"}, "users": {"view": "team"}}', true),
+      ('user', 'Standard user access', '{"contacts": {"*": "own"}, "leads": {"*": "own"}}', true)
+    `);
+
+    // Users table with role reference
     await this.dataSource.query(`
       CREATE TABLE "${schemaName}".users (
         id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -48,7 +69,7 @@ export class TenantService {
         first_name      VARCHAR(100) NOT NULL,
         last_name       VARCHAR(100) NOT NULL,
         phone           VARCHAR(50),
-        role            VARCHAR(50) DEFAULT 'user',
+        role_id         UUID REFERENCES "${schemaName}".roles(id),
         status          VARCHAR(20) DEFAULT 'active',
         last_login_at   TIMESTAMPTZ,
         created_at      TIMESTAMPTZ DEFAULT NOW(),
@@ -57,9 +78,12 @@ export class TenantService {
       )
     `);
 
-    // Create index
+    // Create indexes
     await this.dataSource.query(`
       CREATE INDEX "idx_${schemaName}_users_email" ON "${schemaName}".users(email)
+    `);
+    await this.dataSource.query(`
+      CREATE INDEX "idx_${schemaName}_users_role" ON "${schemaName}".users(role_id)
     `);
   }
 

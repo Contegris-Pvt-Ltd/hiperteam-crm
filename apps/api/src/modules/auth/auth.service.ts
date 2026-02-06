@@ -21,8 +21,13 @@ export class AuthService {
       throw new ConflictException('Company slug already taken');
     }
 
-    // Create tenant (this also creates the schema)
+    // Create tenant (this also creates the schema with roles)
     const tenant = await this.tenantService.create(dto.companyName, dto.companySlug);
+
+    // Get admin role
+    const [adminRole] = await this.dataSource.query(
+      `SELECT id FROM "${tenant.schemaName}".roles WHERE name = 'admin' LIMIT 1`
+    );
 
     // Hash password
     const passwordHash = await bcrypt.hash(dto.password, 12);
@@ -30,14 +35,17 @@ export class AuthService {
     // Create admin user in tenant schema
     await this.dataSource.query(
       `INSERT INTO "${tenant.schemaName}".users 
-       (email, password_hash, first_name, last_name, role) 
+       (email, password_hash, first_name, last_name, role_id) 
        VALUES ($1, $2, $3, $4, $5)`,
-      [dto.email, passwordHash, dto.firstName, dto.lastName, 'admin'],
+      [dto.email, passwordHash, dto.firstName, dto.lastName, adminRole.id],
     );
 
-    // Get the created user
+    // Get the created user with role
     const [user] = await this.dataSource.query(
-      `SELECT id, email, first_name, last_name, role FROM "${tenant.schemaName}".users WHERE email = $1`,
+      `SELECT u.id, u.email, u.first_name, u.last_name, r.name as role, r.permissions
+       FROM "${tenant.schemaName}".users u
+       JOIN "${tenant.schemaName}".roles r ON u.role_id = r.id
+       WHERE u.email = $1`,
       [dto.email],
     );
 
@@ -49,6 +57,7 @@ export class AuthService {
       tenantSlug: tenant.slug,
       tenantSchema: tenant.schemaName,
       role: user.role,
+      permissions: user.permissions,
     });
 
     return {
@@ -75,11 +84,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Find user in tenant schema
+    // Find user in tenant schema with role
     const [user] = await this.dataSource.query(
-      `SELECT id, email, password_hash, first_name, last_name, role, status 
-       FROM "${tenant.schemaName}".users 
-       WHERE email = $1 AND deleted_at IS NULL`,
+      `SELECT u.id, u.email, u.password_hash, u.first_name, u.last_name, u.status,
+              r.name as role, r.permissions
+       FROM "${tenant.schemaName}".users u
+       LEFT JOIN "${tenant.schemaName}".roles r ON u.role_id = r.id
+       WHERE u.email = $1 AND u.deleted_at IS NULL`,
       [dto.email],
     );
 
@@ -110,7 +121,8 @@ export class AuthService {
       tenantId: tenant.id,
       tenantSlug: tenant.slug,
       tenantSchema: tenant.schemaName,
-      role: user.role,
+      role: user.role || 'user',
+      permissions: user.permissions || {},
     });
 
     return {
