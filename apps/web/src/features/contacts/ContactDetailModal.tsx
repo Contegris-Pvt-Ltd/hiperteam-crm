@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import type { Contact, CreateContactData } from '../../api/contacts.api';
 import { contactsApi } from '../../api/contacts.api';
-import { href } from 'react-router-dom';
 
 interface ContactDetailModalProps {
   contact: Contact;

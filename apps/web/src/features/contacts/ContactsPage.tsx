@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Plus, Search, Filter, Download, MoreHorizontal, 
   Mail, Phone, Building2, ChevronLeft, ChevronRight,
-  Eye, Pencil, Trash2, X
+  Eye, Pencil, Trash2
 } from 'lucide-react';
 import type { Contact, ContactsQuery } from '../../api/contacts.api';
 import { contactsApi } from '../../api/contacts.api';
