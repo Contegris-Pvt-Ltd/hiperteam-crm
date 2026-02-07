@@ -22,7 +22,6 @@ export class TenantService {
   async create(name: string, slug: string): Promise<Tenant> {
     const schemaName = `tenant_${slug.replace(/-/g, '_')}`;
 
-    // Create tenant record
     const tenant = this.tenantRepository.create({
       name,
       slug,
@@ -30,7 +29,6 @@ export class TenantService {
     });
     await this.tenantRepository.save(tenant);
 
-    // Create tenant schema and tables
     await this.createTenantSchema(schemaName);
 
     return tenant;
@@ -60,7 +58,7 @@ export class TenantService {
       ('user', 'Standard user access', '{"contacts": {"*": "own"}, "leads": {"*": "own"}}', true)
     `);
 
-    // Users table with role reference
+    // Users table
     await this.dataSource.query(`
       CREATE TABLE "${schemaName}".users (
         id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -78,13 +76,53 @@ export class TenantService {
       )
     `);
 
+    // Contacts table
+    await this.dataSource.query(`
+      CREATE TABLE "${schemaName}".contacts (
+        id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        first_name            VARCHAR(100) NOT NULL,
+        last_name             VARCHAR(100) NOT NULL,
+        email                 VARCHAR(255),
+        phone                 VARCHAR(50),
+        mobile                VARCHAR(50),
+        company               VARCHAR(255),
+        job_title             VARCHAR(255),
+        website               VARCHAR(255),
+        address_line1         VARCHAR(255),
+        address_line2         VARCHAR(255),
+        city                  VARCHAR(100),
+        state                 VARCHAR(100),
+        postal_code           VARCHAR(20),
+        country               VARCHAR(100),
+        source                VARCHAR(100),
+        lead_source_details   JSONB DEFAULT '{}',
+        status                VARCHAR(50) DEFAULT 'active',
+        tags                  TEXT[],
+        notes                 TEXT,
+        custom_fields         JSONB DEFAULT '{}',
+        social_profiles       JSONB DEFAULT '{}',
+        do_not_contact        BOOLEAN DEFAULT false,
+        do_not_email          BOOLEAN DEFAULT false,
+        do_not_call           BOOLEAN DEFAULT false,
+        profile_completion    INTEGER DEFAULT 0,
+        account_id            UUID,
+        owner_id              UUID REFERENCES "${schemaName}".users(id),
+        created_by            UUID REFERENCES "${schemaName}".users(id),
+        last_activity_at      TIMESTAMPTZ,
+        created_at            TIMESTAMPTZ DEFAULT NOW(),
+        updated_at            TIMESTAMPTZ DEFAULT NOW(),
+        deleted_at            TIMESTAMPTZ
+      )
+    `);
+
     // Create indexes
-    await this.dataSource.query(`
-      CREATE INDEX "idx_${schemaName}_users_email" ON "${schemaName}".users(email)
-    `);
-    await this.dataSource.query(`
-      CREATE INDEX "idx_${schemaName}_users_role" ON "${schemaName}".users(role_id)
-    `);
+    await this.dataSource.query(`CREATE INDEX "idx_${schemaName}_users_email" ON "${schemaName}".users(email)`);
+    await this.dataSource.query(`CREATE INDEX "idx_${schemaName}_users_role" ON "${schemaName}".users(role_id)`);
+    await this.dataSource.query(`CREATE INDEX "idx_${schemaName}_contacts_email" ON "${schemaName}".contacts(email)`);
+    await this.dataSource.query(`CREATE INDEX "idx_${schemaName}_contacts_company" ON "${schemaName}".contacts(company)`);
+    await this.dataSource.query(`CREATE INDEX "idx_${schemaName}_contacts_owner" ON "${schemaName}".contacts(owner_id)`);
+    await this.dataSource.query(`CREATE INDEX "idx_${schemaName}_contacts_status" ON "${schemaName}".contacts(status)`);
+    await this.dataSource.query(`CREATE INDEX "idx_${schemaName}_contacts_account" ON "${schemaName}".contacts(account_id)`);
   }
 
   async getAllTenants(): Promise<Tenant[]> {
