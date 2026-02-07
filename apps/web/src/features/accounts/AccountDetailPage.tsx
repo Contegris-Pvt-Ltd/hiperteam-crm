@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Pencil, Trash2, Building2 } from 'lucide-react';
+import { ArrowLeft, Pencil } from 'lucide-react';
 import { accountsApi } from '../../api/accounts.api';
 import type { Account } from '../../api/accounts.api';
 

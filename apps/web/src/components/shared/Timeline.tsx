@@ -2,7 +2,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { 
   Plus, Pencil, Trash2, Link, Unlink, 
   FileText, MessageSquare, Mail, Phone, Calendar,
-  User, Building2, Activity
+  User, Activity
 } from 'lucide-react';
 
 interface TimelineActivity {

@@ -5,7 +5,7 @@ import {
   Mail, Phone, Globe, MapPin, Building2, 
   Calendar, User, Tag, Linkedin, Twitter, 
   Facebook, Instagram, PhoneOff, MailX, BellOff,
-  History, MessageSquare, FileText, Activity, Users
+  History, MessageSquare, FileText, Activity
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { contactsApi } from '../../api/contacts.api';

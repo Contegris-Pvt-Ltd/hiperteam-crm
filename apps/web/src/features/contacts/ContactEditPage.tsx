@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, X, Plus, Trash2 } from 'lucide-react';
 import { contactsApi } from '../../api/contacts.api';
-import type { Contact, CreateContactData, EmailEntry, PhoneEntry, AddressEntry, SocialProfiles } from '../../api/contacts.api';
+import type { CreateContactData, EmailEntry, PhoneEntry, AddressEntry, SocialProfiles } from '../../api/contacts.api';
 import { uploadApi } from '../../api/upload.api';
 import { AvatarUpload } from '../../components/shared/AvatarUpload';
 

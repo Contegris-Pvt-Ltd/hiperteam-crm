@@ -94,6 +94,7 @@ export interface Contact {
   lastActivityAt: string | null;
   createdAt: string;
   updatedAt: string;
+  profileCompletion?: number;
 }
 
 export interface ContactsResponse {
