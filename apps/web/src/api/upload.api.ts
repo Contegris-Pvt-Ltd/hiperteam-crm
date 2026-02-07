@@ -1,23 +1,45 @@
 import { api } from './contacts.api';
 
+interface UploadResult {
+  id: string;
+  path: string;
+  url: string;
+  name?: string;
+  originalName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+}
+
 export const uploadApi = {
-  uploadAvatar: async (entityType: 'contacts' | 'accounts', entityId: string, file: File): Promise<{ path: string; url: string }> => {
+  uploadAvatar: async (entityType: string, entityId: string, file: File): Promise<UploadResult> => {
     const formData = new FormData();
     formData.append('file', file);
-    
-    const { data } = await api.post(`/upload/avatar/${entityType}/${entityId}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return data;
+
+    const response = await api.post<UploadResult>(
+      `/upload/avatar/${entityType}/${entityId}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
   },
 
-  uploadDocument: async (file: File): Promise<{ path: string; url: string; originalName: string; mimeType: string; sizeBytes: number }> => {
+  uploadDocument: async (entityType: string, entityId: string, file: File): Promise<UploadResult> => {
     const formData = new FormData();
     formData.append('file', file);
-    
-    const { data } = await api.post('/upload/document', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return data;
+
+    const response = await api.post<UploadResult>(
+      `/upload/document/${entityType}/${entityId}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
   },
 };

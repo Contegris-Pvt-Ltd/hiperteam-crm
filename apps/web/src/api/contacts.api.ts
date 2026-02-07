@@ -196,9 +196,13 @@ export interface Document {
   sizeBytes: number;
   storagePath: string;
   storageUrl: string;
-  description: string | null;
-  tags: string[];
-  uploadedBy: { id: string; firstName: string; lastName: string };
+  description?: string;  // Make optional
+  tags?: string[];       // Make optional
+  uploadedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
   createdAt: string;
 }
 

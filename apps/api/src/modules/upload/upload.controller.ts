@@ -1,92 +1,124 @@
 import {
   Controller,
   Post,
-  UseGuards,
+  Param,
   UseInterceptors,
   UploadedFile,
-  Request,
+  UseGuards,
+  Req,
   BadRequestException,
-  Param,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
-import { UploadService } from './upload.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { JwtPayload } from '../auth/strategies/jwt.strategy';
+import { UploadService } from './upload.service';
+import { DocumentsService } from '../shared/documents.service';
+import { ApiTags, ApiConsumes, ApiBearerAuth } from '@nestjs/swagger';
+import { Request } from 'express';
+
+interface AuthenticatedRequest extends Request {
+  user: {
+    userId: string;
+    email: string;
+    tenantId: string;
+    tenantSchema: string;
+  };
+}
 
 @ApiTags('Upload')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('upload')
+@UseGuards(JwtAuthGuard)
 export class UploadController {
-  constructor(private uploadService: UploadService) {}
+  constructor(
+    private readonly uploadService: UploadService,
+    private readonly documentsService: DocumentsService,
+  ) {}
 
   @Post('avatar/:entityType/:entityId')
-  @ApiOperation({ summary: 'Upload avatar/logo' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        file: { type: 'string', format: 'binary' },
-      },
-    },
-  })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
       fileFilter: (req, file, cb) => {
-        if (!file.mimetype.match(/^image\/(jpg|jpeg|png|gif|webp)$/)) {
-          cb(new BadRequestException('Only image files are allowed'), false);
+        if (!file.mimetype.startsWith('image/')) {
+          return cb(new BadRequestException('Only image files are allowed'), false);
         }
         cb(null, true);
       },
     }),
   )
+  @ApiConsumes('multipart/form-data')
   async uploadAvatar(
-    @Request() req: { user: JwtPayload },
     @Param('entityType') entityType: 'contacts' | 'accounts',
     @Param('entityId') entityId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!file) {
-      throw new BadRequestException('File is required');
+      throw new BadRequestException('No file uploaded');
     }
 
     const result = await this.uploadService.uploadAvatar(
       file,
-      req.user.tenantSlug,
+      req.user.tenantSchema,
       entityType,
       entityId,
     );
 
-    return result;
+    return {
+      id: entityId,
+      path: result.path,
+      url: result.url,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+    };
   }
 
-  @Post('document')
-  @ApiOperation({ summary: 'Upload document' })
-  @ApiConsumes('multipart/form-data')
+  @Post('document/:entityType/:entityId')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
     }),
   )
+  @ApiConsumes('multipart/form-data')
   async uploadDocument(
-    @Request() req: { user: JwtPayload },
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!file) {
-      throw new BadRequestException('File is required');
+      throw new BadRequestException('No file uploaded');
     }
 
-    const result = await this.uploadService.uploadFile(
+    // Upload to storage
+    const uploadResult = await this.uploadService.uploadFile(
       file,
       'documents',
-      req.user.tenantSlug,
+      req.user.tenantSchema,
+    );
+
+    // Create document record in database
+    const document = await this.documentsService.create(
+    req.user.tenantSchema,
+    {
+        entityType,
+        entityId,
+        name: file.originalname,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+        storagePath: uploadResult.path,
+        storageUrl: uploadResult.url,
+        uploadedBy: req.user.userId,
+    },
     );
 
     return {
-      ...result,
+      id: document.id,
+      path: uploadResult.path,
+      url: uploadResult.url,
+      name: file.originalname,
       originalName: file.originalname,
       mimeType: file.mimetype,
       sizeBytes: file.size,

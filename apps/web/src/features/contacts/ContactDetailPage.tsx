@@ -463,11 +463,17 @@ export function ContactDetailPage() {
 
               {activeTab === 'documents' && (
                 <DocumentsPanel
-                  documents={documents}
-                  loading={tabLoading}
-                  onUpload={async () => {}}
+                    documents={documents}
+                    loading={tabLoading}
+                    entityType="contacts"
+                    entityId={id!}
+                    onDocumentUploaded={(doc) => setDocuments(prev => [doc, ...prev])}
+                    onDocumentDeleted={async (docId) => {
+                    // TODO: Call delete API
+                    setDocuments(prev => prev.filter(d => d.id !== docId));
+                    }}
                 />
-              )}
+                )}
 
               {activeTab === 'accounts' && (
                 <div>
