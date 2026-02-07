@@ -4,28 +4,35 @@ import type { Activity, AuditLog, Note, Document, EmailEntry, PhoneEntry, Addres
 export interface Account {
   id: string;
   name: string;
-  logoUrl: string | null;
-  website: string | null;
-  industry: string | null;
-  companySize: string | null;
-  annualRevenue: number | null;
-  description: string | null;
-  emails: EmailEntry[];
-  phones: PhoneEntry[];
-  addresses: AddressEntry[];
-  socialProfiles: SocialProfiles | null;
-  parentAccountId: string | null;
-  parentAccount: { id: string; name: string } | null;
-  accountType: string;
+  logoUrl?: string;
+  website?: string;
+  industry?: string;
+  companySize?: string;
+  annualRevenue?: number;
+  description?: string;
+  emails?: EmailEntry[];
+  phones?: PhoneEntry[];
+  addresses?: AddressEntry[];
+  socialProfiles?: SocialProfiles;
+  parentAccountId?: string;
+  parentAccount?: {
+    id: string;
+    name: string;
+    logoUrl?: string;
+    industry?: string;
+  };
+  accountType?: string;
   status: string;
-  tags: string[];
-  customFields: Record<string, unknown>;
-  source: string | null;
-  ownerId: string | null;
-  owner: { id: string; firstName: string; lastName: string } | null;
+  tags?: string[];
+  customFields?: Record<string, unknown>;
+  source?: string;
+  ownerId?: string;
+  owner?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
   contactsCount: number;
-  createdBy: string;
-  lastActivityAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

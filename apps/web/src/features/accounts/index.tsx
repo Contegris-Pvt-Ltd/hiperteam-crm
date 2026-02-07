@@ -1,3 +1,3 @@
-export * from './AccountsPage';
-export * from './AccountDetailPage';
-export * from './AccountEditPage';
+export { AccountsPage } from './AccountsPage';
+export { AccountDetailPage } from './AccountDetailPage';
+export { AccountEditPage } from './AccountEditPage';

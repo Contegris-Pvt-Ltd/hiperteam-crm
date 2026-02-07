@@ -1,81 +1,104 @@
 import { useState, useRef } from 'react';
-import { Camera, User, Building2 } from 'lucide-react';
+import { Camera, Loader2 } from 'lucide-react';
 
 interface AvatarUploadProps {
-  currentUrl: string | null;
+  currentUrl: string | null | undefined;
   onUpload: (file: File) => Promise<string>;
   name: string;
   type: 'contact' | 'account';
   size?: 'sm' | 'md' | 'lg';
 }
 
-const sizes = {
-  sm: 'w-16 h-16 text-lg',
-  md: 'w-24 h-24 text-2xl',
-  lg: 'w-32 h-32 text-3xl',
-};
-
 export function AvatarUpload({ currentUrl, onUpload, name, type, size = 'md' }: AvatarUploadProps) {
+  const [preview, setPreview] = useState<string | null>(currentUrl ?? null);
   const [uploading, setUploading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const sizeClasses = {
+    sm: 'w-16 h-16',
+    md: 'w-24 h-24',
+    lg: 'w-32 h-32',
+  };
+
+  const iconSizes = {
+    sm: 'w-4 h-4',
+    md: 'w-5 h-5',
+    lg: 'w-6 h-6',
+  };
+
+  const textSizes = {
+    sm: 'text-lg',
+    md: 'text-xl',
+    lg: 'text-2xl',
+  };
+
+  const gradients = {
+    contact: 'from-blue-500 to-indigo-600',
+    account: 'from-emerald-500 to-teal-600',
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const handleClick = () => {
+    inputRef.current?.click();
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Preview immediately
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setPreviewUrl(ev.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    // Show preview immediately
+    const previewUrl = URL.createObjectURL(file);
+    setPreview(previewUrl);
 
-    // Upload
     setUploading(true);
     try {
       const url = await onUpload(file);
-      setPreviewUrl(url);
+      setPreview(url);
     } catch (error) {
-      setPreviewUrl(currentUrl);
+      console.error('Upload failed:', error);
+      setPreview(currentUrl ?? null);
     } finally {
       setUploading(false);
     }
   };
 
-  const initials = name
-    .split(' ')
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-
   return (
-    <div className="relative inline-block">
+    <div className="relative group">
       <button
         type="button"
-        onClick={() => inputRef.current?.click()}
+        onClick={handleClick}
         disabled={uploading}
-        className={`${sizes[size]} rounded-2xl flex items-center justify-center overflow-hidden transition-transform hover:scale-105 disabled:hover:scale-100 ${
-          previewUrl
-            ? ''
-            : type === 'contact'
-            ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
-            : 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white'
-        }`}
+        className={`${sizeClasses[size]} rounded-${type === 'contact' ? 'full' : '2xl'} overflow-hidden relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
       >
-        {uploading ? (
-          <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-        ) : previewUrl ? (
-          <img src={previewUrl} alt={name} className="w-full h-full object-cover" />
+        {preview ? (
+          <img
+            src={preview}
+            alt={name}
+            className="w-full h-full object-cover"
+          />
         ) : (
-          <span className="font-bold">{initials || (type === 'contact' ? <User /> : <Building2 />)}</span>
+          <div className={`w-full h-full bg-gradient-to-br ${gradients[type]} flex items-center justify-center text-white font-semibold ${textSizes[size]}`}>
+            {getInitials(name)}
+          </div>
         )}
-      </button>
 
-      <div className="absolute -bottom-1 -right-1 p-1.5 bg-white dark:bg-slate-800 rounded-full shadow-lg border border-gray-200 dark:border-slate-700">
-        <Camera className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-      </div>
+        {/* Overlay */}
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          {uploading ? (
+            <Loader2 className={`${iconSizes[size]} text-white animate-spin`} />
+          ) : (
+            <Camera className={`${iconSizes[size]} text-white`} />
+          )}
+        </div>
+      </button>
 
       <input
         ref={inputRef}

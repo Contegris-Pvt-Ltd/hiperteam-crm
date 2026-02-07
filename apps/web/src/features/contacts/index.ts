@@ -1,3 +1,3 @@
-export * from './ContactsPage';
-export * from './ContactDetailPage';
-export * from './ContactEditPage';
+export { ContactsPage } from './ContactsPage';
+export { ContactDetailPage } from './ContactDetailPage';
+export { ContactEditPage } from './ContactEditPage';

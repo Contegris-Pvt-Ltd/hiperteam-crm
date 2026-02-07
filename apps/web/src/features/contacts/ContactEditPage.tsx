@@ -5,6 +5,9 @@ import { contactsApi } from '../../api/contacts.api';
 import type { CreateContactData, EmailEntry, PhoneEntry, AddressEntry, SocialProfiles } from '../../api/contacts.api';
 import { uploadApi } from '../../api/upload.api';
 import { AvatarUpload } from '../../components/shared/AvatarUpload';
+import { SearchableSelect } from '../../components/shared/SearchableSelect';
+import type { SelectOption } from '../../components/shared/SearchableSelect';
+import { accountsApi } from '../../api/accounts.api';
 
 type TabType = 'basic' | 'contact' | 'address' | 'social' | 'other';
 
@@ -22,6 +25,9 @@ export function ContactEditPage() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('basic');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  // Selected account for linking
+  const [selectedAccount, setSelectedAccount] = useState<SelectOption | null>(null);
 
   const [formData, setFormData] = useState<CreateContactData>({
     firstName: '',
@@ -63,9 +69,42 @@ export function ContactEditPage() {
     setLoading(true);
     try {
       const contact = await contactsApi.getOne(id);
+      
+      // Map emails - ensure we have proper array
+      const mappedEmails: EmailEntry[] = Array.isArray(contact.emails) 
+        ? contact.emails.map(e => ({
+            type: e.type || 'work',
+            email: e.email || '',
+            primary: e.primary || false
+          }))
+        : [];
+
+      // Map phones - ensure we have proper array
+      const mappedPhones: PhoneEntry[] = Array.isArray(contact.phones)
+        ? contact.phones.map(p => ({
+            type: p.type || 'mobile',
+            number: p.number || '',
+            primary: p.primary || false
+          }))
+        : [];
+
+      // Map addresses - ensure we have proper array
+      const mappedAddresses: AddressEntry[] = Array.isArray(contact.addresses)
+        ? contact.addresses.map(a => ({
+            type: a.type || 'work',
+            line1: a.line1 || '',
+            line2: a.line2 || '',
+            city: a.city || '',
+            state: a.state || '',
+            postalCode: a.postalCode || '',
+            country: a.country || '',
+            primary: a.primary || false
+          }))
+        : [];
+
       setFormData({
-        firstName: contact.firstName,
-        lastName: contact.lastName,
+        firstName: contact.firstName || '',
+        lastName: contact.lastName || '',
         email: contact.email || '',
         phone: contact.phone || '',
         mobile: contact.mobile || '',
@@ -78,25 +117,69 @@ export function ContactEditPage() {
         state: contact.state || '',
         postalCode: contact.postalCode || '',
         country: contact.country || '',
-        emails: contact.emails || [],
-        phones: contact.phones || [],
-        addresses: contact.addresses || [],
+        emails: mappedEmails,
+        phones: mappedPhones,
+        addresses: mappedAddresses,
         source: contact.source || '',
         tags: contact.tags || [],
         notes: contact.notes || '',
         socialProfiles: contact.socialProfiles || {},
-        doNotContact: contact.doNotContact,
-        doNotEmail: contact.doNotEmail,
-        doNotCall: contact.doNotCall,
+        doNotContact: contact.doNotContact || false,
+        doNotEmail: contact.doNotEmail || false,
+        doNotCall: contact.doNotCall || false,
         accountId: contact.accountId || undefined,
         ownerId: contact.ownerId || undefined,
       });
-      setAvatarUrl(contact.avatarUrl);
+      setAvatarUrl(contact.avatarUrl || null);
+
+      // If contact has an account linked, fetch and set it
+      if (contact.accountId && contact.account) {
+        setSelectedAccount({
+          id: contact.accountId,
+          label: contact.account.name,
+          sublabel: contact.account.industry || undefined,
+          imageUrl: contact.account.logoUrl || undefined,
+        });
+      } else if (contact.company) {
+        // If just company name, show it but no account linked
+        setSelectedAccount(null);
+      }
+
+      // Also check linked accounts
+      try {
+        const linkedAccounts = await contactsApi.getAccounts(id);
+        if (linkedAccounts.length > 0) {
+          const primaryAccount = linkedAccounts.find(a => a.isPrimary) || linkedAccounts[0];
+          setSelectedAccount({
+            id: primaryAccount.id,
+            label: primaryAccount.name,
+            sublabel: primaryAccount.role || undefined,
+            imageUrl: primaryAccount.logoUrl || undefined,
+          });
+        }
+      } catch (e) {
+        // Ignore if no linked accounts
+      }
     } catch (error) {
       console.error('Failed to fetch contact:', error);
       navigate('/contacts');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSearchAccounts = async (query: string): Promise<SelectOption[]> => {
+    try {
+      const response = await accountsApi.getAll({ search: query, limit: 10 });
+      return response.data.map(account => ({
+        id: account.id,
+        label: account.name,
+        sublabel: account.industry || account.accountType,
+        imageUrl: account.logoUrl || undefined,
+      }));
+    } catch (error) {
+      console.error('Failed to search accounts:', error);
+      return [];
     }
   };
 
@@ -110,12 +193,30 @@ export function ContactEditPage() {
       if (avatarUrl) {
         dataToSave.avatarUrl = avatarUrl;
       }
+      
+      // Set company name from selected account if available
+      if (selectedAccount) {
+        dataToSave.company = selectedAccount.label;
+        dataToSave.accountId = selectedAccount.id;
+      }
 
       if (isNew) {
         const contact = await contactsApi.create(dataToSave);
+        // Link to account if selected
+        if (selectedAccount) {
+          await contactsApi.linkAccount(contact.id, selectedAccount.id, '', true);
+        }
         navigate(`/contacts/${contact.id}`);
       } else {
         await contactsApi.update(id!, dataToSave);
+        // Update account link if changed
+        if (selectedAccount) {
+          try {
+            await contactsApi.linkAccount(id!, selectedAccount.id, '', true);
+          } catch (e) {
+            // May already be linked, ignore
+          }
+        }
         navigate(`/contacts/${id}`);
       }
     } catch (err: unknown) {
@@ -140,9 +241,10 @@ export function ContactEditPage() {
 
   const handleAvatarUpload = async (file: File): Promise<string> => {
     if (isNew) {
-      // For new contacts, we need to create first, then upload
-      // For now, just preview
-      return URL.createObjectURL(file);
+      // For new contacts, just preview locally
+      const url = URL.createObjectURL(file);
+      setAvatarUrl(url);
+      return url;
     }
     const result = await uploadApi.uploadAvatar('contacts', id!, file);
     setAvatarUrl(result.url);
@@ -151,7 +253,8 @@ export function ContactEditPage() {
 
   // Email handlers
   const addEmail = () => {
-    handleChange('emails', [...(formData.emails || []), { type: 'work', email: '', primary: formData.emails?.length === 0 }]);
+    const currentEmails = formData.emails || [];
+    handleChange('emails', [...currentEmails, { type: 'work', email: '', primary: currentEmails.length === 0 }]);
   };
 
   const updateEmail = (index: number, field: keyof EmailEntry, value: string | boolean) => {
@@ -164,12 +267,13 @@ export function ContactEditPage() {
   };
 
   const removeEmail = (index: number) => {
-    handleChange('emails', formData.emails?.filter((_, i) => i !== index));
+    handleChange('emails', (formData.emails || []).filter((_, i) => i !== index));
   };
 
   // Phone handlers
   const addPhone = () => {
-    handleChange('phones', [...(formData.phones || []), { type: 'mobile', number: '', primary: formData.phones?.length === 0 }]);
+    const currentPhones = formData.phones || [];
+    handleChange('phones', [...currentPhones, { type: 'mobile', number: '', primary: currentPhones.length === 0 }]);
   };
 
   const updatePhone = (index: number, field: keyof PhoneEntry, value: string | boolean) => {
@@ -182,14 +286,15 @@ export function ContactEditPage() {
   };
 
   const removePhone = (index: number) => {
-    handleChange('phones', formData.phones?.filter((_, i) => i !== index));
+    handleChange('phones', (formData.phones || []).filter((_, i) => i !== index));
   };
 
   // Address handlers
   const addAddress = () => {
-    handleChange('addresses', [...(formData.addresses || []), { 
+    const currentAddresses = formData.addresses || [];
+    handleChange('addresses', [...currentAddresses, { 
       type: 'work', line1: '', line2: '', city: '', state: '', postalCode: '', country: '', 
-      primary: formData.addresses?.length === 0 
+      primary: currentAddresses.length === 0 
     }]);
   };
 
@@ -203,7 +308,7 @@ export function ContactEditPage() {
   };
 
   const removeAddress = (index: number) => {
-    handleChange('addresses', formData.addresses?.filter((_, i) => i !== index));
+    handleChange('addresses', (formData.addresses || []).filter((_, i) => i !== index));
   };
 
   // Tag handlers
@@ -348,31 +453,64 @@ export function ContactEditPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                      Company
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.company}
-                      onChange={e => handleChange('company', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Acme Corp"
+                {/* Account Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                    Company / Account
+                  </label>
+                  {selectedAccount ? (
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center gap-3">
+                      {selectedAccount.imageUrl ? (
+                        <img src={selectedAccount.imageUrl} alt="" className="w-10 h-10 rounded-xl object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center text-white font-semibold">
+                          {selectedAccount.label[0]}
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 dark:text-white">{selectedAccount.label}</p>
+                        {selectedAccount.sublabel && (
+                          <p className="text-sm text-gray-500 dark:text-slate-400">{selectedAccount.sublabel}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedAccount(null);
+                          handleChange('company', '');
+                        }}
+                        className="p-2 text-gray-400 hover:text-red-600 rounded-lg"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <SearchableSelect
+                      placeholder="Search for a company..."
+                      onSearch={handleSearchAccounts}
+                      onSelect={(option) => {
+                        setSelectedAccount(option);
+                        handleChange('company', option.label);
+                      }}
+                      minSearchLength={2}
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                      Job Title
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.jobTitle}
-                      onChange={e => handleChange('jobTitle', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="VP of Sales"
-                    />
-                  </div>
+                  )}
+                  <p className="mt-1.5 text-xs text-gray-500 dark:text-slate-400">
+                    Search and link to an existing account, or leave empty
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                    Job Title
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.jobTitle}
+                    onChange={e => handleChange('jobTitle', e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="VP of Sales"
+                  />
                 </div>
 
                 <div>
@@ -417,7 +555,7 @@ export function ContactEditPage() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      Email Addresses
+                      Email Addresses ({(formData.emails || []).length})
                     </label>
                     <button
                       type="button"
@@ -427,7 +565,7 @@ export function ContactEditPage() {
                       <Plus className="w-4 h-4" /> Add Email
                     </button>
                   </div>
-                  {formData.emails?.length === 0 ? (
+                  {(formData.emails || []).length === 0 ? (
                     <button
                       type="button"
                       onClick={addEmail}
@@ -437,10 +575,10 @@ export function ContactEditPage() {
                     </button>
                   ) : (
                     <div className="space-y-3">
-                      {formData.emails?.map((email, index) => (
-                        <div key={index} className="flex gap-2">
+                      {(formData.emails || []).map((email, index) => (
+                        <div key={index} className="flex gap-2 items-center">
                           <select
-                            value={email.type}
+                            value={email.type || 'work'}
                             onChange={e => updateEmail(index, 'type', e.target.value)}
                             className="w-32 px-3 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
                           >
@@ -450,7 +588,7 @@ export function ContactEditPage() {
                           </select>
                           <input
                             type="email"
-                            value={email.email}
+                            value={email.email || ''}
                             onChange={e => updateEmail(index, 'email', e.target.value)}
                             className="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="email@example.com"
@@ -481,7 +619,7 @@ export function ContactEditPage() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      Phone Numbers
+                      Phone Numbers ({(formData.phones || []).length})
                     </label>
                     <button
                       type="button"
@@ -491,7 +629,7 @@ export function ContactEditPage() {
                       <Plus className="w-4 h-4" /> Add Phone
                     </button>
                   </div>
-                  {formData.phones?.length === 0 ? (
+                  {(formData.phones || []).length === 0 ? (
                     <button
                       type="button"
                       onClick={addPhone}
@@ -501,10 +639,10 @@ export function ContactEditPage() {
                     </button>
                   ) : (
                     <div className="space-y-3">
-                      {formData.phones?.map((phone, index) => (
-                        <div key={index} className="flex gap-2">
+                      {(formData.phones || []).map((phone, index) => (
+                        <div key={index} className="flex gap-2 items-center">
                           <select
-                            value={phone.type}
+                            value={phone.type || 'mobile'}
                             onChange={e => updatePhone(index, 'type', e.target.value)}
                             className="w-32 px-3 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
                           >
@@ -514,7 +652,7 @@ export function ContactEditPage() {
                           </select>
                           <input
                             type="tel"
-                            value={phone.number}
+                            value={phone.number || ''}
                             onChange={e => updatePhone(index, 'number', e.target.value)}
                             className="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="+1 555-123-4567"
@@ -547,7 +685,7 @@ export function ContactEditPage() {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                    Addresses
+                    Addresses ({(formData.addresses || []).length})
                   </label>
                   <button
                     type="button"
@@ -557,7 +695,7 @@ export function ContactEditPage() {
                     <Plus className="w-4 h-4" /> Add Address
                   </button>
                 </div>
-                {formData.addresses?.length === 0 ? (
+                {(formData.addresses || []).length === 0 ? (
                   <button
                     type="button"
                     onClick={addAddress}
@@ -567,12 +705,12 @@ export function ContactEditPage() {
                   </button>
                 ) : (
                   <div className="space-y-4">
-                    {formData.addresses?.map((address, index) => (
+                    {(formData.addresses || []).map((address, index) => (
                       <div key={index} className="p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <select
-                              value={address.type}
+                              value={address.type || 'work'}
                               onChange={e => updateAddress(index, 'type', e.target.value)}
                               className="px-3 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-sm text-gray-900 dark:text-white"
                             >

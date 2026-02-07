@@ -6,6 +6,8 @@ import type { CreateAccountData } from '../../api/accounts.api';
 import type { EmailEntry, PhoneEntry, AddressEntry, SocialProfiles } from '../../api/contacts.api';
 import { uploadApi } from '../../api/upload.api';
 import { AvatarUpload } from '../../components/shared/AvatarUpload';
+import { SearchableSelect } from '../../components/shared/SearchableSelect';
+import type { SelectOption } from '../../components/shared/SearchableSelect';
 
 type TabType = 'basic' | 'contact' | 'address' | 'social' | 'other';
 
@@ -33,6 +35,9 @@ export function AccountEditPage() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('basic');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  // Parent account selection
+  const [selectedParentAccount, setSelectedParentAccount] = useState<SelectOption | null>(null);
 
   const [formData, setFormData] = useState<CreateAccountData>({
     name: '',
@@ -62,16 +67,49 @@ export function AccountEditPage() {
     setLoading(true);
     try {
       const account = await accountsApi.getOne(id);
+      
+      // Map emails
+      const mappedEmails: EmailEntry[] = Array.isArray(account.emails)
+        ? account.emails.map(e => ({
+            type: e.type || 'general',
+            email: e.email || '',
+            primary: e.primary || false
+          }))
+        : [];
+
+      // Map phones
+      const mappedPhones: PhoneEntry[] = Array.isArray(account.phones)
+        ? account.phones.map(p => ({
+            type: p.type || 'main',
+            number: p.number || '',
+            primary: p.primary || false
+          }))
+        : [];
+
+      // Map addresses
+      const mappedAddresses: AddressEntry[] = Array.isArray(account.addresses)
+        ? account.addresses.map(a => ({
+            type: a.type || 'headquarters',
+            line1: a.line1 || '',
+            line2: a.line2 || '',
+            city: a.city || '',
+            state: a.state || '',
+            postalCode: a.postalCode || '',
+            country: a.country || '',
+            primary: a.primary || false
+          }))
+        : [];
+
       setFormData({
-        name: account.name,
+        name: account.name || '',
         website: account.website || '',
         industry: account.industry || '',
         companySize: account.companySize || '',
         annualRevenue: account.annualRevenue || undefined,
         description: account.description || '',
-        emails: account.emails || [],
-        phones: account.phones || [],
-        addresses: account.addresses || [],
+        emails: mappedEmails,
+        phones: mappedPhones,
+        addresses: mappedAddresses,
         socialProfiles: account.socialProfiles || {},
         parentAccountId: account.parentAccountId || undefined,
         accountType: account.accountType || 'prospect',
@@ -79,12 +117,40 @@ export function AccountEditPage() {
         source: account.source || undefined,
         ownerId: account.ownerId || undefined,
       });
-      setLogoUrl(account.logoUrl);
+      setLogoUrl(account.logoUrl || null);
+
+      // Set parent account if exists
+      if (account.parentAccountId && account.parentAccount) {
+        setSelectedParentAccount({
+          id: account.parentAccountId,
+          label: account.parentAccount.name,
+          sublabel: account.parentAccount.industry || undefined,
+          imageUrl: account.parentAccount.logoUrl || undefined,
+        });
+      }
     } catch (error) {
       console.error('Failed to fetch account:', error);
       navigate('/accounts');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSearchParentAccounts = async (query: string): Promise<SelectOption[]> => {
+    try {
+      const response = await accountsApi.getAll({ search: query, limit: 10 });
+      // Exclude current account from results
+      return response.data
+        .filter(account => account.id !== id)
+        .map(account => ({
+          id: account.id,
+          label: account.name,
+          sublabel: account.industry || account.accountType,
+          imageUrl: account.logoUrl || undefined,
+        }));
+    } catch (error) {
+      console.error('Failed to search accounts:', error);
+      return [];
     }
   };
 
@@ -97,6 +163,11 @@ export function AccountEditPage() {
       const dataToSave = { ...formData };
       if (logoUrl) {
         dataToSave.logoUrl = logoUrl;
+      }
+      if (selectedParentAccount) {
+        dataToSave.parentAccountId = selectedParentAccount.id;
+      } else {
+        dataToSave.parentAccountId = undefined;
       }
 
       if (isNew) {
@@ -128,7 +199,9 @@ export function AccountEditPage() {
 
   const handleLogoUpload = async (file: File): Promise<string> => {
     if (isNew) {
-      return URL.createObjectURL(file);
+      const url = URL.createObjectURL(file);
+      setLogoUrl(url);
+      return url;
     }
     const result = await uploadApi.uploadAvatar('accounts', id!, file);
     setLogoUrl(result.url);
@@ -137,7 +210,8 @@ export function AccountEditPage() {
 
   // Email handlers
   const addEmail = () => {
-    handleChange('emails', [...(formData.emails || []), { type: 'general', email: '', primary: formData.emails?.length === 0 }]);
+    const currentEmails = formData.emails || [];
+    handleChange('emails', [...currentEmails, { type: 'general', email: '', primary: currentEmails.length === 0 }]);
   };
 
   const updateEmail = (index: number, field: keyof EmailEntry, value: string | boolean) => {
@@ -150,12 +224,13 @@ export function AccountEditPage() {
   };
 
   const removeEmail = (index: number) => {
-    handleChange('emails', formData.emails?.filter((_, i) => i !== index));
+    handleChange('emails', (formData.emails || []).filter((_, i) => i !== index));
   };
 
   // Phone handlers
   const addPhone = () => {
-    handleChange('phones', [...(formData.phones || []), { type: 'main', number: '', primary: formData.phones?.length === 0 }]);
+    const currentPhones = formData.phones || [];
+    handleChange('phones', [...currentPhones, { type: 'main', number: '', primary: currentPhones.length === 0 }]);
   };
 
   const updatePhone = (index: number, field: keyof PhoneEntry, value: string | boolean) => {
@@ -168,14 +243,15 @@ export function AccountEditPage() {
   };
 
   const removePhone = (index: number) => {
-    handleChange('phones', formData.phones?.filter((_, i) => i !== index));
+    handleChange('phones', (formData.phones || []).filter((_, i) => i !== index));
   };
 
   // Address handlers
   const addAddress = () => {
-    handleChange('addresses', [...(formData.addresses || []), {
+    const currentAddresses = formData.addresses || [];
+    handleChange('addresses', [...currentAddresses, {
       type: 'headquarters', line1: '', line2: '', city: '', state: '', postalCode: '', country: '',
-      primary: formData.addresses?.length === 0
+      primary: currentAddresses.length === 0
     }]);
   };
 
@@ -189,7 +265,7 @@ export function AccountEditPage() {
   };
 
   const removeAddress = (index: number) => {
-    handleChange('addresses', formData.addresses?.filter((_, i) => i !== index));
+    handleChange('addresses', (formData.addresses || []).filter((_, i) => i !== index));
   };
 
   // Tag handlers
@@ -396,6 +472,47 @@ export function AccountEditPage() {
                   </div>
                 </div>
 
+                {/* Parent Account Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                    Parent Account
+                  </label>
+                  {selectedParentAccount ? (
+                    <div className="p-3 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-xl flex items-center gap-3">
+                      {selectedParentAccount.imageUrl ? (
+                        <img src={selectedParentAccount.imageUrl} alt="" className="w-10 h-10 rounded-xl object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-semibold">
+                          {selectedParentAccount.label[0]}
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 dark:text-white">{selectedParentAccount.label}</p>
+                        {selectedParentAccount.sublabel && (
+                          <p className="text-sm text-gray-500 dark:text-slate-400">{selectedParentAccount.sublabel}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedParentAccount(null)}
+                        className="p-2 text-gray-400 hover:text-red-600 rounded-lg"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <SearchableSelect
+                      placeholder="Search for a parent account..."
+                      onSearch={handleSearchParentAccounts}
+                      onSelect={setSelectedParentAccount}
+                      minSearchLength={2}
+                    />
+                  )}
+                  <p className="mt-1.5 text-xs text-gray-500 dark:text-slate-400">
+                    Optional: Link to a parent account for hierarchy
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
                     Description
@@ -417,22 +534,22 @@ export function AccountEditPage() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      Email Addresses
+                      Email Addresses ({(formData.emails || []).length})
                     </label>
                     <button type="button" onClick={addEmail} className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 flex items-center gap-1">
                       <Plus className="w-4 h-4" /> Add Email
                     </button>
                   </div>
-                  {formData.emails?.length === 0 ? (
+                  {(formData.emails || []).length === 0 ? (
                     <button type="button" onClick={addEmail} className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl text-gray-500 dark:text-slate-400 hover:border-gray-400 text-sm">
                       Click to add an email address
                     </button>
                   ) : (
                     <div className="space-y-3">
-                      {formData.emails?.map((email, index) => (
-                        <div key={index} className="flex gap-2">
+                      {(formData.emails || []).map((email, index) => (
+                        <div key={index} className="flex gap-2 items-center">
                           <select
-                            value={email.type}
+                            value={email.type || 'general'}
                             onChange={e => updateEmail(index, 'type', e.target.value)}
                             className="w-32 px-3 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm"
                           >
@@ -442,7 +559,7 @@ export function AccountEditPage() {
                           </select>
                           <input
                             type="email"
-                            value={email.email}
+                            value={email.email || ''}
                             onChange={e => updateEmail(index, 'email', e.target.value)}
                             className="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl"
                             placeholder="email@company.com"
@@ -463,21 +580,23 @@ export function AccountEditPage() {
                 {/* Phones */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Phone Numbers</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
+                      Phone Numbers ({(formData.phones || []).length})
+                    </label>
                     <button type="button" onClick={addPhone} className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 flex items-center gap-1">
                       <Plus className="w-4 h-4" /> Add Phone
                     </button>
                   </div>
-                  {formData.phones?.length === 0 ? (
+                  {(formData.phones || []).length === 0 ? (
                     <button type="button" onClick={addPhone} className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl text-gray-500 dark:text-slate-400 hover:border-gray-400 text-sm">
                       Click to add a phone number
                     </button>
                   ) : (
                     <div className="space-y-3">
-                      {formData.phones?.map((phone, index) => (
-                        <div key={index} className="flex gap-2">
+                      {(formData.phones || []).map((phone, index) => (
+                        <div key={index} className="flex gap-2 items-center">
                           <select
-                            value={phone.type}
+                            value={phone.type || 'main'}
                             onChange={e => updatePhone(index, 'type', e.target.value)}
                             className="w-32 px-3 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm"
                           >
@@ -487,7 +606,7 @@ export function AccountEditPage() {
                           </select>
                           <input
                             type="tel"
-                            value={phone.number}
+                            value={phone.number || ''}
                             onChange={e => updatePhone(index, 'number', e.target.value)}
                             className="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl"
                             placeholder="+1 555-123-4567"
@@ -510,23 +629,25 @@ export function AccountEditPage() {
             {activeTab === 'address' && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Addresses</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
+                    Addresses ({(formData.addresses || []).length})
+                  </label>
                   <button type="button" onClick={addAddress} className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 flex items-center gap-1">
                     <Plus className="w-4 h-4" /> Add Address
                   </button>
                 </div>
-                {formData.addresses?.length === 0 ? (
+                {(formData.addresses || []).length === 0 ? (
                   <button type="button" onClick={addAddress} className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl text-gray-500 dark:text-slate-400 hover:border-gray-400 text-sm">
                     Click to add an address
                   </button>
                 ) : (
                   <div className="space-y-4">
-                    {formData.addresses?.map((address, index) => (
+                    {(formData.addresses || []).map((address, index) => (
                       <div key={index} className="p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <select
-                              value={address.type}
+                              value={address.type || 'headquarters'}
                               onChange={e => updateAddress(index, 'type', e.target.value)}
                               className="px-3 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-sm"
                             >
