@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/auth.store';
+import { useThemeStore } from './stores/theme.store';
 import { Layout } from './components/layout';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegisterPage } from './features/auth/RegisterPage';
@@ -17,8 +18,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-gray-600">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-500 dark:text-slate-400 text-sm">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -32,10 +36,16 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   const checkAuth = useAuthStore((state) => state.checkAuth);
+  const { theme, setTheme } = useThemeStore();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // Initialize theme on mount
+  useEffect(() => {
+    setTheme(theme);
+  }, []);
 
   return (
     <BrowserRouter>

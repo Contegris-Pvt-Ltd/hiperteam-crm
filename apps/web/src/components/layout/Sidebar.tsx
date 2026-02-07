@@ -1,5 +1,6 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
+import { useSidebarStore } from '../../stores/sidebar.store';
 import {
   LayoutDashboard,
   Users,
@@ -9,7 +10,9 @@ import {
   Settings,
   Building2,
   TrendingUp,
-  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from 'lucide-react';
 
 const navigation = [
@@ -26,98 +29,156 @@ const adminNavigation = [
 ];
 
 export function Sidebar() {
-  const { user, tenant, logout } = useAuthStore();
+  const { user, tenant } = useAuthStore();
+  const { isCollapsed, isMobileOpen, toggle, setMobileOpen } = useSidebarStore();
+  const location = useLocation();
   const isAdmin = user?.role === 'admin';
 
-  return (
-    <aside className="w-64 bg-slate-900 text-white flex flex-col min-h-screen">
+  const sidebarContent = (
+    <>
       {/* Logo */}
-      <div className="h-16 flex items-center gap-3 px-4 border-b border-slate-700">
-        <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+      <div className={`h-16 flex items-center gap-3 px-4 border-b border-slate-700/50 dark:border-slate-700 ${isCollapsed ? 'justify-center' : ''}`}>
+        <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/25">
           <Building2 className="w-5 h-5 text-white" />
         </div>
-        <div>
-          <h1 className="font-semibold text-white leading-tight">HiperTeam</h1>
-          <p className="text-xs text-slate-400">CRM Platform</p>
-        </div>
+        {!isCollapsed && (
+          <div className="overflow-hidden">
+            <h1 className="font-bold text-white leading-tight">HiperTeam</h1>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest">CRM Platform</p>
+          </div>
+        )}
       </div>
 
       {/* Tenant Badge */}
-      <div className="px-4 py-3 border-b border-slate-700">
-        <div className="bg-slate-800 rounded-lg px-3 py-2">
-          <p className="text-xs text-slate-400">Workspace</p>
-          <p className="text-sm font-medium text-white truncate">{tenant?.name}</p>
+      {!isCollapsed && (
+        <div className="px-3 py-3">
+          <div className="bg-slate-800/50 dark:bg-slate-800 backdrop-blur rounded-xl px-3 py-2.5 border border-slate-700/50">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">Workspace</p>
+            <p className="text-sm font-semibold text-white truncate mt-0.5">{tenant?.name}</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        <p className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-          Main Menu
-        </p>
-        {navigation.map((item) => (
-          <NavLink
-            key={item.name}
-            to={item.href}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+      <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+        {!isCollapsed && (
+          <p className="px-3 mb-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+            Main Menu
+          </p>
+        )}
+        {navigation.map((item) => {
+          const isActive = location.pathname === item.href;
+          return (
+            <NavLink
+              key={item.name}
+              to={item.href}
+              onClick={() => setMobileOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative ${
                 isActive
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`
-            }
-          >
-            <item.icon className="w-5 h-5 flex-shrink-0" />
-            <span>{item.name}</span>
-          </NavLink>
-        ))}
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+              } ${isCollapsed ? 'justify-center' : ''}`}
+              title={isCollapsed ? item.name : undefined}
+            >
+              <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
+              {!isCollapsed && <span>{item.name}</span>}
+              {isCollapsed && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+                  {item.name}
+                </div>
+              )}
+            </NavLink>
+          );
+        })}
 
         {isAdmin && (
           <>
-            <p className="px-3 mt-6 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Administration
-            </p>
-            {adminNavigation.map((item) => (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+            {!isCollapsed && (
+              <p className="px-3 mt-6 mb-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                Administration
+              </p>
+            )}
+            {isCollapsed && <div className="my-4 border-t border-slate-700/50" />}
+            {adminNavigation.map((item) => {
+              const isActive = location.pathname === item.href;
+              return (
+                <NavLink
+                  key={item.name}
+                  to={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative ${
                     isActive
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`
-                }
-              >
-                <item.icon className="w-5 h-5 flex-shrink-0" />
-                <span>{item.name}</span>
-              </NavLink>
-            ))}
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25'
+                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+                  } ${isCollapsed ? 'justify-center' : ''}`}
+                  title={isCollapsed ? item.name : undefined}
+                >
+                  <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
+                  {!isCollapsed && <span>{item.name}</span>}
+                  {isCollapsed && (
+                    <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+                      {item.name}
+                    </div>
+                  )}
+                </NavLink>
+              );
+            })}
           </>
         )}
       </nav>
 
-      {/* User Section */}
-      <div className="p-3 border-t border-slate-700">
-        <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800">
-          <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">
-              {user?.firstName} {user?.lastName}
-            </p>
-            <p className="text-xs text-slate-400 capitalize">{user?.role}</p>
-          </div>
-          <button
-            onClick={logout}
-            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg transition-colors"
-            title="Logout"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
+      {/* Collapse Toggle - Desktop Only */}
+      <div className="hidden lg:block p-3 border-t border-slate-700/50">
+        <button
+          onClick={toggle}
+          className={`flex items-center gap-2 w-full px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all ${isCollapsed ? 'justify-center' : ''}`}
+        >
+          {isCollapsed ? (
+            <ChevronRight className="w-5 h-5" />
+          ) : (
+            <>
+              <ChevronLeft className="w-5 h-5" />
+              <span className="text-sm">Collapse</span>
+            </>
+          )}
+        </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile Overlay */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 dark:bg-slate-950 flex flex-col transform transition-transform duration-300 ease-in-out lg:hidden ${
+          isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        {sidebarContent}
+      </aside>
+
+      {/* Desktop Sidebar */}
+      <aside
+        className={`hidden lg:flex flex-col bg-slate-900 dark:bg-slate-950 transition-all duration-300 ease-in-out sticky top-0 h-screen ${
+          isCollapsed ? 'w-20' : 'w-64'
+        }`}
+      >
+        {sidebarContent}
+      </aside>
+    </>
   );
 }
