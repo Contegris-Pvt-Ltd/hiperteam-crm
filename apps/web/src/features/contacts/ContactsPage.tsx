@@ -1,24 +1,20 @@
 import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
-  Plus, Search, Filter, Download, MoreHorizontal, 
+  Plus, Search, Filter, Download, 
   Mail, Phone, Building2, ChevronLeft, ChevronRight,
-  Eye, Pencil, Trash2
+  Eye, Pencil, Trash2, Users
 } from 'lucide-react';
 import type { Contact, ContactsQuery } from '../../api/contacts.api';
 import { contactsApi } from '../../api/contacts.api';
-import { ContactModal } from './ContactModal';
-import { ContactDetailModal } from './ContactDetailModal';
 
 export function ContactsPage() {
+  const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 20, totalPages: 0 });
   const [query, setQuery] = useState<ContactsQuery>({ page: 1, limit: 20 });
   const [searchInput, setSearchInput] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [editMode, setEditMode] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,18 +43,6 @@ export function ContactsPage() {
     setQuery({ ...query, page: newPage });
   };
 
-  const handleViewContact = (contact: Contact) => {
-    setSelectedContact(contact);
-    setEditMode(false);
-    setShowDetailModal(true);
-  };
-
-  const handleEditContact = (contact: Contact) => {
-    setSelectedContact(contact);
-    setEditMode(true);
-    setShowDetailModal(true);
-  };
-
   const handleDeleteContact = async (id: string) => {
     try {
       await contactsApi.delete(id);
@@ -69,19 +53,6 @@ export function ContactsPage() {
     }
   };
 
-  const handleContactSaved = () => {
-    setShowCreateModal(false);
-    setShowDetailModal(false);
-    setSelectedContact(null);
-    fetchContacts();
-  };
-
-  const getProfileCompletionColor = (percentage: number) => {
-    if (percentage >= 80) return 'bg-emerald-500';
-    if (percentage >= 50) return 'bg-amber-500';
-    return 'bg-red-500';
-  };
-
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Page Header */}
@@ -89,16 +60,16 @@ export function ContactsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Contacts</h1>
           <p className="text-gray-500 dark:text-slate-400 mt-1">
-            Manage your contacts and relationships
+            {meta.total} contacts total
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
+        <Link
+          to="/contacts/new"
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-500/25"
         >
           <Plus className="w-4 h-4" />
           Add Contact
-        </button>
+        </Link>
       </div>
 
       {/* Filters Bar */}
@@ -149,19 +120,19 @@ export function ContactsPage() {
         ) : contacts.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Plus className="w-8 h-8 text-gray-400 dark:text-slate-500" />
+              <Users className="w-8 h-8 text-gray-400 dark:text-slate-500" />
             </div>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No contacts yet</h3>
             <p className="text-gray-500 dark:text-slate-400 mb-6 max-w-sm mx-auto">
-              Get started by adding your first contact to build your network.
+              Get started by adding your first contact.
             </p>
-            <button
-              onClick={() => setShowCreateModal(true)}
+            <Link
+              to="/contacts/new"
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700"
             >
               <Plus className="w-4 h-4" />
               Add Your First Contact
-            </button>
+            </Link>
           </div>
         ) : (
           <>
@@ -180,9 +151,6 @@ export function ContactsPage() {
                       Contact Info
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                      Profile
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
@@ -195,13 +163,21 @@ export function ContactsPage() {
                     <tr
                       key={contact.id}
                       className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-                      onClick={() => handleViewContact(contact)}
+                      onClick={() => navigate(`/contacts/${contact.id}`)}
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                            {contact.firstName[0]}{contact.lastName[0]}
-                          </div>
+                          {contact.avatarUrl ? (
+                            <img
+                              src={contact.avatarUrl}
+                              alt={`${contact.firstName} ${contact.lastName}`}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                              {contact.firstName[0]}{contact.lastName[0]}
+                            </div>
+                          )}
                           <div>
                             <p className="font-medium text-gray-900 dark:text-white">
                               {contact.firstName} {contact.lastName}
@@ -239,19 +215,6 @@ export function ContactsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full ${getProfileCompletionColor(contact.profileCompletion)} transition-all`}
-                              style={{ width: `${contact.profileCompletion}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-gray-500 dark:text-slate-400">
-                            {contact.profileCompletion}%
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${
                           contact.status === 'active'
                             ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
@@ -262,20 +225,20 @@ export function ContactsPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => handleViewContact(contact)}
+                          <Link
+                            to={`/contacts/${contact.id}`}
                             className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
                             title="View"
                           >
                             <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleEditContact(contact)}
+                          </Link>
+                          <Link
+                            to={`/contacts/${contact.id}/edit`}
                             className="p-2 text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
                             title="Edit"
                           >
                             <Pencil className="w-4 h-4" />
-                          </button>
+                          </Link>
                           <button
                             onClick={() => setShowDeleteConfirm(contact.id)}
                             className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
@@ -294,15 +257,23 @@ export function ContactsPage() {
             {/* Mobile Cards */}
             <div className="md:hidden divide-y divide-gray-100 dark:divide-slate-800">
               {contacts.map((contact) => (
-                <div
+                <Link
                   key={contact.id}
-                  className="p-4 hover:bg-gray-50 dark:hover:bg-slate-800/50"
-                  onClick={() => handleViewContact(contact)}
+                  to={`/contacts/${contact.id}`}
+                  className="block p-4 hover:bg-gray-50 dark:hover:bg-slate-800/50"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
-                      {contact.firstName[0]}{contact.lastName[0]}
-                    </div>
+                    {contact.avatarUrl ? (
+                      <img
+                        src={contact.avatarUrl}
+                        alt={`${contact.firstName} ${contact.lastName}`}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
+                        {contact.firstName[0]}{contact.lastName[0]}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 dark:text-white">
                         {contact.firstName} {contact.lastName}
@@ -313,29 +284,9 @@ export function ContactsPage() {
                       {contact.company && (
                         <p className="text-sm text-gray-500 dark:text-slate-400">{contact.company}</p>
                       )}
-                      <div className="flex items-center gap-2 mt-2">
-                        <div className="w-16 h-1.5 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${getProfileCompletionColor(contact.profileCompletion)}`}
-                            style={{ width: `${contact.profileCompletion}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-500 dark:text-slate-400">
-                          {contact.profileCompletion}%
-                        </span>
-                      </div>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Show mobile menu
-                      }}
-                      className="p-2 text-gray-400"
-                    >
-                      <MoreHorizontal className="w-5 h-5" />
-                    </button>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
 
@@ -343,7 +294,7 @@ export function ContactsPage() {
             {meta.totalPages > 1 && (
               <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between">
                 <p className="text-sm text-gray-500 dark:text-slate-400">
-                  Showing {((meta.page - 1) * meta.limit) + 1} to {Math.min(meta.page * meta.limit, meta.total)} of {meta.total} contacts
+                  Showing {((meta.page - 1) * meta.limit) + 1} to {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
                 </p>
                 <div className="flex items-center gap-2">
                   <button
@@ -354,7 +305,7 @@ export function ContactsPage() {
                     <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-slate-400" />
                   </button>
                   <span className="text-sm text-gray-600 dark:text-slate-400">
-                    Page {meta.page} of {meta.totalPages}
+                    {meta.page} / {meta.totalPages}
                   </span>
                   <button
                     onClick={() => handlePageChange(meta.page + 1)}
@@ -369,28 +320,6 @@ export function ContactsPage() {
           </>
         )}
       </div>
-
-      {/* Create Modal */}
-      {showCreateModal && (
-        <ContactModal
-          onClose={() => setShowCreateModal(false)}
-          onSaved={handleContactSaved}
-        />
-      )}
-
-      {/* Detail/Edit Modal */}
-      {showDetailModal && selectedContact && (
-        <ContactDetailModal
-          contact={selectedContact}
-          editMode={editMode}
-          onClose={() => {
-            setShowDetailModal(false);
-            setSelectedContact(null);
-          }}
-          onSaved={handleContactSaved}
-          onEdit={() => setEditMode(true)}
-        />
-      )}
 
       {/* Delete Confirmation */}
       {showDeleteConfirm && (

@@ -2,26 +2,42 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { CreateContactDto, UpdateContactDto, QueryContactsDto } from './dto';
 import { formatPhoneE164 } from '../../common/utils/phone.util';
-import { calculateProfileCompletion } from '../../common/utils/profile-completion.util';
+import { AuditService } from '../shared/audit.service';
+import { ActivityService } from '../shared/activity.service';
 
 @Injectable()
 export class ContactsService {
-  constructor(private dataSource: DataSource) {}
+  private readonly trackedFields = [
+    'firstName', 'lastName', 'email', 'phone', 'mobile', 'avatarUrl',
+    'company', 'jobTitle', 'website', 'emails', 'phones', 'addresses',
+    'socialProfiles', 'status', 'tags', 'customFields', 'ownerId',
+    'doNotContact', 'doNotEmail', 'doNotCall',
+  ];
+
+  constructor(
+    private dataSource: DataSource,
+    private auditService: AuditService,
+    private activityService: ActivityService,
+  ) {}
 
   async create(schemaName: string, userId: string, dto: CreateContactDto) {
     const country = dto.country || 'PK';
-    
-    // Calculate profile completion before insert
-    const profileData = this.buildProfileDataFromDto(dto);
-    const { percentage } = calculateProfileCompletion(profileData);
+
+    // Format phones in the phones array
+    const formattedPhones = dto.phones?.map(p => ({
+      ...p,
+      number: formatPhoneE164(p.number, country) || p.number,
+    })) || [];
 
     const [contact] = await this.dataSource.query(
       `INSERT INTO "${schemaName}".contacts 
-       (first_name, last_name, email, phone, mobile, company, job_title, website,
+       (first_name, last_name, email, phone, mobile, avatar_url,
+        company, job_title, website,
         address_line1, address_line2, city, state, postal_code, country,
+        emails, phones, addresses,
         source, lead_source_details, tags, notes, custom_fields, social_profiles,
-        do_not_contact, do_not_email, do_not_call, account_id, owner_id, created_by, profile_completion)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+        do_not_contact, do_not_email, do_not_call, account_id, owner_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
        RETURNING *`,
       [
         dto.firstName,
@@ -29,6 +45,7 @@ export class ContactsService {
         dto.email?.toLowerCase() || null,
         dto.phone ? formatPhoneE164(dto.phone, country) : null,
         dto.mobile ? formatPhoneE164(dto.mobile, country) : null,
+        dto.avatarUrl || null,
         dto.company || null,
         dto.jobTitle || null,
         dto.website || null,
@@ -38,6 +55,9 @@ export class ContactsService {
         dto.state || null,
         dto.postalCode || null,
         dto.country || null,
+        JSON.stringify(dto.emails || []),
+        JSON.stringify(formattedPhones),
+        JSON.stringify(dto.addresses || []),
         dto.source || null,
         dto.leadSourceDetails || {},
         dto.tags || [],
@@ -50,15 +70,36 @@ export class ContactsService {
         dto.accountId || null,
         dto.ownerId || userId,
         userId,
-        percentage,
       ],
     );
 
-    return this.formatContact(contact);
+    const formatted = this.formatContact(contact);
+
+    // Log activity
+    await this.activityService.create(schemaName, {
+      entityType: 'contacts',
+      entityId: contact.id,
+      activityType: 'created',
+      title: 'Contact created',
+      description: `Contact "${dto.firstName} ${dto.lastName}" was created`,
+      performedBy: userId,
+    });
+
+    // Audit log
+    await this.auditService.log(schemaName, {
+      entityType: 'contacts',
+      entityId: contact.id,
+      action: 'create',
+      changes: {},
+      newValues: formatted,
+      performedBy: userId,
+    });
+
+    return formatted;
   }
 
   async findAll(schemaName: string, query: QueryContactsDto) {
-    const { search, status, company, tag, ownerId, page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC' } = query;
+    const { search, status, company, tag, ownerId, accountId, page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC' } = query;
     const offset = (page - 1) * limit;
 
     let whereClause = 'c.deleted_at IS NULL';
@@ -95,7 +136,13 @@ export class ContactsService {
       paramIndex++;
     }
 
-    const allowedSortFields = ['created_at', 'updated_at', 'first_name', 'last_name', 'email', 'company', 'profile_completion'];
+    if (accountId) {
+      whereClause += ` AND c.account_id = $${paramIndex}`;
+      params.push(accountId);
+      paramIndex++;
+    }
+
+    const allowedSortFields = ['created_at', 'updated_at', 'first_name', 'last_name', 'email', 'company'];
     const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
     const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
 
@@ -105,9 +152,11 @@ export class ContactsService {
     const dataQuery = `
       SELECT c.*, 
              u.first_name as owner_first_name, 
-             u.last_name as owner_last_name
+             u.last_name as owner_last_name,
+             a.name as account_name
       FROM "${schemaName}".contacts c
       LEFT JOIN "${schemaName}".users u ON c.owner_id = u.id
+      LEFT JOIN "${schemaName}".accounts a ON c.account_id = a.id
       WHERE ${whereClause}
       ORDER BY c.${safeSortBy} ${safeSortOrder}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -131,9 +180,11 @@ export class ContactsService {
     const [contact] = await this.dataSource.query(
       `SELECT c.*, 
               u.first_name as owner_first_name, 
-              u.last_name as owner_last_name
+              u.last_name as owner_last_name,
+              a.name as account_name
        FROM "${schemaName}".contacts c
        LEFT JOIN "${schemaName}".users u ON c.owner_id = u.id
+       LEFT JOIN "${schemaName}".accounts a ON c.account_id = a.id
        WHERE c.id = $1 AND c.deleted_at IS NULL`,
       [id],
     );
@@ -142,13 +193,20 @@ export class ContactsService {
       throw new NotFoundException('Contact not found');
     }
 
-    return this.formatContact(contact, true);
+    return this.formatContact(contact);
   }
 
-  async update(schemaName: string, id: string, dto: UpdateContactDto) {
-    // First get the existing contact
+  async update(schemaName: string, id: string, userId: string, dto: UpdateContactDto) {
     const existing = await this.findOne(schemaName, id);
     const country = dto.country || (existing.country as string) || 'PK';
+
+    // Format phones in the phones array if provided
+    if (dto.phones) {
+      dto.phones = dto.phones.map(p => ({
+        ...p,
+        number: formatPhoneE164(p.number, country) || p.number,
+      }));
+    }
 
     const updates: string[] = [];
     const params: unknown[] = [];
@@ -160,6 +218,7 @@ export class ContactsService {
       email: 'email',
       phone: 'phone',
       mobile: 'mobile',
+      avatarUrl: 'avatar_url',
       company: 'company',
       jobTitle: 'job_title',
       website: 'website',
@@ -169,6 +228,9 @@ export class ContactsService {
       state: 'state',
       postalCode: 'postal_code',
       country: 'country',
+      emails: 'emails',
+      phones: 'phones',
+      addresses: 'addresses',
       source: 'source',
       leadSourceDetails: 'lead_source_details',
       status: 'status',
@@ -191,6 +253,8 @@ export class ContactsService {
           params.push(formatPhoneE164(value as string, country));
         } else if (key === 'email') {
           params.push((value as string).toLowerCase());
+        } else if (['emails', 'phones', 'addresses'].includes(key)) {
+          params.push(JSON.stringify(value));
         } else {
           params.push(value);
         }
@@ -201,15 +265,6 @@ export class ContactsService {
     if (updates.length === 0) {
       return existing;
     }
-
-    // Recalculate profile completion with merged data
-    const mergedData = { ...existing, ...dto };
-    const profileData = this.buildProfileDataFromRecord(mergedData);
-    const { percentage } = calculateProfileCompletion(profileData);
-
-    updates.push(`profile_completion = $${paramIndex}`);
-    params.push(percentage);
-    paramIndex++;
 
     updates.push(`updated_at = NOW()`);
     params.push(id);
@@ -226,79 +281,143 @@ export class ContactsService {
       throw new NotFoundException('Contact not found');
     }
 
-    return this.formatContact(contact, true);
+    const formatted = this.formatContact(contact);
+
+    // Calculate changes for audit
+    const changes = this.auditService.calculateChanges(existing, formatted, this.trackedFields);
+
+    if (Object.keys(changes).length > 0) {
+      await this.activityService.create(schemaName, {
+        entityType: 'contacts',
+        entityId: id,
+        activityType: 'updated',
+        title: 'Contact updated',
+        description: `Updated: ${Object.keys(changes).join(', ')}`,
+        metadata: { changedFields: Object.keys(changes) },
+        performedBy: userId,
+      });
+
+      await this.auditService.log(schemaName, {
+        entityType: 'contacts',
+        entityId: id,
+        action: 'update',
+        changes,
+        previousValues: existing,
+        newValues: formatted,
+        performedBy: userId,
+      });
+    }
+
+    return formatted;
   }
 
-  async remove(schemaName: string, id: string) {
-    const [contact] = await this.dataSource.query(
-      `UPDATE "${schemaName}".contacts 
-       SET deleted_at = NOW()
-       WHERE id = $1 AND deleted_at IS NULL
-       RETURNING id`,
+  async remove(schemaName: string, id: string, userId: string) {
+    const existing = await this.findOne(schemaName, id);
+
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".contacts SET deleted_at = NOW() WHERE id = $1`,
       [id],
     );
 
-    if (!contact) {
-      throw new NotFoundException('Contact not found');
-    }
+    await this.activityService.create(schemaName, {
+      entityType: 'contacts',
+      entityId: id,
+      activityType: 'deleted',
+      title: 'Contact deleted',
+      description: `Contact "${existing.firstName} ${existing.lastName}" was deleted`,
+      performedBy: userId,
+    });
+
+    await this.auditService.log(schemaName, {
+      entityType: 'contacts',
+      entityId: id,
+      action: 'delete',
+      changes: {},
+      previousValues: existing,
+      performedBy: userId,
+    });
 
     return { message: 'Contact deleted successfully' };
   }
 
-  async getProfileCompletionDetails(schemaName: string, id: string) {
-    const contact = await this.findOne(schemaName, id);
-    const profileData = this.buildProfileDataFromRecord(contact);
-    return calculateProfileCompletion(profileData);
+  async getAccounts(schemaName: string, contactId: string) {
+    const accounts = await this.dataSource.query(
+      `SELECT a.id, a.name, a.logo_url, a.website, a.industry, ca.role, ca.is_primary
+       FROM "${schemaName}".accounts a
+       INNER JOIN "${schemaName}".contact_accounts ca ON a.id = ca.account_id
+       WHERE ca.contact_id = $1 AND a.deleted_at IS NULL
+       ORDER BY ca.is_primary DESC, a.name ASC`,
+      [contactId],
+    );
+
+    return accounts.map((a: Record<string, unknown>) => ({
+      id: a.id,
+      name: a.name,
+      logoUrl: a.logo_url,
+      website: a.website,
+      industry: a.industry,
+      role: a.role,
+      isPrimary: a.is_primary,
+    }));
   }
 
-  private buildProfileDataFromDto(dto: CreateContactDto): Record<string, unknown> {
+  async linkAccount(
+    schemaName: string,
+    contactId: string,
+    accountId: string,
+    role: string,
+    isPrimary: boolean,
+    userId: string,
+  ) {
+    await this.dataSource.query(
+      `INSERT INTO "${schemaName}".contact_accounts (contact_id, account_id, role, is_primary)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (contact_id, account_id) 
+       DO UPDATE SET role = $3, is_primary = $4`,
+      [contactId, accountId, role || null, isPrimary || false],
+    );
+
+    await this.activityService.create(schemaName, {
+      entityType: 'contacts',
+      entityId: contactId,
+      activityType: 'account_linked',
+      title: 'Account linked',
+      relatedType: 'accounts',
+      relatedId: accountId,
+      performedBy: userId,
+    });
+
+    return { message: 'Account linked successfully' };
+  }
+
+  async unlinkAccount(schemaName: string, contactId: string, accountId: string, userId: string) {
+    await this.dataSource.query(
+      `DELETE FROM "${schemaName}".contact_accounts WHERE contact_id = $1 AND account_id = $2`,
+      [contactId, accountId],
+    );
+
+    await this.activityService.create(schemaName, {
+      entityType: 'contacts',
+      entityId: contactId,
+      activityType: 'account_unlinked',
+      title: 'Account unlinked',
+      relatedType: 'accounts',
+      relatedId: accountId,
+      performedBy: userId,
+    });
+
+    return { message: 'Account unlinked successfully' };
+  }
+
+  private formatContact(contact: Record<string, unknown>): Record<string, unknown> {
     return {
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      email: dto.email,
-      phone: dto.phone,
-      mobile: dto.mobile,
-      company: dto.company,
-      jobTitle: dto.jobTitle,
-      website: dto.website,
-      addressLine1: dto.addressLine1,
-      city: dto.city,
-      state: dto.state,
-      country: dto.country,
-      postalCode: dto.postalCode,
-      source: dto.source,
-      socialProfiles: dto.socialProfiles || {},
-    };
-  }
-
-  private buildProfileDataFromRecord(data: Record<string, unknown>): Record<string, unknown> {
-    return {
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
-      phone: data.phone,
-      mobile: data.mobile,
-      company: data.company,
-      jobTitle: data.jobTitle,
-      website: data.website,
-      addressLine1: data.addressLine1,
-      city: data.city,
-      state: data.state,
-      country: data.country,
-      postalCode: data.postalCode,
-      source: data.source,
-      socialProfiles: data.socialProfiles || {},
-    };
-  }
-
-  private formatContact(contact: Record<string, unknown>, includeCompletionDetails = false): Record<string, unknown> {
-    const formatted: Record<string, unknown> = {
       id: contact.id,
       firstName: contact.first_name,
       lastName: contact.last_name,
       email: contact.email,
       phone: contact.phone,
       mobile: contact.mobile,
+      avatarUrl: contact.avatar_url,
       company: contact.company,
       jobTitle: contact.job_title,
       website: contact.website,
@@ -308,6 +427,9 @@ export class ContactsService {
       state: contact.state,
       postalCode: contact.postal_code,
       country: contact.country,
+      emails: typeof contact.emails === 'string' ? JSON.parse(contact.emails) : (contact.emails || []),
+      phones: typeof contact.phones === 'string' ? JSON.parse(contact.phones) : (contact.phones || []),
+      addresses: typeof contact.addresses === 'string' ? JSON.parse(contact.addresses) : (contact.addresses || []),
       source: contact.source,
       leadSourceDetails: contact.lead_source_details,
       status: contact.status,
@@ -318,24 +440,18 @@ export class ContactsService {
       doNotContact: contact.do_not_contact,
       doNotEmail: contact.do_not_email,
       doNotCall: contact.do_not_call,
-      profileCompletion: contact.profile_completion,
       accountId: contact.account_id,
+      account: contact.account_name
+        ? { id: contact.account_id, name: contact.account_name }
+        : null,
       ownerId: contact.owner_id,
       owner: contact.owner_first_name
-        ? { firstName: contact.owner_first_name, lastName: contact.owner_last_name }
+        ? { id: contact.owner_id, firstName: contact.owner_first_name, lastName: contact.owner_last_name }
         : null,
       createdBy: contact.created_by,
       lastActivityAt: contact.last_activity_at,
       createdAt: contact.created_at,
       updatedAt: contact.updated_at,
     };
-
-    if (includeCompletionDetails) {
-      const profileData = this.buildProfileDataFromRecord(formatted);
-      const completionDetails = calculateProfileCompletion(profileData);
-      formatted.profileCompletionDetails = completionDetails;
-    }
-
-    return formatted;
   }
 }

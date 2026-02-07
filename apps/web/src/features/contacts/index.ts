@@ -1,3 +1,3 @@
 export * from './ContactsPage';
-export * from './ContactModal';
-export * from './ContactDetailModal';
+export * from './ContactDetailPage';
+export * from './ContactEditPage';

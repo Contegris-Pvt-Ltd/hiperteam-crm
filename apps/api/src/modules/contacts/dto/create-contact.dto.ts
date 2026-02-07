@@ -1,5 +1,87 @@
-import { IsString, IsEmail, IsOptional, IsArray, IsObject, MaxLength, IsUUID, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  IsOptional,
+  IsArray,
+  IsObject,
+  MaxLength,
+  IsUUID,
+  IsBoolean,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class EmailDto {
+  @ApiProperty({ example: 'work' })
+  @IsString()
+  type: string;
+
+  @ApiProperty({ example: 'john@example.com' })
+  @IsEmail()
+  email: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsBoolean()
+  @IsOptional()
+  primary?: boolean;
+}
+
+export class PhoneDto {
+  @ApiProperty({ example: 'mobile' })
+  @IsString()
+  type: string;
+
+  @ApiProperty({ example: '+1 555-123-4567' })
+  @IsString()
+  number: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsBoolean()
+  @IsOptional()
+  primary?: boolean;
+}
+
+export class AddressDto {
+  @ApiProperty({ example: 'home' })
+  @IsString()
+  type: string;
+
+  @ApiPropertyOptional({ example: '123 Main St' })
+  @IsString()
+  @IsOptional()
+  line1?: string;
+
+  @ApiPropertyOptional({ example: 'Apt 4B' })
+  @IsString()
+  @IsOptional()
+  line2?: string;
+
+  @ApiPropertyOptional({ example: 'San Francisco' })
+  @IsString()
+  @IsOptional()
+  city?: string;
+
+  @ApiPropertyOptional({ example: 'CA' })
+  @IsString()
+  @IsOptional()
+  state?: string;
+
+  @ApiPropertyOptional({ example: '94102' })
+  @IsString()
+  @IsOptional()
+  postalCode?: string;
+
+  @ApiPropertyOptional({ example: 'USA' })
+  @IsString()
+  @IsOptional()
+  country?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsBoolean()
+  @IsOptional()
+  primary?: boolean;
+}
 
 export class SocialProfilesDto {
   @ApiPropertyOptional({ example: 'https://linkedin.com/in/johndoe' })
@@ -83,6 +165,11 @@ export class CreateContactDto {
   @MaxLength(50)
   mobile?: string;
 
+  @ApiPropertyOptional({ example: 'https://cdn.example.com/avatar.jpg' })
+  @IsString()
+  @IsOptional()
+  avatarUrl?: string;
+
   @ApiPropertyOptional({ example: 'Acme Corp' })
   @IsString()
   @IsOptional()
@@ -101,6 +188,7 @@ export class CreateContactDto {
   @MaxLength(255)
   website?: string;
 
+  // Legacy single address fields (for backward compatibility)
   @ApiPropertyOptional({ example: '123 Main St' })
   @IsString()
   @IsOptional()
@@ -136,6 +224,28 @@ export class CreateContactDto {
   @IsOptional()
   @MaxLength(100)
   country?: string;
+
+  // Multiple emails, phones, addresses
+  @ApiPropertyOptional({ type: [EmailDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EmailDto)
+  @IsOptional()
+  emails?: EmailDto[];
+
+  @ApiPropertyOptional({ type: [PhoneDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PhoneDto)
+  @IsOptional()
+  phones?: PhoneDto[];
+
+  @ApiPropertyOptional({ type: [AddressDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AddressDto)
+  @IsOptional()
+  addresses?: AddressDto[];
 
   @ApiPropertyOptional({ example: 'Website' })
   @IsString()

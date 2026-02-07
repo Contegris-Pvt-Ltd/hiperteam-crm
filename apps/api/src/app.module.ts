@@ -8,6 +8,9 @@ import { Tenant } from './database/entities/tenant.entity';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
+import { AccountsModule } from './modules/accounts/accounts.module';
+import { SharedModule } from './modules/shared/shared.module';
+import { UploadModule } from './modules/upload/upload.module';
 
 @Module({
   imports: [
@@ -30,9 +33,12 @@ import { ContactsModule } from './modules/contacts/contacts.module';
         logging: process.env.NODE_ENV === 'development',
       }),
     }),
+    SharedModule,
     TenantModule,
     AuthModule,
     ContactsModule,
+    AccountsModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

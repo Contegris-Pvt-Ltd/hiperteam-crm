@@ -2,8 +2,8 @@ import { IsOptional, IsString, IsInt, Min, Max, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-export class QueryContactsDto {
-  @ApiPropertyOptional({ example: 'john' })
+export class QueryAccountsDto {
+  @ApiPropertyOptional({ example: 'acme' })
   @IsString()
   @IsOptional()
   search?: string;
@@ -13,12 +13,17 @@ export class QueryContactsDto {
   @IsOptional()
   status?: string;
 
-  @ApiPropertyOptional({ example: 'Acme Corp' })
+  @ApiPropertyOptional({ example: 'customer' })
   @IsString()
   @IsOptional()
-  company?: string;
+  accountType?: string;
 
-  @ApiPropertyOptional({ example: 'vip' })
+  @ApiPropertyOptional({ example: 'Technology' })
+  @IsString()
+  @IsOptional()
+  industry?: string;
+
+  @ApiPropertyOptional({ example: 'enterprise' })
   @IsString()
   @IsOptional()
   tag?: string;
@@ -31,7 +36,7 @@ export class QueryContactsDto {
   @ApiPropertyOptional({ example: '550e8400-e29b-41d4-a716-446655440000' })
   @IsUUID()
   @IsOptional()
-  accountId?: string;
+  parentAccountId?: string;
 
   @ApiPropertyOptional({ example: 1, default: 1 })
   @Type(() => Number)

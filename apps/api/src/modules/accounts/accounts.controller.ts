@@ -10,9 +10,9 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { ContactsService } from './contacts.service';
-import { CreateContactDto, UpdateContactDto, QueryContactsDto } from './dto';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { AccountsService } from './accounts.service';
+import { CreateAccountDto, UpdateAccountDto, QueryAccountsDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { AuditService } from '../shared/audit.service';
@@ -20,13 +20,13 @@ import { ActivityService } from '../shared/activity.service';
 import { DocumentsService } from '../shared/documents.service';
 import { NotesService } from '../shared/notes.service';
 
-@ApiTags('Contacts')
+@ApiTags('Accounts')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('contacts')
-export class ContactsController {
+@Controller('accounts')
+export class AccountsController {
   constructor(
-    private contactsService: ContactsService,
+    private accountsService: AccountsService,
     private auditService: AuditService,
     private activityService: ActivityService,
     private documentsService: DocumentsService,
@@ -34,87 +34,97 @@ export class ContactsController {
   ) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new contact' })
+  @ApiOperation({ summary: 'Create a new account' })
   async create(
     @Request() req: { user: JwtPayload },
-    @Body() dto: CreateContactDto,
+    @Body() dto: CreateAccountDto,
   ) {
-    return this.contactsService.create(req.user.tenantSchema, req.user.sub, dto);
+    return this.accountsService.create(req.user.tenantSchema, req.user.sub, dto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all contacts' })
+  @ApiOperation({ summary: 'Get all accounts' })
   async findAll(
     @Request() req: { user: JwtPayload },
-    @Query() query: QueryContactsDto,
+    @Query() query: QueryAccountsDto,
   ) {
-    return this.contactsService.findAll(req.user.tenantSchema, query);
+    return this.accountsService.findAll(req.user.tenantSchema, query);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a contact by ID' })
+  @ApiOperation({ summary: 'Get an account by ID' })
   async findOne(
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
   ) {
-    return this.contactsService.findOne(req.user.tenantSchema, id);
+    return this.accountsService.findOne(req.user.tenantSchema, id);
   }
 
   @Put(':id')
-  @ApiOperation({ summary: 'Update a contact' })
+  @ApiOperation({ summary: 'Update an account' })
   async update(
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
-    @Body() dto: UpdateContactDto,
+    @Body() dto: UpdateAccountDto,
   ) {
-    return this.contactsService.update(req.user.tenantSchema, id, req.user.sub, dto);
+    return this.accountsService.update(req.user.tenantSchema, id, req.user.sub, dto);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete a contact' })
+  @ApiOperation({ summary: 'Delete an account' })
   async remove(
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
   ) {
-    return this.contactsService.remove(req.user.tenantSchema, id, req.user.sub);
+    return this.accountsService.remove(req.user.tenantSchema, id, req.user.sub);
   }
 
-  // Accounts relationship
-  @Get(':id/accounts')
-  @ApiOperation({ summary: 'Get accounts linked to this contact' })
-  async getAccounts(
+  // Contacts relationship
+  @Get(':id/contacts')
+  @ApiOperation({ summary: 'Get contacts linked to this account' })
+  async getContacts(
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
   ) {
-    return this.contactsService.getAccounts(req.user.tenantSchema, id);
+    return this.accountsService.getContacts(req.user.tenantSchema, id);
   }
 
-  @Post(':id/accounts/:accountId')
-  @ApiOperation({ summary: 'Link an account to this contact' })
-  async linkAccount(
+  @Post(':id/contacts/:contactId')
+  @ApiOperation({ summary: 'Link a contact to this account' })
+  async linkContact(
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
-    @Param('accountId') accountId: string,
+    @Param('contactId') contactId: string,
     @Body() body: { role?: string; isPrimary?: boolean },
   ) {
-    return this.contactsService.linkAccount(
+    return this.accountsService.linkContact(
       req.user.tenantSchema,
       id,
-      accountId,
+      contactId,
       body.role || '',
       body.isPrimary || false,
       req.user.sub,
     );
   }
 
-  @Delete(':id/accounts/:accountId')
-  @ApiOperation({ summary: 'Unlink an account from this contact' })
-  async unlinkAccount(
+  @Delete(':id/contacts/:contactId')
+  @ApiOperation({ summary: 'Unlink a contact from this account' })
+  async unlinkContact(
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
-    @Param('accountId') accountId: string,
+    @Param('contactId') contactId: string,
   ) {
-    return this.contactsService.unlinkAccount(req.user.tenantSchema, id, accountId, req.user.sub);
+    return this.accountsService.unlinkContact(req.user.tenantSchema, id, contactId, req.user.sub);
+  }
+
+  // Child accounts
+  @Get(':id/children')
+  @ApiOperation({ summary: 'Get child accounts' })
+  async getChildAccounts(
+    @Request() req: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.accountsService.getChildAccounts(req.user.tenantSchema, id);
   }
 
   // Activity timeline
@@ -126,7 +136,7 @@ export class ContactsController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.activityService.getTimeline(req.user.tenantSchema, 'contacts', id, page, limit);
+    return this.activityService.getTimeline(req.user.tenantSchema, 'accounts', id, page, limit);
   }
 
   // Audit history
@@ -136,7 +146,7 @@ export class ContactsController {
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
   ) {
-    return this.auditService.getHistory(req.user.tenantSchema, 'contacts', id);
+    return this.auditService.getHistory(req.user.tenantSchema, 'accounts', id);
   }
 
   // Documents
@@ -146,7 +156,7 @@ export class ContactsController {
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
   ) {
-    return this.documentsService.findByEntity(req.user.tenantSchema, 'contacts', id);
+    return this.documentsService.findByEntity(req.user.tenantSchema, 'accounts', id);
   }
 
   // Notes
@@ -156,7 +166,7 @@ export class ContactsController {
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
   ) {
-    return this.notesService.findByEntity(req.user.tenantSchema, 'contacts', id);
+    return this.notesService.findByEntity(req.user.tenantSchema, 'accounts', id);
   }
 
   @Post(':id/notes')
@@ -166,6 +176,6 @@ export class ContactsController {
     @Param('id') id: string,
     @Body() body: { content: string },
   ) {
-    return this.notesService.create(req.user.tenantSchema, 'contacts', id, body.content, req.user.sub);
+    return this.notesService.create(req.user.tenantSchema, 'accounts', id, body.content, req.user.sub);
   }
 }

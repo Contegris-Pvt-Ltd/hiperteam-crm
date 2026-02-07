@@ -14,7 +14,7 @@ async function bootstrap() {
 
   // CORS
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:5173', 'https://hiperteam.intellicon.io'],
     credentials: true,
   });
 

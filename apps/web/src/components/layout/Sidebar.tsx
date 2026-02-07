@@ -18,6 +18,7 @@ import {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Contacts', href: '/contacts', icon: Users },
+  { name: 'Accounts', href: '/accounts', icon: Building2 },
   { name: 'Leads', href: '/leads', icon: UserPlus },
   { name: 'Opportunities', href: '/opportunities', icon: TrendingUp },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
