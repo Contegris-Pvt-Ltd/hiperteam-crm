@@ -16,6 +16,7 @@ import { ChangeHistory } from '../../components/shared/ChangeHistory';
 import { NotesPanel } from '../../components/shared/NotesPanel';
 import { DocumentsPanel } from '../../components/shared/DocumentsPanel';
 import { AvatarUpload } from '../../components/shared/AvatarUpload';
+import { LinkAccountModal } from '../../components/shared/LinkAccountModal';
 
 type TabType = 'activity' | 'notes' | 'documents' | 'history' | 'accounts';
 
@@ -35,6 +36,7 @@ export function ContactDetailPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [linkedAccounts, setLinkedAccounts] = useState<{ id: string; name: string; logoUrl: string; role: string; isPrimary: boolean }[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
+  const [showLinkAccountModal, setShowLinkAccountModal] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -117,6 +119,20 @@ export function ContactDetailPage() {
     if (!id) return;
     const note = await contactsApi.addNote(id, content);
     setNotes(prev => [note, ...prev]);
+  };
+  
+  const handleLinkAccount = async (accountId: string, role: string, isPrimary: boolean) => {
+    if (!id) return;
+    await contactsApi.linkAccount(id, accountId, role, isPrimary);
+    // Refresh the accounts list
+    const accountsData = await contactsApi.getAccounts(id);
+    setLinkedAccounts(accountsData);
+  };
+
+  const handleUnlinkAccount = async (accountId: string) => {
+    if (!id) return;
+    await contactsApi.unlinkAccount(id, accountId);
+    setLinkedAccounts(prev => prev.filter(a => a.id !== accountId));
   };
 
   if (loading || !contact) {
@@ -455,50 +471,75 @@ export function ContactDetailPage() {
 
               {activeTab === 'accounts' && (
                 <div>
-                  {tabLoading ? (
+                    {tabLoading ? (
                     <div className="flex items-center justify-center py-8">
-                      <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                     </div>
-                  ) : linkedAccounts.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Building2 className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-gray-500 dark:text-slate-400">No linked accounts</p>
-                      <button className="mt-4 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg">
-                        Link an Account
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {linkedAccounts.map(account => (
-                        <Link
-                          key={account.id}
-                          to={`/accounts/${account.id}`}
-                          className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                    ) : (
+                    <>
+                        {/* Link Account Button */}
+                        <div className="mb-4">
+                        <button
+                            onClick={() => setShowLinkAccountModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800"
                         >
-                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center text-white font-semibold">
-                            {account.logoUrl ? (
-                              <img src={account.logoUrl} alt={account.name} className="w-full h-full object-cover rounded-xl" />
-                            ) : (
-                              account.name[0]
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900 dark:text-white">{account.name}</p>
-                            {account.role && (
-                              <p className="text-sm text-gray-500 dark:text-slate-400">{account.role}</p>
-                            )}
-                          </div>
-                          {account.isPrimary && (
-                            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs rounded-lg">
-                              Primary
-                            </span>
-                          )}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
+                            <Building2 className="w-4 h-4" />
+                            Link an Account
+                        </button>
+                        </div>
+
+                        {linkedAccounts.length === 0 ? (
+                        <div className="text-center py-8">
+                            <Building2 className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+                            <p className="text-gray-500 dark:text-slate-400">No linked accounts</p>
+                            <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">
+                            Click "Link an Account" to associate this contact with a company
+                            </p>
+                        </div>
+                        ) : (
+                        <div className="space-y-3">
+                            {linkedAccounts.map(account => (
+                            <div
+                                key={account.id}
+                                className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                            >
+                                <Link to={`/accounts/${account.id}`} className="flex items-center gap-3 flex-1">
+                                {account.logoUrl ? (
+                                    <img src={account.logoUrl} alt={account.name} className="w-10 h-10 rounded-xl object-cover" />
+                                ) : (
+                                    <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center text-white font-semibold">
+                                    {account.name[0]}
+                                    </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-gray-900 dark:text-white">{account.name}</p>
+                                    {account.role && (
+                                    <p className="text-sm text-gray-500 dark:text-slate-400">{account.role}</p>
+                                    )}
+                                </div>
+                                </Link>
+                                <div className="flex items-center gap-2">
+                                {account.isPrimary && (
+                                    <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs rounded-lg">
+                                    Primary
+                                    </span>
+                                )}
+                                <button
+                                    onClick={() => handleUnlinkAccount(account.id)}
+                                    className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg"
+                                    title="Unlink account"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                                </div>
+                            </div>
+                            ))}
+                        </div>
+                        )}
+                    </>
+                    )}
                 </div>
-              )}
+                )}
 
               {activeTab === 'history' && (
                 <ChangeHistory history={history} loading={tabLoading} />
@@ -535,6 +576,14 @@ export function ContactDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Link Account Modal */}
+      <LinkAccountModal
+        isOpen={showLinkAccountModal}
+        onClose={() => setShowLinkAccountModal(false)}
+        onLink={handleLinkAccount}
+        existingAccountIds={linkedAccounts.map(a => a.id)}
+      />
     </div>
   );
 }

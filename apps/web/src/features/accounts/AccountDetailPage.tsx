@@ -17,6 +17,7 @@ import { ChangeHistory } from '../../components/shared/ChangeHistory';
 import { NotesPanel } from '../../components/shared/NotesPanel';
 import { DocumentsPanel } from '../../components/shared/DocumentsPanel';
 import { AvatarUpload } from '../../components/shared/AvatarUpload';
+import { LinkContactModal } from '../../components/shared/LinkContactModal';
 
 type TabType = 'activity' | 'notes' | 'documents' | 'contacts' | 'children' | 'history';
 
@@ -37,6 +38,7 @@ export function AccountDetailPage() {
   const [linkedContacts, setLinkedContacts] = useState<LinkedContact[]>([]);
   const [childAccounts, setChildAccounts] = useState<Account[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
+  const [showLinkContactModal, setShowLinkContactModal] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -129,6 +131,13 @@ export function AccountDetailPage() {
     if (!id) return;
     await accountsApi.unlinkContact(id, contactId);
     setLinkedContacts(prev => prev.filter(c => c.id !== contactId));
+  };
+
+  const handleLinkContact = async (contactId: string, role: string, isPrimary: boolean) => {
+    if (!id) return;
+    await accountsApi.linkContact(id, contactId, role, isPrimary);
+    const contactsData = await accountsApi.getContacts(id);
+    setLinkedContacts(contactsData);
   };
 
   if (loading || !account) {
@@ -487,67 +496,82 @@ export function AccountDetailPage() {
 
               {activeTab === 'contacts' && (
                 <div>
-                  {tabLoading ? (
+                    {tabLoading ? (
                     <div className="flex items-center justify-center py-8">
-                      <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
                     </div>
-                  ) : linkedContacts.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Users className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-gray-500 dark:text-slate-400">No linked contacts</p>
-                      <button className="mt-4 px-4 py-2 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg">
-                        Link a Contact
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {linkedContacts.map(contact => (
-                        <div
-                          key={contact.id}
-                          className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                    ) : (
+                    <>
+                        {/* Link Contact Button */}
+                        <div className="mb-4">
+                        <button
+                            onClick={() => setShowLinkContactModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800"
                         >
-                          <Link to={`/contacts/${contact.id}`} className="flex items-center gap-3 flex-1">
-                            {contact.avatarUrl ? (
-                              <img src={contact.avatarUrl} alt={`${contact.firstName} ${contact.lastName}`} className="w-10 h-10 rounded-full object-cover" />
-                            ) : (
-                              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                                {contact.firstName[0]}{contact.lastName[0]}
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                {contact.firstName} {contact.lastName}
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-slate-400">
-                                {contact.jobTitle || contact.email}
-                              </p>
-                            </div>
-                          </Link>
-                          <div className="flex items-center gap-2">
-                            {contact.role && (
-                              <span className="px-2 py-1 bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-xs rounded-lg">
-                                {contact.role}
-                              </span>
-                            )}
-                            {contact.isPrimary && (
-                              <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs rounded-lg">
-                                Primary
-                              </span>
-                            )}
-                            <button
-                              onClick={() => handleUnlinkContact(contact.id)}
-                              className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg"
-                              title="Unlink contact"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                            <Users className="w-4 h-4" />
+                            Link a Contact
+                        </button>
                         </div>
-                      ))}
-                    </div>
-                  )}
+
+                        {linkedContacts.length === 0 ? (
+                        <div className="text-center py-8">
+                            <Users className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+                            <p className="text-gray-500 dark:text-slate-400">No linked contacts</p>
+                            <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">
+                            Click "Link a Contact" to associate people with this account
+                            </p>
+                        </div>
+                        ) : (
+                        <div className="space-y-3">
+                            {linkedContacts.map(contact => (
+                            <div
+                                key={contact.id}
+                                className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                            >
+                                <Link to={`/contacts/${contact.id}`} className="flex items-center gap-3 flex-1">
+                                {contact.avatarUrl ? (
+                                    <img src={contact.avatarUrl} alt={`${contact.firstName} ${contact.lastName}`} className="w-10 h-10 rounded-full object-cover" />
+                                ) : (
+                                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                                    {contact.firstName[0]}{contact.lastName[0]}
+                                    </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-gray-900 dark:text-white">
+                                    {contact.firstName} {contact.lastName}
+                                    </p>
+                                    <p className="text-sm text-gray-500 dark:text-slate-400">
+                                    {contact.jobTitle || contact.email}
+                                    </p>
+                                </div>
+                                </Link>
+                                <div className="flex items-center gap-2">
+                                {contact.role && (
+                                    <span className="px-2 py-1 bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-xs rounded-lg">
+                                    {contact.role}
+                                    </span>
+                                )}
+                                {contact.isPrimary && (
+                                    <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs rounded-lg">
+                                    Primary
+                                    </span>
+                                )}
+                                <button
+                                    onClick={() => handleUnlinkContact(contact.id)}
+                                    className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg"
+                                    title="Unlink contact"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                                </div>
+                            </div>
+                            ))}
+                        </div>
+                        )}
+                    </>
+                    )}
                 </div>
-              )}
+                )}
 
               {activeTab === 'children' && (
                 <div>
@@ -621,6 +645,14 @@ export function AccountDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Link Contact Modal */}
+      <LinkContactModal
+        isOpen={showLinkContactModal}
+        onClose={() => setShowLinkContactModal(false)}
+        onLink={handleLinkContact}
+        existingContactIds={linkedContacts.map(c => c.id)}
+      />
     </div>
   );
 }
