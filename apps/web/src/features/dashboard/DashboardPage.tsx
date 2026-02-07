@@ -1,5 +1,5 @@
 import { useAuthStore } from '../../stores/auth.store';
-import { Users, UserPlus, TrendingUp, CheckSquare, ArrowUpRight, Plus } from 'lucide-react';
+import { Users, UserPlus, TrendingUp, CheckSquare, ArrowUpRight } from 'lucide-react';
 
 const stats = [
   { name: 'Total Contacts', value: '0', change: '+0%', trend: 'up', icon: Users, color: 'blue' },
