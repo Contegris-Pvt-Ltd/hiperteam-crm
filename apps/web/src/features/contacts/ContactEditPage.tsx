@@ -189,42 +189,93 @@ export function ContactEditPage() {
     setSaving(true);
 
     try {
-      const dataToSave = { ...formData };
-      if (avatarUrl) {
+        // Clean the data - remove empty strings and empty arrays
+        const dataToSave: Partial<CreateContactData> = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        };
+
+        // Only include fields that have values
+        if (formData.email?.trim()) dataToSave.email = formData.email.trim();
+        if (formData.phone?.trim()) dataToSave.phone = formData.phone.trim();
+        if (formData.mobile?.trim()) dataToSave.mobile = formData.mobile.trim();
+        if (formData.company?.trim()) dataToSave.company = formData.company.trim();
+        if (formData.jobTitle?.trim()) dataToSave.jobTitle = formData.jobTitle.trim();
+        if (formData.website?.trim()) dataToSave.website = formData.website.trim();
+        if (formData.source?.trim()) dataToSave.source = formData.source.trim();
+        if (formData.notes?.trim()) dataToSave.notes = formData.notes.trim();
+        
+        // Legacy address fields
+        if (formData.addressLine1?.trim()) dataToSave.addressLine1 = formData.addressLine1.trim();
+        if (formData.addressLine2?.trim()) dataToSave.addressLine2 = formData.addressLine2.trim();
+        if (formData.city?.trim()) dataToSave.city = formData.city.trim();
+        if (formData.state?.trim()) dataToSave.state = formData.state.trim();
+        if (formData.postalCode?.trim()) dataToSave.postalCode = formData.postalCode.trim();
+        if (formData.country?.trim()) dataToSave.country = formData.country.trim();
+
+        // Arrays - only include if they have items with actual values
+        const cleanedEmails = (formData.emails || []).filter(e => e.email?.trim());
+        if (cleanedEmails.length > 0) dataToSave.emails = cleanedEmails;
+
+        const cleanedPhones = (formData.phones || []).filter(p => p.number?.trim());
+        if (cleanedPhones.length > 0) dataToSave.phones = cleanedPhones;
+
+        const cleanedAddresses = (formData.addresses || []).filter(a => a.line1?.trim() || a.city?.trim());
+        if (cleanedAddresses.length > 0) dataToSave.addresses = cleanedAddresses;
+
+        // Tags
+        if (formData.tags && formData.tags.length > 0) dataToSave.tags = formData.tags;
+
+        // Social profiles - only if any have values
+        if (formData.socialProfiles && Object.values(formData.socialProfiles).some(v => v?.trim())) {
+        dataToSave.socialProfiles = formData.socialProfiles;
+        }
+
+        // Boolean fields
+        dataToSave.doNotContact = formData.doNotContact;
+        dataToSave.doNotEmail = formData.doNotEmail;
+        dataToSave.doNotCall = formData.doNotCall;
+
+        // Avatar
+        if (avatarUrl) {
         dataToSave.avatarUrl = avatarUrl;
-      }
-      
-      // Set company name from selected account if available
-      if (selectedAccount) {
+        }
+
+        // Account link
+        if (selectedAccount) {
         dataToSave.company = selectedAccount.label;
         dataToSave.accountId = selectedAccount.id;
-      }
+        }
 
-      if (isNew) {
-        const contact = await contactsApi.create(dataToSave);
+        if (isNew) {
+        const contact = await contactsApi.create(dataToSave as CreateContactData);
         // Link to account if selected
         if (selectedAccount) {
-          await contactsApi.linkAccount(contact.id, selectedAccount.id, '', true);
+            try {
+            await contactsApi.linkAccount(contact.id, selectedAccount.id, '', true);
+            } catch (e) {
+            // Ignore if linking fails
+            }
         }
         navigate(`/contacts/${contact.id}`);
-      } else {
-        await contactsApi.update(id!, dataToSave);
+        } else {
+        await contactsApi.update(id!, dataToSave as CreateContactData);
         // Update account link if changed
         if (selectedAccount) {
-          try {
+            try {
             await contactsApi.linkAccount(id!, selectedAccount.id, '', true);
-          } catch (e) {
+            } catch (e) {
             // May already be linked, ignore
-          }
+            }
         }
         navigate(`/contacts/${id}`);
-      }
+        }
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string | string[] } } };
-      const message = error.response?.data?.message;
-      setError(Array.isArray(message) ? message[0] : message || 'Failed to save contact');
+        const error = err as { response?: { data?: { message?: string | string[] } } };
+        const message = error.response?.data?.message;
+        setError(Array.isArray(message) ? message[0] : message || 'Failed to save contact');
     } finally {
-      setSaving(false);
+        setSaving(false);
     }
   };
 

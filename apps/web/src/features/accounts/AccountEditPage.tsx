@@ -160,29 +160,61 @@ export function AccountEditPage() {
     setSaving(true);
 
     try {
-      const dataToSave = { ...formData };
-      if (logoUrl) {
-        dataToSave.logoUrl = logoUrl;
-      }
-      if (selectedParentAccount) {
-        dataToSave.parentAccountId = selectedParentAccount.id;
-      } else {
-        dataToSave.parentAccountId = undefined;
-      }
+        // Clean the data - remove empty strings and empty arrays
+        const dataToSave: Partial<CreateAccountData> = {
+        name: formData.name,
+        };
 
-      if (isNew) {
-        const account = await accountsApi.create(dataToSave);
+        // Only include fields that have values
+        if (formData.website?.trim()) dataToSave.website = formData.website.trim();
+        if (formData.industry?.trim()) dataToSave.industry = formData.industry.trim();
+        if (formData.companySize?.trim()) dataToSave.companySize = formData.companySize.trim();
+        if (formData.annualRevenue) dataToSave.annualRevenue = formData.annualRevenue;
+        if (formData.description?.trim()) dataToSave.description = formData.description.trim();
+        if (formData.accountType?.trim()) dataToSave.accountType = formData.accountType.trim();
+        if (formData.source?.trim()) dataToSave.source = formData.source.trim();
+
+        // Arrays - only include if they have items with actual values
+        const cleanedEmails = (formData.emails || []).filter(e => e.email?.trim());
+        if (cleanedEmails.length > 0) dataToSave.emails = cleanedEmails;
+
+        const cleanedPhones = (formData.phones || []).filter(p => p.number?.trim());
+        if (cleanedPhones.length > 0) dataToSave.phones = cleanedPhones;
+
+        const cleanedAddresses = (formData.addresses || []).filter(a => a.line1?.trim() || a.city?.trim());
+        if (cleanedAddresses.length > 0) dataToSave.addresses = cleanedAddresses;
+
+        // Tags
+        if (formData.tags && formData.tags.length > 0) dataToSave.tags = formData.tags;
+
+        // Social profiles - only if any have values
+        if (formData.socialProfiles && Object.values(formData.socialProfiles).some(v => v?.trim())) {
+        dataToSave.socialProfiles = formData.socialProfiles;
+        }
+
+        // Logo
+        if (logoUrl) {
+        dataToSave.logoUrl = logoUrl;
+        }
+
+        // Parent account
+        if (selectedParentAccount) {
+        dataToSave.parentAccountId = selectedParentAccount.id;
+        }
+
+        if (isNew) {
+        const account = await accountsApi.create(dataToSave as CreateAccountData);
         navigate(`/accounts/${account.id}`);
-      } else {
-        await accountsApi.update(id!, dataToSave);
+        } else {
+        await accountsApi.update(id!, dataToSave as CreateAccountData);
         navigate(`/accounts/${id}`);
-      }
+        }
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string | string[] } } };
-      const message = error.response?.data?.message;
-      setError(Array.isArray(message) ? message[0] : message || 'Failed to save account');
+        const error = err as { response?: { data?: { message?: string | string[] } } };
+        const message = error.response?.data?.message;
+        setError(Array.isArray(message) ? message[0] : message || 'Failed to save account');
     } finally {
-      setSaving(false);
+        setSaving(false);
     }
   };
 
