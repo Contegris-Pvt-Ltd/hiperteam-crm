@@ -136,4 +136,4 @@ export class UploadService {
 
     return getSignedUrl(this.s3Client, command, { expiresIn });
   }
-}
+} 
