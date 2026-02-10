@@ -25,10 +25,9 @@ async function runTenantMigrations() {
       const schema = tenant.schema_name;
       console.log(`\n📦 Migrating schema: ${schema}`);
 
-      // Drop old broken schema_migrations if exists and recreate
-      await dataSource.query(`DROP TABLE IF EXISTS "${schema}".schema_migrations CASCADE`);
+      // Create tracking table if not exists
       await dataSource.query(`
-        CREATE TABLE "${schema}".schema_migrations (
+        CREATE TABLE IF NOT EXISTS "${schema}".schema_migrations (
           id SERIAL PRIMARY KEY,
           migration_name VARCHAR(255) NOT NULL UNIQUE,
           executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -77,9 +76,10 @@ async function runTenantMigrations() {
       ];
 
       for (const migration of migrations) {
+        // Check if migration already ran
         const existing = await dataSource.query(`
           SELECT 1 FROM "${schema}".schema_migrations WHERE migration_name = $1
-        `, [migration.name]);
+        `, [migration.name]).catch(() => []);
 
         if (existing.length === 0) {
           console.log(`  ▶ Running: ${migration.name}`);
