@@ -53,6 +53,10 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            # Load nvm and node
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+            
             cd /home/deploy/hiperteam
             
             echo "📥 Pulling latest changes..."
@@ -67,12 +71,9 @@ jobs:
             echo "🔨 Building Web..."
             VITE_API_URL=https://hiperteam.intellicon.io npm run build --workspace=apps/web
             
-            echo "🗄️ Running master schema migrations..."
+            echo "🗄️ Running database migrations..."
             cd apps/api
             npm run migrate:run
-            
-            echo "🗄️ Running tenant schema migrations..."
-            npm run migrate:tenants
             cd ../..
             
             echo "🔄 Restarting services..."
