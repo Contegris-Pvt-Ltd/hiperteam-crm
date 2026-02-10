@@ -1,6 +1,5 @@
 import { DataSource } from 'typeorm';
 
-// Database configuration from environment
 const dataSource = new DataSource({
   type: 'postgres',
   host: process.env.DB_HOST || 'localhost',
@@ -16,7 +15,6 @@ async function runTenantMigrations() {
     await dataSource.initialize();
     console.log('Database connected');
 
-    // Get all active tenants
     const tenants = await dataSource.query(`
       SELECT schema_name FROM master.tenants WHERE status = 'active'
     `);
@@ -27,16 +25,16 @@ async function runTenantMigrations() {
       const schema = tenant.schema_name;
       console.log(`\n📦 Migrating schema: ${schema}`);
 
-      // Create migrations tracking table for this tenant
+      // Drop old broken schema_migrations if exists and recreate
+      await dataSource.query(`DROP TABLE IF EXISTS "${schema}".schema_migrations CASCADE`);
       await dataSource.query(`
-        CREATE TABLE IF NOT EXISTS "${schema}".schema_migrations (
+        CREATE TABLE "${schema}".schema_migrations (
           id SERIAL PRIMARY KEY,
-          name VARCHAR(255) NOT NULL UNIQUE,
+          migration_name VARCHAR(255) NOT NULL UNIQUE,
           executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
-      // Define migrations
       const migrations = [
         {
           name: '001_create_page_layouts',
@@ -55,7 +53,6 @@ async function runTenantMigrations() {
               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
               updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
-            
             CREATE INDEX IF NOT EXISTS idx_page_layouts_module_type 
             ON "${schema}".page_layouts(module, layout_type);
           `
@@ -73,24 +70,22 @@ async function runTenantMigrations() {
               updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
               UNIQUE(module, layout_type)
             );
-            
             CREATE INDEX IF NOT EXISTS idx_module_layout_settings_module_type 
             ON "${schema}".module_layout_settings(module, layout_type);
           `
         }
       ];
 
-      // Run each migration if not already executed
       for (const migration of migrations) {
         const existing = await dataSource.query(`
-          SELECT 1 FROM "${schema}".schema_migrations WHERE name = $1
+          SELECT 1 FROM "${schema}".schema_migrations WHERE migration_name = $1
         `, [migration.name]);
 
         if (existing.length === 0) {
           console.log(`  ▶ Running: ${migration.name}`);
           await dataSource.query(migration.sql);
           await dataSource.query(`
-            INSERT INTO "${schema}".schema_migrations (name) VALUES ($1)
+            INSERT INTO "${schema}".schema_migrations (migration_name) VALUES ($1)
           `, [migration.name]);
           console.log(`  ✓ Completed: ${migration.name}`);
         } else {
