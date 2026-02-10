@@ -53,30 +53,23 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            # Load nvm and node
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-            
             cd /home/deploy/hiperteam
             
             echo "📥 Pulling latest changes..."
             git pull origin main
             
-            echo "📦 Installing dependencies..."
-            npm ci
+            echo "🔨 Building and restarting API container..."
+            docker compose -f docker-compose.prod.yml up -d --build api
             
-            echo "🔨 Building API..."
-            npm run build --workspace=apps/api
+            echo "🎨 Building frontend..."
+            docker run --rm \
+              -v /home/deploy/hiperteam:/app \
+              -w /app \
+              -e VITE_API_URL=https://hiperteam.intellicon.io \
+              node:20-alpine \
+              sh -c "npm ci && cd apps/web && npm run build && rm -rf /app/frontend-build/* && cp -r dist/* /app/frontend-build/"
             
-            echo "🔨 Building Web..."
-            VITE_API_URL=https://hiperteam.intellicon.io npm run build --workspace=apps/web
-            
-            echo "🗄️ Running database migrations..."
-            cd apps/api
-            npm run migrate:run
-            cd ../..
-            
-            echo "🔄 Restarting services..."
-            pm2 restart all
+            echo "🔄 Restarting nginx..."
+            docker compose -f docker-compose.prod.yml restart nginx
             
             echo "✅ Deployment complete!"
