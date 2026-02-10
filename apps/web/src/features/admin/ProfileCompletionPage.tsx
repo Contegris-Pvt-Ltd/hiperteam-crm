@@ -25,7 +25,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export function ProfileCompletionPage() {
   const [selectedModule, setSelectedModule] = useState('contacts');
   const [config, setConfig] = useState<ProfileCompletionConfig | null>(null);
-  const [standardFields, setStandardFields] = useState<Record<string, { weight: number; label: string; category?: string }>>({});
+  const [_standardFields, setStandardFields] = useState<Record<string, { weight: number; label: string; category?: string }>>({});
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

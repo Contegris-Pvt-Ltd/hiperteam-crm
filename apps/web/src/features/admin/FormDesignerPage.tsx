@@ -604,7 +604,6 @@ function TabModal({
   onClose,
   onSave,
   tab,
-  module,
 }: {
   isOpen: boolean;
   onClose: () => void;

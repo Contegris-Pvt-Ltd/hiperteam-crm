@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
-  Plus, Pencil, Trash2, GripVertical, ChevronDown, ChevronRight,
-  Folder, LayoutGrid, Columns, Eye, EyeOff
+  Plus, Pencil, Trash2, ChevronDown, ChevronRight,
+  Folder, LayoutGrid, Eye, EyeOff
 } from 'lucide-react';
 import { adminApi } from '../../api/admin.api';
 import type { CustomTab, CustomFieldGroup, CustomField } from '../../api/admin.api';
