@@ -61,6 +61,15 @@ jobs:
             echo "🔨 Building and restarting API container..."
             docker compose -f docker-compose.prod.yml up -d --build api
             
+            echo "⏳ Waiting for API to start..."
+            sleep 10
+            
+            echo "🗄️ Running master schema migrations..."
+            docker compose -f docker-compose.prod.yml exec -T api npm run migrate:run
+            
+            echo "🗄️ Running tenant schema migrations..."
+            docker compose -f docker-compose.prod.yml exec -T api npm run migrate:tenants
+            
             echo "🎨 Building frontend..."
             docker run --rm \
               -v /home/deploy/hiperteam:/app \
