@@ -584,14 +584,6 @@ export function ContactEditPage() {
     return duplicates;
   };
 
-  // Check for contact info requirement
-  const validateContactInfo = () => {
-    const hasEmail = formData.emails?.some(e => e.email?.trim());
-    const hasPhone = formData.phones?.some(p => p.number?.trim());
-    return hasEmail || hasPhone;
-  };
-
-
   // Render custom fields for a section
   const renderCustomFieldsForSection = (section: string, tabId?: string) => {
     const groups = getGroupsForSection(section, tabId);
