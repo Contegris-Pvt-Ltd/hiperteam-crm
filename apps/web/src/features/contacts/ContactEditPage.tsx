@@ -65,7 +65,13 @@ export function ContactEditPage() {
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [showQuickCreateAccount, setShowQuickCreateAccount] = useState(false);
-
+  const [validationErrors, setValidationErrors] = useState<{
+    contactInfo?: string;
+    emails?: string;
+    phones?: string;
+    duplicateEmailIndexes?: Set<number>;
+    duplicatePhoneIndexes?: Set<number>;
+  }>({});
 
   // ============ PAGE DESIGNER HOOK ============
   // Check if admin has enabled custom layout for edit pages
@@ -238,12 +244,13 @@ export function ContactEditPage() {
       ...prev,
       emails: [...(prev.emails || []), { type: 'work', email: '', primary: (prev.emails?.length || 0) === 0 }]
     }));
+    // Clear contact info error when adding new email
+    setValidationErrors(prev => ({ ...prev, contactInfo: undefined }));
   };
 
   const updateEmail = (index: number, field: keyof EmailEntry, value: string | boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      emails: prev.emails?.map((e, i) => {
+    setFormData(prev => {
+      const newEmails = prev.emails?.map((e, i) => {
         if (i === index) {
           return { ...e, [field]: value };
         }
@@ -251,15 +258,35 @@ export function ContactEditPage() {
           return { ...e, primary: false };
         }
         return e;
-      })
-    }));
+      }) || [];
+      
+      // Real-time duplicate check
+      const duplicates = getDuplicateEmailIndexes(newEmails);
+      setValidationErrors(prev => ({
+        ...prev,
+        duplicateEmailIndexes: duplicates,
+        emails: duplicates.size > 0 ? 'Duplicate email addresses detected' : undefined,
+        contactInfo: undefined, // Clear contact info error when user adds email
+      }));
+      
+      return { ...prev, emails: newEmails };
+    });
   };
 
   const removeEmail = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      emails: prev.emails?.filter((_, i) => i !== index)
-    }));
+    setFormData(prev => {
+      const newEmails = prev.emails?.filter((_, i) => i !== index) || [];
+      
+      // Recheck duplicates after removal
+      const duplicates = getDuplicateEmailIndexes(newEmails);
+      setValidationErrors(prev => ({
+        ...prev,
+        duplicateEmailIndexes: duplicates,
+        emails: duplicates.size > 0 ? 'Duplicate email addresses detected' : undefined,
+      }));
+      
+      return { ...prev, emails: newEmails };
+    });
   };
 
   // Phone handlers
@@ -268,12 +295,13 @@ export function ContactEditPage() {
       ...prev,
       phones: [...(prev.phones || []), { type: 'mobile', number: '', primary: (prev.phones?.length || 0) === 0 }]
     }));
+    // Clear contact info error when adding new phone
+    setValidationErrors(prev => ({ ...prev, contactInfo: undefined }));
   };
 
   const updatePhone = (index: number, field: keyof PhoneEntry, value: string | boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      phones: prev.phones?.map((p, i) => {
+    setFormData(prev => {
+      const newPhones = prev.phones?.map((p, i) => {
         if (i === index) {
           return { ...p, [field]: value };
         }
@@ -281,15 +309,35 @@ export function ContactEditPage() {
           return { ...p, primary: false };
         }
         return p;
-      })
-    }));
+      }) || [];
+      
+      // Real-time duplicate check
+      const duplicates = getDuplicatePhoneIndexes(newPhones);
+      setValidationErrors(prev => ({
+        ...prev,
+        duplicatePhoneIndexes: duplicates,
+        phones: duplicates.size > 0 ? 'Duplicate phone numbers detected' : undefined,
+        contactInfo: undefined, // Clear contact info error when user adds phone
+      }));
+      
+      return { ...prev, phones: newPhones };
+    });
   };
 
   const removePhone = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      phones: prev.phones?.filter((_, i) => i !== index)
-    }));
+    setFormData(prev => {
+      const newPhones = prev.phones?.filter((_, i) => i !== index) || [];
+      
+      // Recheck duplicates after removal
+      const duplicates = getDuplicatePhoneIndexes(newPhones);
+      setValidationErrors(prev => ({
+        ...prev,
+        duplicatePhoneIndexes: duplicates,
+        phones: duplicates.size > 0 ? 'Duplicate phone numbers detected' : undefined,
+      }));
+      
+      return { ...prev, phones: newPhones };
+    });
   };
 
   // Address handlers
@@ -359,21 +407,50 @@ export function ContactEditPage() {
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     
+    // Clear previous errors
+    setValidationErrors({});
+    setError('');
+    
+    const newErrors: typeof validationErrors = {};
+    
+    // Validate first name
     if (!formData.firstName.trim()) {
       setError('First name is required');
       return;
     }
-
-    const hasEmail = formData.emails?.some(e => e.email?.trim()) || formData.email?.trim();
-    const hasPhone = formData.phones?.some(p => p.number?.trim()) || formData.phone?.trim();
+    
+    // Validate: at least one contact method required
+    const hasEmail = formData.emails?.some(e => e.email?.trim());
+    const hasPhone = formData.phones?.some(p => p.number?.trim());
     
     if (!hasEmail && !hasPhone) {
-      setError('At least one contact method (email or phone) is required');
+      newErrors.contactInfo = 'At least one contact method (email or phone) is required';
+    }
+    
+    // Check for duplicate emails
+    const emailDuplicates = getDuplicateEmailIndexes(formData.emails || []);
+    if (emailDuplicates.size > 0) {
+      newErrors.emails = 'Please remove duplicate email addresses';
+      newErrors.duplicateEmailIndexes = emailDuplicates;
+    }
+    
+    // Check for duplicate phones
+    const phoneDuplicates = getDuplicatePhoneIndexes(formData.phones || []);
+    if (phoneDuplicates.size > 0) {
+      newErrors.phones = 'Please remove duplicate phone numbers';
+      newErrors.duplicatePhoneIndexes = phoneDuplicates;
+    }
+    
+    // If any errors, show them and stop
+    if (Object.keys(newErrors).length > 0) {
+      setValidationErrors(newErrors);
+      // Set first error as main error message
+      const firstError = newErrors.contactInfo || newErrors.emails || newErrors.phones;
+      if (firstError) setError(firstError);
       return;
     }
     
     setSaving(true);
-    setError('');
 
     try {
       const dataToSave = {
@@ -466,6 +543,54 @@ export function ContactEditPage() {
   const getFieldsForGroup = (groupId: string) => {
     return customFields.filter(f => f.groupId === groupId);
   };
+
+  // Real-time duplicate detection helpers
+  const getDuplicateEmailIndexes = (emails: EmailEntry[]): Set<number> => {
+    const seen = new Map<string, number>();
+    const duplicates = new Set<number>();
+    
+    emails.forEach((entry, index) => {
+      const normalized = entry.email?.trim().toLowerCase();
+      if (!normalized) return;
+      
+      if (seen.has(normalized)) {
+        duplicates.add(seen.get(normalized)!);
+        duplicates.add(index);
+      } else {
+        seen.set(normalized, index);
+      }
+    });
+    
+    return duplicates;
+  };
+  
+  const getDuplicatePhoneIndexes = (phones: PhoneEntry[]): Set<number> => {
+    const seen = new Map<string, number>();
+    const duplicates = new Set<number>();
+    
+    phones.forEach((entry, index) => {
+      // Normalize phone: remove all non-digits
+      const normalized = entry.number?.replace(/\D/g, '');
+      if (!normalized) return;
+      
+      if (seen.has(normalized)) {
+        duplicates.add(seen.get(normalized)!);
+        duplicates.add(index);
+      } else {
+        seen.set(normalized, index);
+      }
+    });
+    
+    return duplicates;
+  };
+
+  // Check for contact info requirement
+  const validateContactInfo = () => {
+    const hasEmail = formData.emails?.some(e => e.email?.trim());
+    const hasPhone = formData.phones?.some(p => p.number?.trim());
+    return hasEmail || hasPhone;
+  };
+
 
   // Render custom fields for a section
   const renderCustomFieldsForSection = (section: string, tabId?: string) => {
@@ -834,62 +959,28 @@ export function ContactEditPage() {
             {/* Contact Details Tab */}
             {activeTab === 'contact' && (
               <div className="space-y-6">
-                {/* Primary Email & Phone */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      Primary Email
-                    </label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => handleChange('email', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
+                {/* Contact Info Required Error Banner */}
+                {validationErrors.contactInfo && (
+                  <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+                      {validationErrors.contactInfo}
+                    </p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      Primary Phone
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => handleChange('phone', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
+                )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      Mobile
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.mobile}
-                      onChange={(e) => handleChange('mobile', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      Website
-                    </label>
-                    <input
-                      type="url"
-                      value={formData.website}
-                      onChange={(e) => handleChange('website', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
+                {/* Section Header with Required Indicator */}
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                    Contact Information
+                  </h4>
+                  <span className="text-xs text-red-500 font-medium">* At least one email or phone required</span>
                 </div>
 
                 {/* Additional Emails */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                      Additional Emails
+                      Email Addresses
                     </label>
                     <button
                       type="button"
@@ -899,49 +990,71 @@ export function ContactEditPage() {
                       <Plus className="w-4 h-4" /> Add Email
                     </button>
                   </div>
-                  {formData.emails?.map((email, index) => (
-                    <div key={index} className="flex gap-2 mb-2">
-                      <select
-                        value={email.type}
-                        onChange={(e) => updateEmail(index, 'type', e.target.value)}
-                        className="px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  
+                  {/* Email Error Message */}
+                  {validationErrors.emails && (
+                    <p className="text-sm text-red-500 mb-2">{validationErrors.emails}</p>
+                  )}
+                  
+                  {formData.emails?.length === 0 && (
+                    <p className="text-sm text-gray-500 dark:text-slate-400 italic mb-2">
+                      Click "Add Email" to add an email address
+                    </p>
+                  )}
+                  
+                  {formData.emails?.map((email, index) => {
+                    const isDuplicate = validationErrors.duplicateEmailIndexes?.has(index);
+                    return (
+                      <div 
+                        key={index} 
+                        className={`flex gap-2 mb-2 ${isDuplicate ? 'ring-2 ring-red-500 rounded-xl p-1' : ''}`}
                       >
-                        {emailTypes.map(type => (
-                          <option key={type} value={type}>{type}</option>
-                        ))}
-                      </select>
-                      <input
-                        type="email"
-                        value={email.email}
-                        onChange={(e) => updateEmail(index, 'email', e.target.value)}
-                        className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                        placeholder="email@example.com"
-                      />
-                      <label className="flex items-center gap-2 px-3">
+                        <select
+                          value={email.type}
+                          onChange={(e) => updateEmail(index, 'type', e.target.value)}
+                          className="px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                        >
+                          {emailTypes.map(type => (
+                            <option key={type} value={type}>{type}</option>
+                          ))}
+                        </select>
                         <input
-                          type="checkbox"
-                          checked={email.primary}
-                          onChange={(e) => updateEmail(index, 'primary', e.target.checked)}
-                          className="w-4 h-4 rounded"
+                          type="email"
+                          value={email.email}
+                          onChange={(e) => updateEmail(index, 'email', e.target.value)}
+                          className={`flex-1 px-4 py-2.5 border rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white ${
+                            isDuplicate 
+                              ? 'border-red-500 focus:ring-red-500' 
+                              : 'border-gray-200 dark:border-slate-700'
+                          }`}
+                          placeholder="email@example.com"
                         />
-                        <span className="text-sm text-gray-600 dark:text-slate-400">Primary</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => removeEmail(index)}
-                        className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                        <label className="flex items-center gap-2 px-3">
+                          <input
+                            type="checkbox"
+                            checked={email.primary}
+                            onChange={(e) => updateEmail(index, 'primary', e.target.checked)}
+                            className="w-4 h-4 rounded"
+                          />
+                          <span className="text-sm text-gray-600 dark:text-slate-400">Primary</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => removeEmail(index)}
+                          className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Additional Phones */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                      Additional Phones
+                      Phone Numbers
                     </label>
                     <button
                       type="button"
@@ -951,42 +1064,64 @@ export function ContactEditPage() {
                       <Plus className="w-4 h-4" /> Add Phone
                     </button>
                   </div>
-                  {formData.phones?.map((phone, index) => (
-                    <div key={index} className="flex gap-2 mb-2">
-                      <select
-                        value={phone.type}
-                        onChange={(e) => updatePhone(index, 'type', e.target.value)}
-                        className="px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  
+                  {/* Phone Error Message */}
+                  {validationErrors.phones && (
+                    <p className="text-sm text-red-500 mb-2">{validationErrors.phones}</p>
+                  )}
+                  
+                  {formData.phones?.length === 0 && (
+                    <p className="text-sm text-gray-500 dark:text-slate-400 italic mb-2">
+                      Click "Add Phone" to add a phone number
+                    </p>
+                  )}
+                  
+                  {formData.phones?.map((phone, index) => {
+                    const isDuplicate = validationErrors.duplicatePhoneIndexes?.has(index);
+                    return (
+                      <div 
+                        key={index} 
+                        className={`flex gap-2 mb-2 ${isDuplicate ? 'ring-2 ring-red-500 rounded-xl p-1' : ''}`}
                       >
-                        {phoneTypes.map(type => (
-                          <option key={type} value={type}>{type}</option>
-                        ))}
-                      </select>
-                      <input
-                        type="tel"
-                        value={phone.number}
-                        onChange={(e) => updatePhone(index, 'number', e.target.value)}
-                        className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                        placeholder="+1 234 567 8900"
-                      />
-                      <label className="flex items-center gap-2 px-3">
+                        <select
+                          value={phone.type}
+                          onChange={(e) => updatePhone(index, 'type', e.target.value)}
+                          className="px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                        >
+                          {phoneTypes.map(type => (
+                            <option key={type} value={type}>{type}</option>
+                          ))}
+                        </select>
                         <input
-                          type="checkbox"
-                          checked={phone.primary}
-                          onChange={(e) => updatePhone(index, 'primary', e.target.checked)}
-                          className="w-4 h-4 rounded"
+                          type="tel"
+                          value={phone.number}
+                          onChange={(e) => updatePhone(index, 'number', e.target.value)}
+                          className={`flex-1 px-4 py-2.5 border rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white ${
+                            isDuplicate 
+                              ? 'border-red-500 focus:ring-red-500' 
+                              : 'border-gray-200 dark:border-slate-700'
+                          }`}
+                          placeholder="+1 234 567 8900"
                         />
-                        <span className="text-sm text-gray-600 dark:text-slate-400">Primary</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => removePhone(index)}
-                        className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                        <label className="flex items-center gap-2 px-3">
+                          <input
+                            type="checkbox"
+                            checked={phone.primary}
+                            onChange={(e) => updatePhone(index, 'primary', e.target.checked)}
+                            className="w-4 h-4 rounded"
+                          />
+                          <span className="text-sm text-gray-600 dark:text-slate-400">Primary</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => removePhone(index)}
+                          className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Communication Preferences */}
