@@ -21,7 +21,9 @@
     "migrate": "ts-node -r tsconfig-paths/register src/database/scripts/migrate.ts",
     "migrate:run": "npm run migrate run",
     "migrate:status": "npm run migrate status",
-    "migrate:tenants": "ts-node src/scripts/run-tenant-migrations.ts"
+    "migrate:tenants": "ts-node src/scripts/run-tenant-migrations.ts",
+    "migrate:run:prod": "node dist/database/scripts/migrate.js run",
+    "migrate:tenants:prod": "node dist/scripts/run-tenant-migrations.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.985.0",
