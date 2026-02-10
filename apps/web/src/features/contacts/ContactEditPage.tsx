@@ -364,6 +364,14 @@ export function ContactEditPage() {
       return;
     }
 
+    const hasEmail = formData.emails?.some(e => e.email?.trim()) || formData.email?.trim();
+    const hasPhone = formData.phones?.some(p => p.number?.trim()) || formData.phone?.trim();
+    
+    if (!hasEmail && !hasPhone) {
+      setError('At least one contact method (email or phone) is required');
+      return;
+    }
+    
     setSaving(true);
     setError('');
 
