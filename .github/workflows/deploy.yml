@@ -54,4 +54,28 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd /home/deploy/hiperteam
-            ./deploy.sh
+            
+            echo "📥 Pulling latest changes..."
+            git pull origin main
+            
+            echo "📦 Installing dependencies..."
+            npm ci
+            
+            echo "🔨 Building API..."
+            npm run build --workspace=apps/api
+            
+            echo "🔨 Building Web..."
+            VITE_API_URL=https://hiperteam.intellicon.io npm run build --workspace=apps/web
+            
+            echo "🗄️ Running master schema migrations..."
+            cd apps/api
+            npm run migrate:run
+            
+            echo "🗄️ Running tenant schema migrations..."
+            npm run migrate:tenants
+            cd ../..
+            
+            echo "🔄 Restarting services..."
+            pm2 restart all
+            
+            echo "✅ Deployment complete!"

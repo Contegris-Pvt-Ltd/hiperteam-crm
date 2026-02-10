@@ -91,6 +91,7 @@ export class UploadController {
       throw new BadRequestException('No file uploaded');
     }
 
+    
     // Upload to storage
     const uploadResult = await this.uploadService.uploadFile(
       file,
@@ -100,24 +101,55 @@ export class UploadController {
 
     // Create document record in database
     const document = await this.documentsService.create(
-    req.user.tenantSchema,
-    {
-        entityType,
-        entityId,
-        name: file.originalname,
-        originalName: file.originalname,
-        mimeType: file.mimetype,
-        sizeBytes: file.size,
-        storagePath: uploadResult.path,
-        storageUrl: uploadResult.url,
-        uploadedBy: req.user.userId,
-    },
+      req.user.tenantSchema,
+      {
+          entityType,
+          entityId,
+          name: file.originalname,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          sizeBytes: file.size,
+          storagePath: uploadResult.path,
+          storageUrl: uploadResult.url,
+          uploadedBy: req.user.userId,
+      },
     );
 
     return {
       id: document.id,
       path: uploadResult.path,
       url: uploadResult.url,
+      name: file.originalname,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+    };
+  }
+
+  @Post('file')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 25 * 1024 * 1024 }, // 25MB limit
+    }),
+  )
+  async uploadFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+
+    const result = await this.uploadService.uploadFile(
+      file,
+      'files',
+      req.user.tenantSchema,
+    );
+
+    return {
+      url: result.url,
+      path: result.path,
       name: file.originalname,
       originalName: file.originalname,
       mimeType: file.mimetype,

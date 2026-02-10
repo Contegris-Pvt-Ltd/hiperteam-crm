@@ -3,6 +3,8 @@ import { DataSource } from 'typeorm';
 import { CreateAccountDto, UpdateAccountDto, QueryAccountsDto } from './dto';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
+import { ProfileCompletionService } from '../admin/profile-completion.service';
+import { CustomFieldsService } from '../admin/custom-fields.service';
 
 @Injectable()
 export class AccountsService {
@@ -16,6 +18,8 @@ export class AccountsService {
     private dataSource: DataSource,
     private auditService: AuditService,
     private activityService: ActivityService,
+    private profileCompletionService: ProfileCompletionService,
+    private customFieldsService: CustomFieldsService,
   ) {}
 
   async create(schemaName: string, userId: string, dto: CreateAccountDto) {
@@ -161,29 +165,58 @@ export class AccountsService {
     };
   }
 
-  async findOne(schemaName: string, id: string) {
+  private async findOneRaw(schemaName: string, id: string): Promise<Record<string, unknown>> {
     const [account] = await this.dataSource.query(
-      `SELECT a.*, 
-              u.first_name as owner_first_name, 
-              u.last_name as owner_last_name,
-              pa.name as parent_account_name,
-              (SELECT COUNT(*) FROM "${schemaName}".contact_accounts ca WHERE ca.account_id = a.id) as contacts_count
-       FROM "${schemaName}".accounts a
-       LEFT JOIN "${schemaName}".users u ON a.owner_id = u.id
-       LEFT JOIN "${schemaName}".accounts pa ON a.parent_account_id = pa.id
-       WHERE a.id = $1 AND a.deleted_at IS NULL`,
-      [id],
+        `SELECT a.*, 
+                u.first_name as owner_first_name, 
+                u.last_name as owner_last_name,
+                pa.name as parent_account_name,
+                pa.logo_url as parent_account_logo_url,
+                pa.industry as parent_account_industry,
+                (SELECT COUNT(*) FROM "${schemaName}".contact_accounts ca WHERE ca.account_id = a.id) as contacts_count
+        FROM "${schemaName}".accounts a
+        LEFT JOIN "${schemaName}".users u ON a.owner_id = u.id
+        LEFT JOIN "${schemaName}".accounts pa ON a.parent_account_id = pa.id
+        WHERE a.id = $1 AND a.deleted_at IS NULL`,
+        [id],
     );
 
     if (!account) {
-      throw new NotFoundException('Account not found');
+        throw new NotFoundException('Account not found');
     }
 
     return this.formatAccount(account);
-  }
+    }
 
+  async findOne(schemaName: string, id: string) {
+    const formatted = await this.findOneRaw(schemaName, id);
+
+    // Calculate profile completion
+    const config = await this.profileCompletionService.getConfig(schemaName, 'accounts');
+    let profileCompletion = null;
+
+    if (config?.isEnabled) {
+        const customFields = await this.customFieldsService.findByModule(schemaName, 'accounts');
+        profileCompletion = this.profileCompletionService.calculateCompletion(
+        formatted,
+        config.fieldWeights,
+        customFields
+            .filter(f => f.includeInCompletion)
+            .map(f => ({
+            fieldKey: f.fieldKey,
+            completionWeight: f.completionWeight,
+            fieldLabel: f.fieldLabel,
+            })),
+        );
+    }
+
+    return {
+        ...formatted,
+        profileCompletion,
+    };
+    }
   async update(schemaName: string, id: string, userId: string, dto: UpdateAccountDto) {
-    const existing = await this.findOne(schemaName, id);
+    const existing = await this.findOneRaw(schemaName, id);
 
     const updates: string[] = [];
     const params: unknown[] = [];
@@ -272,7 +305,7 @@ export class AccountsService {
   }
 
   async remove(schemaName: string, id: string, userId: string) {
-    const existing = await this.findOne(schemaName, id);
+    const existing = await this.findOneRaw(schemaName, id);
 
     await this.dataSource.query(
       `UPDATE "${schemaName}".accounts SET deleted_at = NOW() WHERE id = $1`,
@@ -407,7 +440,12 @@ export class AccountsService {
       socialProfiles: account.social_profiles,
       parentAccountId: account.parent_account_id,
       parentAccount: account.parent_account_name
-        ? { id: account.parent_account_id, name: account.parent_account_name }
+        ? { 
+            id: account.parent_account_id, 
+            name: account.parent_account_name,
+            logoUrl: account.parent_account_logo_url,
+            industry: account.parent_account_industry,
+            }
         : null,
       accountType: account.account_type,
       status: account.status,

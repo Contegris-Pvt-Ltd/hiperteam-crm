@@ -4,6 +4,8 @@ import { CreateContactDto, UpdateContactDto, QueryContactsDto } from './dto';
 import { formatPhoneE164 } from '../../common/utils/phone.util';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
+import { ProfileCompletionService } from '../admin/profile-completion.service';
+import { CustomFieldsService } from '../admin/custom-fields.service';
 
 @Injectable()
 export class ContactsService {
@@ -18,6 +20,8 @@ export class ContactsService {
     private dataSource: DataSource,
     private auditService: AuditService,
     private activityService: ActivityService,
+    private profileCompletionService: ProfileCompletionService,
+    private customFieldsService: CustomFieldsService,
   ) {}
 
   async create(schemaName: string, userId: string, dto: CreateContactDto) {
@@ -176,16 +180,18 @@ export class ContactsService {
     };
   }
 
-  async findOne(schemaName: string, id: string) {
+  private async findOneRaw(schemaName: string, id: string): Promise<Record<string, unknown>> {
     const [contact] = await this.dataSource.query(
       `SELECT c.*, 
               u.first_name as owner_first_name, 
               u.last_name as owner_last_name,
-              a.name as account_name
-       FROM "${schemaName}".contacts c
-       LEFT JOIN "${schemaName}".users u ON c.owner_id = u.id
-       LEFT JOIN "${schemaName}".accounts a ON c.account_id = a.id
-       WHERE c.id = $1 AND c.deleted_at IS NULL`,
+              a.name as account_name,
+              a.logo_url as account_logo_url,
+              a.industry as account_industry
+      FROM "${schemaName}".contacts c
+      LEFT JOIN "${schemaName}".users u ON c.owner_id = u.id
+      LEFT JOIN "${schemaName}".accounts a ON c.account_id = a.id
+      WHERE c.id = $1 AND c.deleted_at IS NULL`,
       [id],
     );
 
@@ -196,8 +202,36 @@ export class ContactsService {
     return this.formatContact(contact);
   }
 
+  async findOne(schemaName: string, id: string) {
+    const formatted = await this.findOneRaw(schemaName, id);
+
+    // Calculate profile completion
+    const config = await this.profileCompletionService.getConfig(schemaName, 'contacts');
+    let profileCompletion = null;
+
+    if (config?.isEnabled) {
+      const customFields = await this.customFieldsService.findByModule(schemaName, 'contacts');
+      profileCompletion = this.profileCompletionService.calculateCompletion(
+        formatted,
+        config.fieldWeights,
+        customFields
+          .filter(f => f.includeInCompletion)
+          .map(f => ({
+            fieldKey: f.fieldKey,
+            completionWeight: f.completionWeight,
+            fieldLabel: f.fieldLabel,
+          })),
+      );
+    }
+
+    return {
+      ...formatted,
+      profileCompletion,
+    };
+  }
+
   async update(schemaName: string, id: string, userId: string, dto: UpdateContactDto) {
-    const existing = await this.findOne(schemaName, id);
+    const existing = await this.findOneRaw(schemaName, id);
     const country = dto.country || (existing.country as string) || 'PK';
 
     // Format phones in the phones array if provided
@@ -312,7 +346,7 @@ export class ContactsService {
   }
 
   async remove(schemaName: string, id: string, userId: string) {
-    const existing = await this.findOne(schemaName, id);
+    const existing = await this.findOneRaw(schemaName, id);
 
     await this.dataSource.query(
       `UPDATE "${schemaName}".contacts SET deleted_at = NOW() WHERE id = $1`,
@@ -442,7 +476,12 @@ export class ContactsService {
       doNotCall: contact.do_not_call,
       accountId: contact.account_id,
       account: contact.account_name
-        ? { id: contact.account_id, name: contact.account_name }
+        ? { 
+            id: contact.account_id, 
+            name: contact.account_name,
+            logoUrl: contact.account_logo_url,
+            industry: contact.account_industry,
+          }
         : null,
       ownerId: contact.owner_id,
       owner: contact.owner_first_name

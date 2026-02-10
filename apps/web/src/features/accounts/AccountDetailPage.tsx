@@ -18,6 +18,8 @@ import { NotesPanel } from '../../components/shared/NotesPanel';
 import { DocumentsPanel } from '../../components/shared/DocumentsPanel';
 import { AvatarUpload } from '../../components/shared/AvatarUpload';
 import { LinkContactModal } from '../../components/shared/LinkContactModal';
+import { ProfileCompletion } from '../../components/shared/ProfileCompletion';
+import type { ProfileCompletionData } from '../../components/shared/ProfileCompletion';
 
 type TabType = 'activity' | 'notes' | 'documents' | 'contacts' | 'children' | 'history';
 
@@ -444,6 +446,10 @@ export function AccountDetailPage() {
               </div>
             </div>
           </div>
+          {/* Profile Completion */}
+          {account.profileCompletion && (
+            <ProfileCompletion completion={account.profileCompletion as ProfileCompletionData} />
+          )}
         </div>
 
         {/* Right Column - Tabs */}

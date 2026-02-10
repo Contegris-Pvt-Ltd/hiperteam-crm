@@ -1,15 +1,44 @@
+/**
+ * CONTACT EDIT PAGE
+ * 
+ * Page Designer Integration Status:
+ * - Hook added to check if custom layout is enabled
+ * - For now, edit pages use the default form regardless of setting
+ * - Future enhancement: DynamicFormRenderer for full edit page customization
+ * 
+ * The detail page supports full custom layout rendering.
+ * Edit pages will be enhanced in a future phase.
+ */
+
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, X, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, X, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { contactsApi } from '../../api/contacts.api';
-import type { CreateContactData, EmailEntry, PhoneEntry, AddressEntry, SocialProfiles } from '../../api/contacts.api';
+import type { CreateContactData, EmailEntry, PhoneEntry, AddressEntry } from '../../api/contacts.api';
 import { uploadApi } from '../../api/upload.api';
 import { AvatarUpload } from '../../components/shared/AvatarUpload';
 import { SearchableSelect } from '../../components/shared/SearchableSelect';
 import type { SelectOption } from '../../components/shared/SearchableSelect';
 import { accountsApi } from '../../api/accounts.api';
+import { adminApi } from '../../api/admin.api';
+import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.api';
+import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
+// ============ PAGE DESIGNER IMPORTS ============
+import { useModuleLayout } from '../../hooks/useModuleLayout';
+// Note: DynamicFormRenderer for edit pages is a future enhancement
+// ===============================================
+import { QuickCreateAccountModal } from '../../components/shared/QuickCreateAccountModal';
+import type { QuickCreateAccountResult } from '../../components/shared/QuickCreateAccountModal';
 
-type TabType = 'basic' | 'contact' | 'address' | 'social' | 'other';
+type TabType = 'basic' | 'contact' | 'address' | 'social' | 'other' | string;
+
+const STANDARD_TABS = [
+  { id: 'basic', label: 'Basic Info' },
+  { id: 'contact', label: 'Contact Details' },
+  { id: 'address', label: 'Address' },
+  { id: 'social', label: 'Social Profiles' },
+  { id: 'other', label: 'Other' },
+];
 
 const emailTypes = ['work', 'personal', 'other'];
 const phoneTypes = ['mobile', 'work', 'home', 'fax', 'other'];
@@ -28,6 +57,24 @@ export function ContactEditPage() {
 
   // Selected account for linking
   const [selectedAccount, setSelectedAccount] = useState<SelectOption | null>(null);
+  
+  // Custom fields, tabs, and groups
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [customTabs, setCustomTabs] = useState<CustomTab[]>([]);
+  const [customGroups, setCustomGroups] = useState<CustomFieldGroup[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [showQuickCreateAccount, setShowQuickCreateAccount] = useState(false);
+
+
+  // ============ PAGE DESIGNER HOOK ============
+  // Check if admin has enabled custom layout for edit pages
+  // Note: For now, we don't render custom layout for edit pages
+  // This is prep work for future enhancement
+  const { 
+    loading: layoutLoading 
+  } = useModuleLayout('contacts', isNew ? 'create' : 'edit');
+  // ============================================
 
   const [formData, setFormData] = useState<CreateContactData>({
     firstName: '',
@@ -58,6 +105,31 @@ export function ContactEditPage() {
 
   const [tagInput, setTagInput] = useState('');
 
+  // Fetch custom fields, tabs, and groups
+  useEffect(() => {
+    const fetchCustomConfig = async () => {
+      try {
+        const [fieldsData, tabsData, groupsData] = await Promise.all([
+          adminApi.getCustomFields('contacts'),
+          adminApi.getTabs('contacts'),
+          adminApi.getGroups({ module: 'contacts' }),
+        ]);
+        setCustomFields(fieldsData.filter(f => f.isActive));
+        setCustomTabs(tabsData.filter(t => t.isActive));
+        setCustomGroups(groupsData.filter(g => g.isActive));
+        
+        // Initialize collapsed state for groups that are collapsed by default
+        const defaultCollapsed = new Set(
+          groupsData.filter(g => g.collapsedByDefault).map(g => g.id)
+        );
+        setCollapsedGroups(defaultCollapsed);
+      } catch (err) {
+        console.error('Failed to fetch custom fields config:', err);
+      }
+    };
+    fetchCustomConfig();
+  }, []);
+
   useEffect(() => {
     if (id) {
       fetchContact();
@@ -68,88 +140,41 @@ export function ContactEditPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const contact = await contactsApi.getOne(id);
-      
-      // Map emails - ensure we have proper array
-      const mappedEmails: EmailEntry[] = Array.isArray(contact.emails) 
-        ? contact.emails.map(e => ({
-            type: e.type || 'work',
-            email: e.email || '',
-            primary: e.primary || false
-          }))
-        : [];
-
-      // Map phones - ensure we have proper array
-      const mappedPhones: PhoneEntry[] = Array.isArray(contact.phones)
-        ? contact.phones.map(p => ({
-            type: p.type || 'mobile',
-            number: p.number || '',
-            primary: p.primary || false
-          }))
-        : [];
-
-      // Map addresses - ensure we have proper array
-      const mappedAddresses: AddressEntry[] = Array.isArray(contact.addresses)
-        ? contact.addresses.map(a => ({
-            type: a.type || 'work',
-            line1: a.line1 || '',
-            line2: a.line2 || '',
-            city: a.city || '',
-            state: a.state || '',
-            postalCode: a.postalCode || '',
-            country: a.country || '',
-            primary: a.primary || false
-          }))
-        : [];
-
+      const data = await contactsApi.getOne(id);
       setFormData({
-        firstName: contact.firstName || '',
-        lastName: contact.lastName || '',
-        email: contact.email || '',
-        phone: contact.phone || '',
-        mobile: contact.mobile || '',
-        company: contact.company || '',
-        jobTitle: contact.jobTitle || '',
-        website: contact.website || '',
-        addressLine1: contact.addressLine1 || '',
-        addressLine2: contact.addressLine2 || '',
-        city: contact.city || '',
-        state: contact.state || '',
-        postalCode: contact.postalCode || '',
-        country: contact.country || '',
-        emails: mappedEmails,
-        phones: mappedPhones,
-        addresses: mappedAddresses,
-        source: contact.source || '',
-        tags: contact.tags || [],
-        notes: contact.notes || '',
-        socialProfiles: contact.socialProfiles || {},
-        doNotContact: contact.doNotContact || false,
-        doNotEmail: contact.doNotEmail || false,
-        doNotCall: contact.doNotCall || false,
-        accountId: contact.accountId || undefined,
-        ownerId: contact.ownerId || undefined,
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        email: data.email || '',
+        phone: data.phone || '',
+        mobile: data.mobile || '',
+        company: data.company || '',
+        jobTitle: data.jobTitle || '',
+        website: data.website || '',
+        addressLine1: data.addressLine1 || '',
+        addressLine2: data.addressLine2 || '',
+        city: data.city || '',
+        state: data.state || '',
+        postalCode: data.postalCode || '',
+        country: data.country || '',
+        emails: data.emails || [],
+        phones: data.phones || [],
+        addresses: data.addresses || [],
+        source: data.source || '',
+        tags: data.tags || [],
+        notes: data.notes || '',
+        socialProfiles: data.socialProfiles || {},
+        doNotContact: data.doNotContact || false,
+        doNotEmail: data.doNotEmail || false,
+        doNotCall: data.doNotCall || false,
       });
-      setAvatarUrl(contact.avatarUrl || null);
-
-      // If contact has an account linked, fetch and set it
-      if (contact.accountId && contact.account) {
-        setSelectedAccount({
-          id: contact.accountId,
-          label: contact.account.name,
-          sublabel: contact.account.industry || undefined,
-          imageUrl: contact.account.logoUrl || undefined,
-        });
-      } else if (contact.company) {
-        // If just company name, show it but no account linked
-        setSelectedAccount(null);
-      }
-
-      // Also check linked accounts
+      setAvatarUrl(data.avatarUrl || null);
+      setCustomFieldValues(data.customFields || {});
+      
+      // Load linked account
       try {
         const linkedAccounts = await contactsApi.getAccounts(id);
-        if (linkedAccounts.length > 0) {
-          const primaryAccount = linkedAccounts.find(a => a.isPrimary) || linkedAccounts[0];
+        const primaryAccount = linkedAccounts.find(a => a.isPrimary) || linkedAccounts[0];
+        if (primaryAccount) {
           setSelectedAccount({
             id: primaryAccount.id,
             label: primaryAccount.name,
@@ -174,108 +199,11 @@ export function ContactEditPage() {
       return response.data.map(account => ({
         id: account.id,
         label: account.name,
-        sublabel: account.industry || account.accountType,
+        sublabel: account.industry || undefined,
         imageUrl: account.logoUrl || undefined,
       }));
-    } catch (error) {
-      console.error('Failed to search accounts:', error);
+    } catch {
       return [];
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSaving(true);
-
-    try {
-        // Clean the data - remove empty strings and empty arrays
-        const dataToSave: Partial<CreateContactData> = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        };
-
-        // Only include fields that have values
-        if (formData.email?.trim()) dataToSave.email = formData.email.trim();
-        if (formData.phone?.trim()) dataToSave.phone = formData.phone.trim();
-        if (formData.mobile?.trim()) dataToSave.mobile = formData.mobile.trim();
-        if (formData.company?.trim()) dataToSave.company = formData.company.trim();
-        if (formData.jobTitle?.trim()) dataToSave.jobTitle = formData.jobTitle.trim();
-        if (formData.website?.trim()) dataToSave.website = formData.website.trim();
-        if (formData.source?.trim()) dataToSave.source = formData.source.trim();
-        if (formData.notes?.trim()) dataToSave.notes = formData.notes.trim();
-        
-        // Legacy address fields
-        if (formData.addressLine1?.trim()) dataToSave.addressLine1 = formData.addressLine1.trim();
-        if (formData.addressLine2?.trim()) dataToSave.addressLine2 = formData.addressLine2.trim();
-        if (formData.city?.trim()) dataToSave.city = formData.city.trim();
-        if (formData.state?.trim()) dataToSave.state = formData.state.trim();
-        if (formData.postalCode?.trim()) dataToSave.postalCode = formData.postalCode.trim();
-        if (formData.country?.trim()) dataToSave.country = formData.country.trim();
-
-        // Arrays - only include if they have items with actual values
-        const cleanedEmails = (formData.emails || []).filter(e => e.email?.trim());
-        if (cleanedEmails.length > 0) dataToSave.emails = cleanedEmails;
-
-        const cleanedPhones = (formData.phones || []).filter(p => p.number?.trim());
-        if (cleanedPhones.length > 0) dataToSave.phones = cleanedPhones;
-
-        const cleanedAddresses = (formData.addresses || []).filter(a => a.line1?.trim() || a.city?.trim());
-        if (cleanedAddresses.length > 0) dataToSave.addresses = cleanedAddresses;
-
-        // Tags
-        if (formData.tags && formData.tags.length > 0) dataToSave.tags = formData.tags;
-
-        // Social profiles - only if any have values
-        if (formData.socialProfiles && Object.values(formData.socialProfiles).some(v => v?.trim())) {
-        dataToSave.socialProfiles = formData.socialProfiles;
-        }
-
-        // Boolean fields
-        dataToSave.doNotContact = formData.doNotContact;
-        dataToSave.doNotEmail = formData.doNotEmail;
-        dataToSave.doNotCall = formData.doNotCall;
-
-        // Avatar
-        if (avatarUrl) {
-        dataToSave.avatarUrl = avatarUrl;
-        }
-
-        // Account link
-        if (selectedAccount) {
-        dataToSave.company = selectedAccount.label;
-        dataToSave.accountId = selectedAccount.id;
-        }
-
-        if (isNew) {
-        const contact = await contactsApi.create(dataToSave as CreateContactData);
-        // Link to account if selected
-        if (selectedAccount) {
-            try {
-            await contactsApi.linkAccount(contact.id, selectedAccount.id, '', true);
-            } catch (e) {
-            // Ignore if linking fails
-            }
-        }
-        navigate(`/contacts/${contact.id}`);
-        } else {
-        await contactsApi.update(id!, dataToSave as CreateContactData);
-        // Update account link if changed
-        if (selectedAccount) {
-            try {
-            await contactsApi.linkAccount(id!, selectedAccount.id, '', true);
-            } catch (e) {
-            // May already be linked, ignore
-            }
-        }
-        navigate(`/contacts/${id}`);
-        }
-    } catch (err: unknown) {
-        const error = err as { response?: { data?: { message?: string | string[] } } };
-        const message = error.response?.data?.message;
-        setError(Array.isArray(message) ? message[0] : message || 'Failed to save contact');
-    } finally {
-        setSaving(false);
     }
   };
 
@@ -283,16 +211,142 @@ export function ContactEditPage() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSocialChange = (platform: keyof SocialProfiles, value: string) => {
+  const handleSocialChange = (platform: string, value: string) => {
     setFormData(prev => ({
       ...prev,
-      socialProfiles: { ...prev.socialProfiles, [platform]: value },
+      socialProfiles: { ...prev.socialProfiles, [platform]: value }
     }));
+  };
+
+  const handleCustomFieldChange = (fieldKey: string, value: unknown) => {
+    setCustomFieldValues(prev => ({ ...prev, [fieldKey]: value }));
+  };
+
+  const handleQuickAccountCreated = (account: QuickCreateAccountResult) => {
+    setSelectedAccount({
+      id: account.id,
+      label: account.name,
+      sublabel: account.industry || undefined,
+      imageUrl: account.logoUrl || undefined,
+    });
+    handleChange('company', account.name);
+  };
+
+  // Email handlers
+  const addEmail = () => {
+    setFormData(prev => ({
+      ...prev,
+      emails: [...(prev.emails || []), { type: 'work', email: '', primary: (prev.emails?.length || 0) === 0 }]
+    }));
+  };
+
+  const updateEmail = (index: number, field: keyof EmailEntry, value: string | boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      emails: prev.emails?.map((e, i) => {
+        if (i === index) {
+          return { ...e, [field]: value };
+        }
+        if (field === 'primary' && value === true) {
+          return { ...e, primary: false };
+        }
+        return e;
+      })
+    }));
+  };
+
+  const removeEmail = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      emails: prev.emails?.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Phone handlers
+  const addPhone = () => {
+    setFormData(prev => ({
+      ...prev,
+      phones: [...(prev.phones || []), { type: 'mobile', number: '', primary: (prev.phones?.length || 0) === 0 }]
+    }));
+  };
+
+  const updatePhone = (index: number, field: keyof PhoneEntry, value: string | boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      phones: prev.phones?.map((p, i) => {
+        if (i === index) {
+          return { ...p, [field]: value };
+        }
+        if (field === 'primary' && value === true) {
+          return { ...p, primary: false };
+        }
+        return p;
+      })
+    }));
+  };
+
+  const removePhone = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      phones: prev.phones?.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Address handlers
+  const addAddress = () => {
+    setFormData(prev => ({
+      ...prev,
+      addresses: [...(prev.addresses || []), { 
+        type: 'work', 
+        line1: '', 
+        line2: '', 
+        city: '', 
+        state: '', 
+        postalCode: '', 
+        country: '', 
+        primary: (prev.addresses?.length || 0) === 0 
+      }]
+    }));
+  };
+
+  const updateAddress = (index: number, field: keyof AddressEntry, value: string | boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      addresses: prev.addresses?.map((a, i) => {
+        if (i === index) {
+          return { ...a, [field]: value };
+        }
+        if (field === 'primary' && value === true) {
+          return { ...a, primary: false };
+        }
+        return a;
+      })
+    }));
+  };
+
+  const removeAddress = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      addresses: prev.addresses?.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Tag handlers
+  const addTag = () => {
+    const tag = tagInput.trim();
+    if (tag && !formData.tags?.includes(tag)) {
+      setFormData(prev => ({ ...prev, tags: [...(prev.tags || []), tag] }));
+      setTagInput('');
+    }
+  };
+
+  const removeTag = (tag: string) => {
+    setFormData(prev => ({ ...prev, tags: prev.tags?.filter(t => t !== tag) }));
   };
 
   const handleAvatarUpload = async (file: File): Promise<string> => {
     if (isNew) {
-      // For new contacts, just preview locally
+      // For new contacts, just preview the file
       const url = URL.createObjectURL(file);
       setAvatarUrl(url);
       return url;
@@ -302,86 +356,204 @@ export function ContactEditPage() {
     return result.url;
   };
 
-  // Email handlers
-  const addEmail = () => {
-    const currentEmails = formData.emails || [];
-    handleChange('emails', [...currentEmails, { type: 'work', email: '', primary: currentEmails.length === 0 }]);
-  };
-
-  const updateEmail = (index: number, field: keyof EmailEntry, value: string | boolean) => {
-    const emails = [...(formData.emails || [])];
-    emails[index] = { ...emails[index], [field]: value };
-    if (field === 'primary' && value === true) {
-      emails.forEach((e, i) => { if (i !== index) e.primary = false; });
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    
+    if (!formData.firstName.trim()) {
+      setError('First name is required');
+      return;
     }
-    handleChange('emails', emails);
-  };
 
-  const removeEmail = (index: number) => {
-    handleChange('emails', (formData.emails || []).filter((_, i) => i !== index));
-  };
+    setSaving(true);
+    setError('');
 
-  // Phone handlers
-  const addPhone = () => {
-    const currentPhones = formData.phones || [];
-    handleChange('phones', [...currentPhones, { type: 'mobile', number: '', primary: currentPhones.length === 0 }]);
-  };
+    try {
+      const dataToSave = {
+        ...formData,
+        accountId: selectedAccount?.id || undefined,
+        customFields: customFieldValues,
+      };
 
-  const updatePhone = (index: number, field: keyof PhoneEntry, value: string | boolean) => {
-    const phones = [...(formData.phones || [])];
-    phones[index] = { ...phones[index], [field]: value };
-    if (field === 'primary' && value === true) {
-      phones.forEach((p, i) => { if (i !== index) p.primary = false; });
-    }
-    handleChange('phones', phones);
-  };
-
-  const removePhone = (index: number) => {
-    handleChange('phones', (formData.phones || []).filter((_, i) => i !== index));
-  };
-
-  // Address handlers
-  const addAddress = () => {
-    const currentAddresses = formData.addresses || [];
-    handleChange('addresses', [...currentAddresses, { 
-      type: 'work', line1: '', line2: '', city: '', state: '', postalCode: '', country: '', 
-      primary: currentAddresses.length === 0 
-    }]);
-  };
-
-  const updateAddress = (index: number, field: keyof AddressEntry, value: string | boolean) => {
-    const addresses = [...(formData.addresses || [])];
-    addresses[index] = { ...addresses[index], [field]: value };
-    if (field === 'primary' && value === true) {
-      addresses.forEach((a, i) => { if (i !== index) a.primary = false; });
-    }
-    handleChange('addresses', addresses);
-  };
-
-  const removeAddress = (index: number) => {
-    handleChange('addresses', (formData.addresses || []).filter((_, i) => i !== index));
-  };
-
-  // Tag handlers
-  const addTag = () => {
-    if (tagInput.trim() && !formData.tags?.includes(tagInput.trim())) {
-      handleChange('tags', [...(formData.tags || []), tagInput.trim()]);
-      setTagInput('');
+      let contactId: string;
+      
+      if (isNew) {
+        const newContact = await contactsApi.create(dataToSave);
+        contactId = newContact.id;
+        
+        // Link account for new contact if selected
+        if (selectedAccount) {
+          await contactsApi.linkAccount(contactId, selectedAccount.id, '', true);
+        }
+      } else {
+        await contactsApi.update(id!, dataToSave);
+        contactId = id!;
+        
+        // Get current linked accounts
+        const linkedAccounts = await contactsApi.getAccounts(contactId);
+        
+        if (selectedAccount) {
+          // Check if this account is already linked
+          const alreadyLinked = linkedAccounts.some(a => a.id === selectedAccount.id);
+          if (!alreadyLinked) {
+            // Unlink old accounts first
+            for (const account of linkedAccounts) {
+              await contactsApi.unlinkAccount(contactId, account.id);
+            }
+            // Link new account
+            await contactsApi.linkAccount(contactId, selectedAccount.id, '', true);
+          }
+        } else {
+          // Unlink all accounts
+          for (const account of linkedAccounts) {
+            await contactsApi.unlinkAccount(contactId, account.id);
+          }
+        }
+      }
+      
+      navigate(`/contacts/${contactId}`);
+    } catch (err) {
+      setError('Failed to save contact');
+      console.error(err);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const removeTag = (tag: string) => {
-    handleChange('tags', formData.tags?.filter(t => t !== tag));
+  const toggleGroup = (groupId: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
   };
 
-  const tabs: { id: TabType; label: string }[] = [
-    { id: 'basic', label: 'Basic Info' },
-    { id: 'contact', label: 'Contact Details' },
-    { id: 'address', label: 'Addresses' },
-    { id: 'social', label: 'Social' },
-    { id: 'other', label: 'Other' },
+  // Get fields for a section (standard) or tab (custom)
+  const getFieldsForSection = (section: string, tabId?: string) => {
+    return customFields.filter(f => {
+      if (tabId) return f.tabId === tabId;
+      return f.section === section && !f.tabId;
+    });
+  };
+
+  // Get ungrouped fields
+  const getUngroupedFields = (section: string, tabId?: string) => {
+    return getFieldsForSection(section, tabId).filter(f => !f.groupId);
+  };
+
+  // Get groups for a section
+  const getGroupsForSection = (section: string, tabId?: string) => {
+    return customGroups.filter(g => {
+      if (tabId) {
+        return g.tabId === tabId;
+      }
+      return g.section === section && !g.tabId;
+    });
+  };
+
+  // Get fields for a group
+  const getFieldsForGroup = (groupId: string) => {
+    return customFields.filter(f => f.groupId === groupId);
+  };
+
+  // Render custom fields for a section
+  const renderCustomFieldsForSection = (section: string, tabId?: string) => {
+    const groups = getGroupsForSection(section, tabId);
+    const ungroupedFields = getUngroupedFields(section, tabId);
+
+    if (groups.length === 0 && ungroupedFields.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="mt-6 pt-6 border-t border-gray-200 dark:border-slate-700">
+        {/* Grouped Fields */}
+        {groups.map(group => {
+          const groupFields = getFieldsForGroup(group.id);
+          if (groupFields.length === 0) return null;
+
+          const isCollapsed = collapsedGroups.has(group.id);
+
+          return (
+            <div key={group.id} className="mb-6">
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.id)}
+                className="flex items-center gap-2 mb-3 text-sm font-medium text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white"
+              >
+                {isCollapsed ? (
+                  <ChevronRight className="w-4 h-4" />
+                ) : (
+                  <ChevronDown className="w-4 h-4" />
+                )}
+                {group.name}
+                <span className="text-xs text-gray-400 dark:text-slate-500">
+                  ({groupFields.length} fields)
+                </span>
+              </button>
+
+              {!isCollapsed && (
+                <div className={`grid gap-4 ${group.columns === 1 ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
+                  {groupFields
+                    .sort((a, b) => a.displayOrder - b.displayOrder)
+                    .map(field => (
+                      <div 
+                        key={field.id} 
+                        className={field.columnSpan === 2 ? 'md:col-span-2' : ''}
+                      >
+                        <CustomFieldRenderer
+                          field={field}
+                          value={customFieldValues[field.fieldKey]}
+                          onChange={handleCustomFieldChange}
+                          allFields={customFields}
+                          allValues={customFieldValues}
+                        />
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Ungrouped Fields */}
+        {ungroupedFields.length > 0 && (
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+            {ungroupedFields
+              .sort((a, b) => a.displayOrder - b.displayOrder)
+              .map(field => (
+                <div 
+                  key={field.id} 
+                  className={field.columnSpan === 2 ? 'md:col-span-2' : ''}
+                >
+                  <CustomFieldRenderer
+                    field={field}
+                    value={customFieldValues[field.fieldKey]}
+                    onChange={handleCustomFieldChange}
+                    allFields={customFields}
+                    allValues={customFieldValues}
+                  />
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Build tabs array including custom tabs
+  const allTabs = [
+    ...STANDARD_TABS,
+    ...customTabs.map(t => ({ id: `custom_${t.id}`, label: t.name, isCustom: true, tabId: t.id })),
   ];
 
+  // Check if we need to show the "Custom Fields" tab (for fields in 'custom' section)
+  const hasCustomSectionFields = customFields.some(f => f.section === 'custom' && !f.tabId);
+
+  // ============ LOADING STATE (includes layoutLoading) ============
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -389,6 +561,11 @@ export function ContactEditPage() {
       </div>
     );
   }
+
+  // ============ RENDER DEFAULT FORM ============
+  // Note: Custom layout rendering for edit pages is a future enhancement
+  // For now, we always use the default form even if useCustomLayout is true
+  // This provides a consistent editing experience while detail pages can be customized
 
   return (
     <div className="animate-fadeIn max-w-4xl mx-auto">
@@ -454,7 +631,7 @@ export function ContactEditPage() {
           {/* Tabs */}
           <div className="border-b border-gray-100 dark:border-slate-800 px-6">
             <div className="flex gap-1 overflow-x-auto">
-              {tabs.map(tab => (
+              {allTabs.map(tab => (
                 <button
                   key={tab.id}
                   type="button"
@@ -468,53 +645,90 @@ export function ContactEditPage() {
                   {tab.label}
                 </button>
               ))}
+              {hasCustomSectionFields && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('custom')}
+                  className={`px-4 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    activeTab === 'custom'
+                      ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  Custom Fields
+                </button>
+              )}
             </div>
           </div>
 
           {/* Tab Content */}
           <div className="p-6">
+            {/* Basic Info Tab */}
             {activeTab === 'basic' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       First Name *
                     </label>
                     <input
                       type="text"
-                      required
                       value={formData.firstName}
-                      onChange={e => handleChange('firstName', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="John"
+                      onChange={(e) => handleChange('firstName', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       Last Name *
                     </label>
                     <input
                       type="text"
-                      required
                       value={formData.lastName}
-                      onChange={e => handleChange('lastName', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Doe"
+                      onChange={(e) => handleChange('lastName', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
                     />
                   </div>
                 </div>
 
-                {/* Account Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                      Job Title
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.jobTitle}
+                      onChange={(e) => handleChange('jobTitle', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                      Company
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.company}
+                      onChange={(e) => handleChange('company', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Link Account */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                    Company / Account
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    Link to Account
                   </label>
                   {selectedAccount ? (
-                    <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center gap-3">
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-800 rounded-xl">
                       {selectedAccount.imageUrl ? (
-                        <img src={selectedAccount.imageUrl} alt="" className="w-10 h-10 rounded-xl object-cover" />
+                        <img src={selectedAccount.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
                       ) : (
-                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center text-white font-semibold">
+                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center text-white font-semibold">
                           {selectedAccount.label[0]}
                         </div>
                       )}
@@ -526,386 +740,55 @@ export function ContactEditPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setSelectedAccount(null);
-                          handleChange('company', '');
-                        }}
-                        className="p-2 text-gray-400 hover:text-red-600 rounded-lg"
+                        onClick={() => setSelectedAccount(null)}
+                        className="p-2 text-gray-400 hover:text-red-500 rounded-lg"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
-                    <SearchableSelect
-                      placeholder="Search for a company..."
-                      onSearch={handleSearchAccounts}
-                      onSelect={(option) => {
-                        setSelectedAccount(option);
-                        handleChange('company', option.label);
-                      }}
-                      minSearchLength={2}
-                    />
+                    <div className="space-y-2">
+                      <SearchableSelect
+                        placeholder="Search for a company..."
+                        onSearch={handleSearchAccounts}
+                        onSelect={(option) => {
+                          setSelectedAccount(option);
+                          handleChange('company', option.label);
+                        }}
+                        minSearchLength={2}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickCreateAccount(true)}
+                        className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Create New Account
+                      </button>
+                    </div>
                   )}
                   <p className="mt-1.5 text-xs text-gray-500 dark:text-slate-400">
-                    Search and link to an existing account, or leave empty
+                    Search and link to an existing account, or create a new one
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                    Job Title
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.jobTitle}
-                    onChange={e => handleChange('jobTitle', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="VP of Sales"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                    Website
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.website}
-                    onChange={e => handleChange('website', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="https://example.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                    Source
-                  </label>
-                  <select
-                    value={formData.source}
-                    onChange={e => handleChange('source', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select source</option>
-                    <option value="Website">Website</option>
-                    <option value="Referral">Referral</option>
-                    <option value="LinkedIn">LinkedIn</option>
-                    <option value="Cold Call">Cold Call</option>
-                    <option value="Trade Show">Trade Show</option>
-                    <option value="Advertisement">Advertisement</option>
-                    <option value="Partner">Partner</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'contact' && (
-              <div className="space-y-6">
-                {/* Emails */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      Email Addresses ({(formData.emails || []).length})
-                    </label>
-                    <button
-                      type="button"
-                      onClick={addEmail}
-                      className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center gap-1"
-                    >
-                      <Plus className="w-4 h-4" /> Add Email
-                    </button>
-                  </div>
-                  {(formData.emails || []).length === 0 ? (
-                    <button
-                      type="button"
-                      onClick={addEmail}
-                      className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl text-gray-500 dark:text-slate-400 hover:border-gray-400 text-sm"
-                    >
-                      Click to add an email address
-                    </button>
-                  ) : (
-                    <div className="space-y-3">
-                      {(formData.emails || []).map((email, index) => (
-                        <div key={index} className="flex gap-2 items-center">
-                          <select
-                            value={email.type || 'work'}
-                            onChange={e => updateEmail(index, 'type', e.target.value)}
-                            className="w-32 px-3 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
-                          >
-                            {emailTypes.map(type => (
-                              <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
-                            ))}
-                          </select>
-                          <input
-                            type="email"
-                            value={email.email || ''}
-                            onChange={e => updateEmail(index, 'email', e.target.value)}
-                            className="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="email@example.com"
-                          />
-                          <label className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={email.primary || false}
-                              onChange={e => updateEmail(index, 'primary', e.target.checked)}
-                              className="w-4 h-4 rounded border-gray-300 text-blue-600"
-                            />
-                            <span className="text-xs text-gray-600 dark:text-slate-400">Primary</span>
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => removeEmail(index)}
-                            className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Phones */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      Phone Numbers ({(formData.phones || []).length})
-                    </label>
-                    <button
-                      type="button"
-                      onClick={addPhone}
-                      className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center gap-1"
-                    >
-                      <Plus className="w-4 h-4" /> Add Phone
-                    </button>
-                  </div>
-                  {(formData.phones || []).length === 0 ? (
-                    <button
-                      type="button"
-                      onClick={addPhone}
-                      className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl text-gray-500 dark:text-slate-400 hover:border-gray-400 text-sm"
-                    >
-                      Click to add a phone number
-                    </button>
-                  ) : (
-                    <div className="space-y-3">
-                      {(formData.phones || []).map((phone, index) => (
-                        <div key={index} className="flex gap-2 items-center">
-                          <select
-                            value={phone.type || 'mobile'}
-                            onChange={e => updatePhone(index, 'type', e.target.value)}
-                            className="w-32 px-3 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
-                          >
-                            {phoneTypes.map(type => (
-                              <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
-                            ))}
-                          </select>
-                          <input
-                            type="tel"
-                            value={phone.number || ''}
-                            onChange={e => updatePhone(index, 'number', e.target.value)}
-                            className="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="+1 555-123-4567"
-                          />
-                          <label className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={phone.primary || false}
-                              onChange={e => updatePhone(index, 'primary', e.target.checked)}
-                              className="w-4 h-4 rounded border-gray-300 text-blue-600"
-                            />
-                            <span className="text-xs text-gray-600 dark:text-slate-400">Primary</span>
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => removePhone(index)}
-                            className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'address' && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                    Addresses ({(formData.addresses || []).length})
-                  </label>
-                  <button
-                    type="button"
-                    onClick={addAddress}
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center gap-1"
-                  >
-                    <Plus className="w-4 h-4" /> Add Address
-                  </button>
-                </div>
-                {(formData.addresses || []).length === 0 ? (
-                  <button
-                    type="button"
-                    onClick={addAddress}
-                    className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl text-gray-500 dark:text-slate-400 hover:border-gray-400 text-sm"
-                  >
-                    Click to add an address
-                  </button>
-                ) : (
-                  <div className="space-y-4">
-                    {(formData.addresses || []).map((address, index) => (
-                      <div key={index} className="p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <select
-                              value={address.type || 'work'}
-                              onChange={e => updateAddress(index, 'type', e.target.value)}
-                              className="px-3 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-sm text-gray-900 dark:text-white"
-                            >
-                              {addressTypes.map(type => (
-                                <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
-                              ))}
-                            </select>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={address.primary || false}
-                                onChange={e => updateAddress(index, 'primary', e.target.checked)}
-                                className="w-4 h-4 rounded border-gray-300 text-blue-600"
-                              />
-                              <span className="text-sm text-gray-600 dark:text-slate-400">Primary</span>
-                            </label>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeAddress(index)}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <input
-                          type="text"
-                          value={address.line1 || ''}
-                          onChange={e => updateAddress(index, 'line1', e.target.value)}
-                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white"
-                          placeholder="Address Line 1"
-                        />
-                        <input
-                          type="text"
-                          value={address.line2 || ''}
-                          onChange={e => updateAddress(index, 'line2', e.target.value)}
-                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white"
-                          placeholder="Address Line 2"
-                        />
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <input
-                            type="text"
-                            value={address.city || ''}
-                            onChange={e => updateAddress(index, 'city', e.target.value)}
-                            className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white"
-                            placeholder="City"
-                          />
-                          <input
-                            type="text"
-                            value={address.state || ''}
-                            onChange={e => updateAddress(index, 'state', e.target.value)}
-                            className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white"
-                            placeholder="State"
-                          />
-                          <input
-                            type="text"
-                            value={address.postalCode || ''}
-                            onChange={e => updateAddress(index, 'postalCode', e.target.value)}
-                            className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white"
-                            placeholder="Postal Code"
-                          />
-                          <input
-                            type="text"
-                            value={address.country || ''}
-                            onChange={e => updateAddress(index, 'country', e.target.value)}
-                            className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white"
-                            placeholder="Country"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'social' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                    LinkedIn
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.socialProfiles?.linkedin || ''}
-                    onChange={e => handleSocialChange('linkedin', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="https://linkedin.com/in/username"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                    Twitter
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.socialProfiles?.twitter || ''}
-                    onChange={e => handleSocialChange('twitter', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="https://twitter.com/username"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                    Facebook
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.socialProfiles?.facebook || ''}
-                    onChange={e => handleSocialChange('facebook', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="https://facebook.com/username"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                    Instagram
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.socialProfiles?.instagram || ''}
-                    onChange={e => handleSocialChange('instagram', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="https://instagram.com/username"
-                  />
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'other' && (
-              <div className="space-y-6">
                 {/* Tags */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Tags
                   </label>
-                  <div className="flex gap-2 mb-2 flex-wrap">
+                  <div className="flex flex-wrap gap-2 mb-2">
                     {formData.tags?.map(tag => (
                       <span
                         key={tag}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-sm"
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-sm"
                       >
                         {tag}
-                        <button type="button" onClick={() => removeTag(tag)} className="hover:text-blue-900">
+                        <button
+                          type="button"
+                          onClick={() => removeTag(tag)}
+                          className="hover:text-blue-900 dark:hover:text-blue-200"
+                        >
                           <X className="w-3 h-3" />
                         </button>
                       </span>
@@ -915,72 +798,511 @@ export function ContactEditPage() {
                     <input
                       type="text"
                       value={tagInput}
-                      onChange={e => setTagInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                      className="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white"
-                      placeholder="Add a tag"
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addTag();
+                        }
+                      }}
+                      placeholder="Add a tag..."
+                      className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                     <button
                       type="button"
                       onClick={addTag}
-                      className="px-4 py-2.5 bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-700 dark:text-slate-300 hover:bg-gray-200"
+                      className="px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800"
                     >
-                      Add
+                      <Plus className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                {/* Notes */}
+                {/* Custom fields for basic section */}
+                {renderCustomFieldsForSection('basic')}
+              </div>
+            )}
+
+            {/* Contact Details Tab */}
+            {activeTab === 'contact' && (
+              <div className="space-y-6">
+                {/* Primary Email & Phone */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                      Primary Email
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => handleChange('email', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                      Primary Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => handleChange('phone', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                      Mobile
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.mobile}
+                      onChange={(e) => handleChange('mobile', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                      Website
+                    </label>
+                    <input
+                      type="url"
+                      value={formData.website}
+                      onChange={(e) => handleChange('website', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Additional Emails */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                      Additional Emails
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addEmail}
+                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                    >
+                      <Plus className="w-4 h-4" /> Add Email
+                    </button>
+                  </div>
+                  {formData.emails?.map((email, index) => (
+                    <div key={index} className="flex gap-2 mb-2">
+                      <select
+                        value={email.type}
+                        onChange={(e) => updateEmail(index, 'type', e.target.value)}
+                        className="px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      >
+                        {emailTypes.map(type => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="email"
+                        value={email.email}
+                        onChange={(e) => updateEmail(index, 'email', e.target.value)}
+                        className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                        placeholder="email@example.com"
+                      />
+                      <label className="flex items-center gap-2 px-3">
+                        <input
+                          type="checkbox"
+                          checked={email.primary}
+                          onChange={(e) => updateEmail(index, 'primary', e.target.checked)}
+                          className="w-4 h-4 rounded"
+                        />
+                        <span className="text-sm text-gray-600 dark:text-slate-400">Primary</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removeEmail(index)}
+                        className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Additional Phones */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                      Additional Phones
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addPhone}
+                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                    >
+                      <Plus className="w-4 h-4" /> Add Phone
+                    </button>
+                  </div>
+                  {formData.phones?.map((phone, index) => (
+                    <div key={index} className="flex gap-2 mb-2">
+                      <select
+                        value={phone.type}
+                        onChange={(e) => updatePhone(index, 'type', e.target.value)}
+                        className="px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      >
+                        {phoneTypes.map(type => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="tel"
+                        value={phone.number}
+                        onChange={(e) => updatePhone(index, 'number', e.target.value)}
+                        className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                        placeholder="+1 234 567 8900"
+                      />
+                      <label className="flex items-center gap-2 px-3">
+                        <input
+                          type="checkbox"
+                          checked={phone.primary}
+                          onChange={(e) => updatePhone(index, 'primary', e.target.checked)}
+                          className="w-4 h-4 rounded"
+                        />
+                        <span className="text-sm text-gray-600 dark:text-slate-400">Primary</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removePhone(index)}
+                        className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Communication Preferences */}
+                <div className="pt-4 border-t border-gray-200 dark:border-slate-700">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
+                    Communication Preferences
+                  </h4>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.doNotContact}
+                        onChange={(e) => handleChange('doNotContact', e.target.checked)}
+                        className="w-4 h-4 rounded"
+                      />
+                      <span className="text-sm text-gray-600 dark:text-slate-400">Do Not Contact</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.doNotEmail}
+                        onChange={(e) => handleChange('doNotEmail', e.target.checked)}
+                        className="w-4 h-4 rounded"
+                      />
+                      <span className="text-sm text-gray-600 dark:text-slate-400">Do Not Email</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.doNotCall}
+                        onChange={(e) => handleChange('doNotCall', e.target.checked)}
+                        className="w-4 h-4 rounded"
+                      />
+                      <span className="text-sm text-gray-600 dark:text-slate-400">Do Not Call</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Custom fields for contact section */}
+                {renderCustomFieldsForSection('contact')}
+              </div>
+            )}
+
+            {/* Address Tab */}
+            {activeTab === 'address' && (
+              <div className="space-y-6">
+                {/* Primary Address */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">Primary Address</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <input
+                        type="text"
+                        value={formData.addressLine1}
+                        onChange={(e) => handleChange('addressLine1', e.target.value)}
+                        placeholder="Address Line 1"
+                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <input
+                        type="text"
+                        value={formData.addressLine2}
+                        onChange={(e) => handleChange('addressLine2', e.target.value)}
+                        placeholder="Address Line 2"
+                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={formData.city}
+                        onChange={(e) => handleChange('city', e.target.value)}
+                        placeholder="City"
+                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={formData.state}
+                        onChange={(e) => handleChange('state', e.target.value)}
+                        placeholder="State/Province"
+                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={formData.postalCode}
+                        onChange={(e) => handleChange('postalCode', e.target.value)}
+                        placeholder="Postal Code"
+                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={formData.country}
+                        onChange={(e) => handleChange('country', e.target.value)}
+                        placeholder="Country"
+                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Addresses */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                      Additional Addresses
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addAddress}
+                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                    >
+                      <Plus className="w-4 h-4" /> Add Address
+                    </button>
+                  </div>
+                  {formData.addresses?.map((address, index) => (
+                    <div key={index} className="p-4 border border-gray-200 dark:border-slate-700 rounded-xl mb-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <select
+                          value={address.type}
+                          onChange={(e) => updateAddress(index, 'type', e.target.value)}
+                          className="px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+                        >
+                          {addressTypes.map(type => (
+                            <option key={type} value={type}>{type}</option>
+                          ))}
+                        </select>
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={address.primary}
+                              onChange={(e) => updateAddress(index, 'primary', e.target.checked)}
+                              className="w-4 h-4 rounded"
+                            />
+                            <span className="text-sm text-gray-600 dark:text-slate-400">Primary</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => removeAddress(index)}
+                            className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <input
+                          type="text"
+                          value={address.line1}
+                          onChange={(e) => updateAddress(index, 'line1', e.target.value)}
+                          placeholder="Address Line 1"
+                          className="md:col-span-2 px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+                        />
+                        <input
+                          type="text"
+                          value={address.line2 || ''}
+                          onChange={(e) => updateAddress(index, 'line2', e.target.value)}
+                          placeholder="Address Line 2"
+                          className="md:col-span-2 px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+                        />
+                        <input
+                          type="text"
+                          value={address.city}
+                          onChange={(e) => updateAddress(index, 'city', e.target.value)}
+                          placeholder="City"
+                          className="px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+                        />
+                        <input
+                          type="text"
+                          value={address.state}
+                          onChange={(e) => updateAddress(index, 'state', e.target.value)}
+                          placeholder="State"
+                          className="px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+                        />
+                        <input
+                          type="text"
+                          value={address.postalCode}
+                          onChange={(e) => updateAddress(index, 'postalCode', e.target.value)}
+                          placeholder="Postal Code"
+                          className="px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+                        />
+                        <input
+                          type="text"
+                          value={address.country}
+                          onChange={(e) => updateAddress(index, 'country', e.target.value)}
+                          placeholder="Country"
+                          className="px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Custom fields for address section */}
+                {renderCustomFieldsForSection('address')}
+              </div>
+            )}
+
+            {/* Social Profiles Tab */}
+            {activeTab === 'social' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    LinkedIn
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.socialProfiles?.linkedin || ''}
+                    onChange={(e) => handleSocialChange('linkedin', e.target.value)}
+                    placeholder="https://linkedin.com/in/username"
+                    className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    Twitter
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.socialProfiles?.twitter || ''}
+                    onChange={(e) => handleSocialChange('twitter', e.target.value)}
+                    placeholder="https://twitter.com/username"
+                    className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    Facebook
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.socialProfiles?.facebook || ''}
+                    onChange={(e) => handleSocialChange('facebook', e.target.value)}
+                    placeholder="https://facebook.com/username"
+                    className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    Instagram
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.socialProfiles?.instagram || ''}
+                    onChange={(e) => handleSocialChange('instagram', e.target.value)}
+                    placeholder="https://instagram.com/username"
+                    className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                {/* Custom fields for social section */}
+                {renderCustomFieldsForSection('social')}
+              </div>
+            )}
+
+            {/* Other Tab */}
+            {activeTab === 'other' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    Lead Source
+                  </label>
+                  <select
+                    value={formData.source}
+                    onChange={(e) => handleChange('source', e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Select source...</option>
+                    <option value="website">Website</option>
+                    <option value="referral">Referral</option>
+                    <option value="social">Social Media</option>
+                    <option value="event">Event</option>
+                    <option value="advertisement">Advertisement</option>
+                    <option value="cold_call">Cold Call</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Notes
                   </label>
                   <textarea
                     value={formData.notes}
-                    onChange={e => handleChange('notes', e.target.value)}
+                    onChange={(e) => handleChange('notes', e.target.value)}
                     rows={4}
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white resize-none"
-                    placeholder="Additional notes..."
+                    className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    placeholder="Add any notes about this contact..."
                   />
                 </div>
 
-                {/* Communication Preferences */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
-                    Communication Preferences
-                  </label>
-                  <div className="space-y-3">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.doNotContact}
-                        onChange={e => handleChange('doNotContact', e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-300 text-red-600"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-slate-300">Do not contact</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.doNotEmail}
-                        onChange={e => handleChange('doNotEmail', e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-300 text-red-600"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-slate-300">Do not email</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.doNotCall}
-                        onChange={e => handleChange('doNotCall', e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-300 text-red-600"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-slate-300">Do not call</span>
-                    </label>
-                  </div>
-                </div>
+                {/* Custom fields for other section */}
+                {renderCustomFieldsForSection('other')}
               </div>
             )}
+
+            {/* Custom Fields Tab (for 'custom' section) */}
+            {activeTab === 'custom' && hasCustomSectionFields && (
+              <div>
+                {renderCustomFieldsForSection('custom')}
+              </div>
+            )}
+
+            {/* Custom Tabs */}
+            {activeTab.startsWith('custom_') && (
+              <div>
+                {(() => {
+                  const tabId = activeTab.replace('custom_', '');
+                  return renderCustomFieldsForSection('', tabId);
+                })()}
+              </div>
+            )}
+            {/* Quick Create Account Modal */}
+            <QuickCreateAccountModal
+              isOpen={showQuickCreateAccount}
+              onClose={() => setShowQuickCreateAccount(false)}
+              onCreated={handleQuickAccountCreated}
+            />
           </div>
         </div>
       </form>

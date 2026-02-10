@@ -7,6 +7,14 @@ import { RegisterPage } from './features/auth/RegisterPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { ContactsPage, ContactDetailPage, ContactEditPage } from './features/contacts';
 import { AccountsPage, AccountDetailPage, AccountEditPage } from './features/accounts';
+import { AdminLayout } from './features/admin/AdminLayout';
+import { CustomFieldsPage } from './features/admin/CustomFieldsPage';
+import { ProfileCompletionPage } from './features/admin/ProfileCompletionPage';
+import { FormLayoutPage } from './features/admin/FormLayoutPage';
+import { LayoutBuilderPage } from './features/admin/LayoutBuilderPage';
+import { FormDesignerPage } from './features/admin/FormDesignerPage';
+import { PageDesignerPage } from './features/admin/PageDesignerPage';
+import { ModuleLayoutSettingsPage } from './features/admin/ModuleLayoutSettingsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -55,7 +63,18 @@ function App() {
           <Route path="opportunities" element={<PlaceholderPage title="Opportunities" />} />
           <Route path="tasks" element={<PlaceholderPage title="Tasks" />} />
           <Route path="users" element={<PlaceholderPage title="Users" />} />
-          <Route path="settings" element={<PlaceholderPage title="Settings" />} />
+        </Route>
+
+        {/* Admin Routes - Outside main layout */}
+        <Route path="/admin" element={<PrivateRoute><AdminLayout /></PrivateRoute>}>
+          <Route index element={<Navigate to="/admin/custom-fields" replace />} />
+          <Route path="custom-fields" element={<CustomFieldsPage />} />
+          <Route path="profile-completion" element={<ProfileCompletionPage />} />
+          <Route path="form-layout" element={<FormLayoutPage />} />
+          <Route path="layout-builder" element={<LayoutBuilderPage />} />
+          <Route path="form-designer" element={<FormDesignerPage />} />
+          <Route path="page-designer" element={<PageDesignerPage />} />
+          <Route path="module-layout-settings" element={<ModuleLayoutSettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

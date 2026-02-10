@@ -1,7 +1,7 @@
 import { api } from './contacts.api';
 
 interface UploadResult {
-  id: string;
+  id?: string;
   path: string;
   url: string;
   name?: string;
@@ -33,6 +33,23 @@ export const uploadApi = {
 
     const response = await api.post<UploadResult>(
       `/upload/document/${entityType}/${entityId}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  // Simple file upload without creating document record
+  uploadFile: async (file: File): Promise<UploadResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await api.post<UploadResult>(
+      '/upload/file',
       formData,
       {
         headers: {

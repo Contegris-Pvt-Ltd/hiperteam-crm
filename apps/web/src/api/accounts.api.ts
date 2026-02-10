@@ -35,6 +35,13 @@ export interface Account {
   contactsCount: number;
   createdAt: string;
   updatedAt: string;
+  profileCompletion?: {
+    percentage: number;
+    filledFields: string[];
+    missingFields: { key: string; label: string; weight: number }[];
+    totalWeight: number;
+    earnedWeight: number;
+  };
 }
 
 export interface AccountsResponse {

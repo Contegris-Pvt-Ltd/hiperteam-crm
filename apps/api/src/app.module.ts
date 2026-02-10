@@ -5,12 +5,14 @@ import configuration from './config/configuration';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { Tenant } from './database/entities/tenant.entity';
+import { DatabaseModule } from './database/database.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { SharedModule } from './modules/shared/shared.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -33,12 +35,14 @@ import { UploadModule } from './modules/upload/upload.module';
         logging: process.env.NODE_ENV === 'development',
       }),
     }),
+    DatabaseModule,
     SharedModule,
     TenantModule,
     AuthModule,
     ContactsModule,
     AccountsModule,
     UploadModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],
