@@ -380,3 +380,39 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 -- Mark initial schema as complete
 INSERT INTO schema_migrations (migration_name) VALUES ('0000_initial_schema') ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- PAGE LAYOUTS TABLE (Page Designer)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS page_layouts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  module VARCHAR(50) NOT NULL,
+  layout_type VARCHAR(20) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  is_default BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  config JSONB NOT NULL,
+  created_by UUID REFERENCES users(id),
+  updated_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_page_layouts_module_type ON page_layouts(module, layout_type);
+
+-- ============================================================
+-- MODULE LAYOUT SETTINGS TABLE (Page Designer)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS module_layout_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  module VARCHAR(50) NOT NULL,
+  layout_type VARCHAR(20) NOT NULL,
+  use_custom_layout BOOLEAN DEFAULT false,
+  layout_id UUID REFERENCES page_layouts(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(module, layout_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_module_layout_settings_module ON module_layout_settings(module);
