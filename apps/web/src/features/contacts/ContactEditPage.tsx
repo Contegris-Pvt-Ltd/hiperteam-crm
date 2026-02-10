@@ -72,7 +72,7 @@ export function ContactEditPage() {
   // Note: For now, we don't render custom layout for edit pages
   // This is prep work for future enhancement
   const { 
-    loading: layoutLoading 
+
   } = useModuleLayout('contacts', isNew ? 'create' : 'edit');
   // ============================================
 

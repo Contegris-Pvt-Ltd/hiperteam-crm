@@ -448,7 +448,6 @@ export function LayoutBuilderPage() {
   // Modals
   const [tabModal, setTabModal] = useState<{ open: boolean; tab: CustomTab | null }>({ open: false, tab: null });
   const [groupModal, setGroupModal] = useState<{ open: boolean; group: CustomFieldGroup | null; tabId?: string; section?: string }>({ open: false, group: null });
-  const [fieldModal, setFieldModal] = useState<{ open: boolean; field: CustomField | null }>({ open: false, field: null });
   
   // Form state for modals
   const [tabForm, setTabForm] = useState({ name: '', icon: 'folder', description: '' });

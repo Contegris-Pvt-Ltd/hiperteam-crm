@@ -1023,10 +1023,6 @@ export function PageDesignerPage() {
     }
   };
 
-  const selectedWidget = selectedWidgetId
-    ? Object.values(layoutConfig.regions).flatMap(r => r.widgets).find(w => w.id === selectedWidgetId)
-    : null;
-
   const canvasWidth = viewMode === 'desktop' ? '' : viewMode === 'tablet' ? 'max-w-3xl mx-auto' : 'max-w-md mx-auto';
 
   // Template region widths

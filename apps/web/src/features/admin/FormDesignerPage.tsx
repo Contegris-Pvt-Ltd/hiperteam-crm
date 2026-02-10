@@ -25,9 +25,9 @@ import {
   ChevronDown, ChevronRight, Plus, Pencil, Trash2, EyeOff,
   Type, Hash, Calendar, List, CheckSquare, FileText,
   Link, Mail, Phone, Upload, Loader2, AlertCircle, X,
-  Smartphone, Monitor, Tablet, Save, Square, RectangleHorizontal,
+  Smartphone, Monitor, Tablet, Square, RectangleHorizontal,
   PanelLeftClose, PanelRightClose, Palette, Layers, MousePointer,
-  FolderPlus, MoreVertical, RotateCcw, ArrowLeft, Link2, FileUp,
+  FolderPlus, ArrowLeft,
   FolderOpen, Eye
 } from 'lucide-react';
 import { adminApi } from '../../api/admin.api';

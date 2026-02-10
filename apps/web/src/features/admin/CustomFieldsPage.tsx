@@ -4,7 +4,7 @@ import {
   Plus, Pencil, Trash2, GripVertical, ToggleLeft, ToggleRight, 
   Users, Building2, Target, Briefcase, AlertCircle, Loader2,
   Type, Hash, Calendar, List, CheckSquare, FileText, Link, Mail, Phone, Upload, Link2,
-  LayoutGrid, Folder, Columns
+  LayoutGrid, Columns
 } from 'lucide-react';
 import { adminApi } from '../../api/admin.api';
 import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.api';  // Add CustomTab, CustomFieldGroup

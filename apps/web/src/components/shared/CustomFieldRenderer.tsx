@@ -192,7 +192,7 @@ export function CustomFieldRenderer({
     }
   };
 
-  const handleDownload = (url: string, fileName: string) => {
+  const handleDownload = (url: string) => {
     // Open in new tab for download (cross-origin download attribute doesn't work)
     window.open(url, '_blank', 'noopener,noreferrer');
   };
@@ -283,7 +283,7 @@ export function CustomFieldRenderer({
                   <span className="text-gray-300 dark:text-slate-600">•</span>
                   <button
                     type="button"
-                    onClick={() => handleDownload(fileValue.url!, fileValue.fileName || 'file')}
+                    onClick={() => handleDownload(fileValue.url!)}
                     className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     Download

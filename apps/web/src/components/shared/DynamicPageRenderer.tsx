@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Loader2, Mail, Phone, Globe, MapPin } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Mail, Phone, Globe } from 'lucide-react';
 import { pageLayoutApi } from '../../api/page-layout.api';
 import type { PageLayoutConfig, WidgetConfig } from '../../api/page-layout.api';
 import { CustomFieldRenderer } from '../shared/CustomFieldRenderer';

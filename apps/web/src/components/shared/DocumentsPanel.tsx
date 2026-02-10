@@ -90,7 +90,7 @@ export function DocumentsPanel({
       if (onDocumentUploaded) {
         // Create a Document object from the upload result
         const newDoc: Document = {
-          id: result.id,
+          id: result.id! || crypto.randomUUID(),
           name: result.name || file.name,
           originalName: result.originalName || file.name,
           mimeType: result.mimeType || file.type,

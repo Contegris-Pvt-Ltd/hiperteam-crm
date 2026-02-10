@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, FileText, FileSpreadsheet, AlertCircle, CheckCircle, X, Download } from 'lucide-react';
+import { FileText, FileSpreadsheet, AlertCircle, CheckCircle, X, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface Option {

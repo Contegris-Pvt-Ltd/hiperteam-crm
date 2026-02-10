@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
   ArrowLeft, Pencil, Trash2, MoreHorizontal,
   Mail, Phone, Globe, MapPin, Building2, 
-  Calendar, User, Tag, Linkedin, Twitter, 
+  Calendar, Tag, Linkedin, Twitter, 
   Facebook, Instagram, PhoneOff, MailX, BellOff,
   History, MessageSquare, FileText, Activity,
   ChevronDown, ChevronRight
@@ -56,7 +56,6 @@ export function ContactDetailPage() {
   // ============ ADMIN-CONTROLLED LAYOUT ============
   const { 
     useCustomLayout, 
-    config: layoutConfig, 
     loading: layoutLoading 
   } = useModuleLayout('contacts', 'detail');
   // =================================================
@@ -441,7 +440,7 @@ export function ContactDetailPage() {
           <ProfileCompletion completion={contact.profileCompletion as ProfileCompletionData} />
         ) : null
       }
-      relatedRecordsRenderer={(relatedModule, maxItems) => (
+      relatedRecordsRenderer={(_relatedModule, maxItems) => (
         <div className="space-y-2">
           {linkedAccounts.slice(0, maxItems || 5).map(acc => (
             <Link key={acc.id} to={`/accounts/${acc.id}`} className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
@@ -501,7 +500,6 @@ export function ContactDetailPage() {
   const hasAddressSectionFields = sectionHasValues('address');
   const hasSocialSectionFields = sectionHasValues('social');
   const hasOtherSectionFields = sectionHasValues('other');
-  const hasBasicSectionFields = sectionHasValues('basic');
   const hasCustomSectionFields = sectionHasValues('custom');
   const customTabsWithValues = customTabs.filter(tab => sectionHasValues('', tab.id));
   
