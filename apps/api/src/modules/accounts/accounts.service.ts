@@ -5,6 +5,7 @@ import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
 import { ProfileCompletionService } from '../admin/profile-completion.service';
 import { CustomFieldsService } from '../admin/custom-fields.service';
+import { DataAccessService } from '../shared/data-access.service';
 
 @Injectable()
 export class AccountsService {
@@ -18,6 +19,7 @@ export class AccountsService {
     private dataSource: DataSource,
     private auditService: AuditService,
     private activityService: ActivityService,
+    private dataAccessService: DataAccessService,
     private profileCompletionService: ProfileCompletionService,
     private customFieldsService: CustomFieldsService,
   ) {}
@@ -77,7 +79,7 @@ export class AccountsService {
     return formatted;
   }
 
-  async findAll(schemaName: string, query: QueryAccountsDto) {
+  async findAll(schemaName: string, query: QueryAccountsDto, userId?: string) {
     const {
       search, status, accountType, industry, tag, ownerId, parentAccountId,
       page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC'
@@ -87,6 +89,21 @@ export class AccountsService {
     let whereClause = 'a.deleted_at IS NULL';
     const params: unknown[] = [];
     let paramIndex = 1;
+
+    // ── Record-level access filtering ──
+    if (userId) {
+      const accessLevel = await this.dataAccessService.getAccessLevel(schemaName, userId, 'accounts');
+      if (accessLevel !== 'all') {
+        const filter = await this.dataAccessService.buildAccessFilter(
+          { userId, tenantSchema: schemaName, module: 'accounts', accessLevel },
+          'a.owner_id',
+          paramIndex,
+        );
+        whereClause += ` AND ${filter.whereClause}`;
+        params.push(...filter.params);
+        paramIndex += filter.params.length;
+      }
+    }
 
     if (search) {
       whereClause += ` AND (a.name ILIKE $${paramIndex} OR a.website ILIKE $${paramIndex})`;

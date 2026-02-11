@@ -48,7 +48,7 @@ export class AccountsController {
     @Request() req: { user: JwtPayload },
     @Query() query: QueryAccountsDto,
   ) {
-    return this.accountsService.findAll(req.user.tenantSchema, query);
+    return this.accountsService.findAll(req.user.tenantSchema, query, req.user.sub);
   }
 
   @Get(':id')

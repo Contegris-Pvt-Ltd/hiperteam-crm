@@ -6,6 +6,8 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { TenantModule } from '../tenant/tenant.module';
+import { EmailModule } from '../email/email.module';
+import { SharedModule } from '../shared/shared.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { TenantModule } from '../tenant/tenant.module';
       }),
     }),
     TenantModule,
+    EmailModule,
+    SharedModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

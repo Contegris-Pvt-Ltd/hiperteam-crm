@@ -3,10 +3,11 @@ import { AuditService } from './audit.service';
 import { ActivityService } from './activity.service';
 import { DocumentsService } from './documents.service';
 import { NotesService } from './notes.service';
+import { DataAccessService } from './data-access.service';
 
 @Global()
 @Module({
-  providers: [AuditService, ActivityService, DocumentsService, NotesService],
-  exports: [AuditService, ActivityService, DocumentsService, NotesService],
+  providers: [AuditService, ActivityService, DocumentsService, NotesService, DataAccessService],
+  exports: [AuditService, ActivityService, DocumentsService, NotesService, DataAccessService],
 })
 export class SharedModule {}

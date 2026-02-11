@@ -13,6 +13,11 @@ import { AccountsModule } from './modules/accounts/accounts.module';
 import { SharedModule } from './modules/shared/shared.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { EmailModule } from './modules/email/email.module';
+import { UsersModule } from './modules/users/users.module';
+import { DepartmentsModule } from './modules/departments/departments.module';
+import { TeamsModule } from './modules/teams/teams.module';
+import { RolesModule } from './modules/roles/roles.module';
 
 @Module({
   imports: [
@@ -39,10 +44,15 @@ import { AdminModule } from './modules/admin/admin.module';
     SharedModule,
     TenantModule,
     AuthModule,
+    EmailModule,
+    UsersModule,
     ContactsModule,
     AccountsModule,
     UploadModule,
     AdminModule,
+    DepartmentsModule,
+    TeamsModule,
+    RolesModule
   ],
   controllers: [AppController],
   providers: [AppService],

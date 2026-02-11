@@ -15,6 +15,7 @@ import { CustomFieldsService, CreateCustomFieldDto } from './custom-fields.servi
 import { ProfileCompletionService } from './profile-completion.service';
 import { CustomTabsService, CreateCustomTabDto, UpdateCustomTabDto } from './custom-tabs.service';
 import { CustomFieldGroupsService, CreateCustomFieldGroupDto, UpdateCustomFieldGroupDto } from './custom-field-groups.service';
+import { AuditService } from '../shared/audit.service';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { MigrationRunnerService } from '../../database/migration-runner.service';
@@ -22,6 +23,7 @@ import { MigrationRunnerService } from '../../database/migration-runner.service'
 interface AuthenticatedRequest extends Request {
   user: {
     userId: string;
+    sub: string;
     email: string;
     tenantId: string;
     tenantSchema: string;
@@ -39,6 +41,7 @@ export class AdminController {
     private readonly customTabsService: CustomTabsService,
     private readonly customFieldGroupsService: CustomFieldGroupsService,
     private readonly migrationRunner: MigrationRunnerService,
+    private readonly auditService: AuditService,
   ) {}
 
   // ==================== CUSTOM FIELDS ====================
@@ -237,24 +240,25 @@ export class AdminController {
   async updateProfileCompletionConfig(
     @Req() req: AuthenticatedRequest,
     @Param('module') module: string,
-    @Body() body: { 
-      isEnabled?: boolean; 
-      minPercentage?: number; 
-      fieldWeights?: Record<string, { weight: number; label: string; category?: string }> 
+    @Body() body: {
+      isEnabled?: boolean;
+      minPercentage?: number;
+      fieldWeights?: Record<string, { weight: number; label: string; category?: string }>;
     },
   ) {
     return this.profileCompletionService.updateConfig(
-      req.user.tenantSchema, 
-      module, 
+      req.user.tenantSchema,
+      module,
       body.fieldWeights || {},
       body.isEnabled ?? true,
       body.minPercentage ?? 0,
     );
   }
 
-  // Add endpoint
+  // ==================== MIGRATIONS ====================
+
   @Post('migrations/run')
-  @UseGuards(JwtAuthGuard) // Add additional admin guard if needed
+  @UseGuards(JwtAuthGuard)
   async runMigrations() {
     const results = await this.migrationRunner.runMigrationsForAllTenants();
     const output: Record<string, string[]> = {};
@@ -268,5 +272,48 @@ export class AdminController {
   @UseGuards(JwtAuthGuard)
   async getMigrationStatus() {
     return this.migrationRunner.getMigrationStatus();
+  }
+
+  // ==================== D8: AUDIT LOGS ====================
+
+  @Get('audit-logs')
+  async getAuditLogs(
+    @Req() req: AuthenticatedRequest,
+    @Query('entityType') entityType?: string,
+    @Query('entityId') entityId?: string,
+    @Query('action') action?: string,
+    @Query('performedBy') performedBy?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('sortOrder') sortOrder?: string,
+  ) {
+    return this.auditService.query(req.user.tenantSchema, {
+      entityType,
+      entityId,
+      action,
+      performedBy,
+      startDate,
+      endDate,
+      page: page ? parseInt(page) : 1,
+      limit: limit ? Math.min(parseInt(limit), 100) : 50,
+      sortOrder: sortOrder === 'ASC' ? 'ASC' : 'DESC',
+    });
+  }
+
+  @Get('audit-logs/:entityType/:entityId')
+  async getEntityAuditHistory(
+    @Req() req: AuthenticatedRequest,
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.auditService.getHistory(
+      req.user.tenantSchema,
+      entityType,
+      entityId,
+      limit ? Math.min(parseInt(limit), 50) : 50,
+    );
   }
 }

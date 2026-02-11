@@ -5,6 +5,14 @@
   "compilerOptions": {
     "assets": [
       {
+        "include": "database/scripts/**/*.sql",
+        "outDir": "dist"
+      },
+      {
+        "include": "database/migrations/**/*.sql",
+        "outDir": "dist"
+      },
+      {
         "include": "modules/tenant/scripts/migrations/*.sql",
         "outDir": "dist"
       }

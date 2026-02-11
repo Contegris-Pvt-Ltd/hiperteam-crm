@@ -4,6 +4,7 @@ import { CreateContactDto, UpdateContactDto, QueryContactsDto } from './dto';
 import { formatPhoneE164 } from '../../common/utils/phone.util';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
+import { DataAccessService } from '../shared/data-access.service';
 import { ProfileCompletionService } from '../admin/profile-completion.service';
 import { CustomFieldsService } from '../admin/custom-fields.service';
 
@@ -20,6 +21,7 @@ export class ContactsService {
     private dataSource: DataSource,
     private auditService: AuditService,
     private activityService: ActivityService,
+    private dataAccessService: DataAccessService,
     private profileCompletionService: ProfileCompletionService,
     private customFieldsService: CustomFieldsService,
   ) {}
@@ -102,13 +104,28 @@ export class ContactsService {
     return formatted;
   }
 
-  async findAll(schemaName: string, query: QueryContactsDto) {
+  async findAll(schemaName: string, query: QueryContactsDto, userId?: string) {
     const { search, status, company, tag, ownerId, accountId, page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC' } = query;
     const offset = (page - 1) * limit;
 
     let whereClause = 'c.deleted_at IS NULL';
     const params: unknown[] = [];
     let paramIndex = 1;
+
+    // ── Record-level access filtering ──
+    if (userId) {
+      const accessLevel = await this.dataAccessService.getAccessLevel(schemaName, userId, 'contacts');
+      if (accessLevel !== 'all') {
+        const filter = await this.dataAccessService.buildAccessFilter(
+          { userId, tenantSchema: schemaName, module: 'contacts', accessLevel },
+          'c.owner_id',
+          paramIndex,
+        );
+        whereClause += ` AND ${filter.whereClause}`;
+        params.push(...filter.params);
+        paramIndex += filter.params.length;
+      }
+    }
 
     if (search) {
       whereClause += ` AND (c.first_name ILIKE $${paramIndex} OR c.last_name ILIKE $${paramIndex} OR c.email ILIKE $${paramIndex} OR c.company ILIKE $${paramIndex})`;

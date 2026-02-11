@@ -8,9 +8,10 @@ import { PageLayoutService } from './page-layout.service';
 import { PageLayoutController } from './page-layout.controller';
 import { ModuleLayoutSettingsService } from './module-layout-settings.service';
 import { ModuleLayoutSettingsController } from './module-layout-settings.controller';
+import { SharedModule } from '../shared/shared.module';
 
 @Module({
-  imports: [],  // No TypeOrmModule.forFeature - we use raw SQL
+  imports: [SharedModule],
   controllers: [
     AdminController,
     PageLayoutController,

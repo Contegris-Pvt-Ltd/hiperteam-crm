@@ -16,16 +16,50 @@ CREATE TABLE IF NOT EXISTS roles (
   description TEXT,
   permissions JSONB DEFAULT '{}',
   is_system BOOLEAN DEFAULT false,
+  level INT DEFAULT 0,
+  is_custom BOOLEAN DEFAULT false,
+  record_access JSONB DEFAULT '{}',
+  field_permissions JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Insert default roles
-INSERT INTO roles (name, description, permissions, is_system) VALUES
-  ('admin', 'Full access to everything', '{"*": {"*": "all"}}', true),
-  ('manager', 'Manage team and data', '{"contacts": {"*": "team"}, "leads": {"*": "team"}, "users": {"view": "team"}}', true),
-  ('user', 'Standard user access', '{"contacts": {"*": "own"}, "leads": {"*": "own"}}', true)
-ON CONFLICT DO NOTHING;
+ INSERT INTO roles (name, description, permissions, is_system, level, is_custom, record_access, field_permissions) VALUES
+   ('admin', 'Full access to everything', 
+    '{"contacts":{"view":true,"create":true,"edit":true,"delete":true,"export":true,"import":true},"accounts":{"view":true,"create":true,"edit":true,"delete":true,"export":true,"import":true},"leads":{"view":true,"create":true,"edit":true,"delete":true,"export":true,"import":true},"deals":{"view":true,"create":true,"edit":true,"delete":true,"export":true,"import":true},"tasks":{"view":true,"create":true,"edit":true,"delete":true,"export":true,"import":true},"reports":{"view":true,"create":true,"edit":true,"delete":true,"export":true,"import":true},"users":{"view":true,"create":true,"edit":true,"delete":true,"invite":true},"roles":{"view":true,"create":true,"edit":true,"delete":true},"settings":{"view":true,"edit":true},"admin":{"view":true,"edit":true}}',
+    true, 100, false,
+    '{"contacts":"all","accounts":"all","leads":"all","deals":"all","tasks":"all","reports":"all"}',
+    '{}'),
+   ('manager', 'Manage team and data',
+    '{"contacts":{"view":true,"create":true,"edit":true,"delete":true,"export":true,"import":false},"accounts":{"view":true,"create":true,"edit":true,"delete":true,"export":true,"import":false},"leads":{"view":true,"create":true,"edit":true,"delete":true,"export":true,"import":false},"deals":{"view":true,"create":true,"edit":true,"delete":true,"export":true,"import":false},"tasks":{"view":true,"create":true,"edit":true,"delete":true,"export":false,"import":false},"reports":{"view":true,"create":true,"edit":false,"delete":false,"export":true,"import":false},"users":{"view":true,"create":false,"edit":false,"delete":false,"invite":false},"roles":{"view":true,"create":false,"edit":false,"delete":false},"settings":{"view":true,"edit":false},"admin":{"view":false,"edit":false}}',
+    true, 50, false,
+    '{"contacts":"team","accounts":"team","leads":"team","deals":"team","tasks":"team","reports":"team"}',
+    '{}'),
+   ('user', 'Standard user access',
+    '{"contacts":{"view":true,"create":true,"edit":true,"delete":false,"export":false,"import":false},"accounts":{"view":true,"create":true,"edit":true,"delete":false,"export":false,"import":false},"leads":{"view":true,"create":true,"edit":true,"delete":false,"export":false,"import":false},"deals":{"view":true,"create":true,"edit":true,"delete":false,"export":false,"import":false},"tasks":{"view":true,"create":true,"edit":true,"delete":true,"export":false,"import":false},"reports":{"view":true,"create":false,"edit":false,"delete":false,"export":false,"import":false},"users":{"view":false,"create":false,"edit":false,"delete":false,"invite":false},"roles":{"view":false,"create":false,"edit":false,"delete":false},"settings":{"view":false,"edit":false},"admin":{"view":false,"edit":false}}',
+    true, 10, false,
+    '{"contacts":"own","accounts":"own","leads":"own","deals":"own","tasks":"own","reports":"own"}',
+    '{}')
+ ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- DEPARTMENTS TABLE (created BEFORE users — no head_id FK yet)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS departments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL,
+  code VARCHAR(30) UNIQUE,
+  description TEXT,
+  parent_department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+  head_id UUID,  -- FK added after users table exists
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_departments_parent ON departments(parent_department_id);
+CREATE INDEX IF NOT EXISTS idx_departments_head ON departments(head_id);
 
 -- ============================================================
 -- USERS TABLE
@@ -39,6 +73,14 @@ CREATE TABLE IF NOT EXISTS users (
   phone VARCHAR(50),
   role_id UUID REFERENCES roles(id),
   status VARCHAR(20) DEFAULT 'active',
+  department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+  manager_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  job_title VARCHAR(150),
+  avatar_url VARCHAR(500),
+  timezone VARCHAR(50) DEFAULT 'UTC',
+  employee_id VARCHAR(50),
+  invited_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  invited_at TIMESTAMPTZ,
   last_login_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -47,6 +89,111 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role_id);
+CREATE INDEX IF NOT EXISTS idx_users_department ON users(department_id);
+CREATE INDEX IF NOT EXISTS idx_users_manager ON users(manager_id);
+CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+
+-- Now add the deferred FK: departments.head_id → users.id
+ALTER TABLE departments
+  DROP CONSTRAINT IF EXISTS fk_departments_head,
+  ADD CONSTRAINT fk_departments_head
+    FOREIGN KEY (head_id) REFERENCES users(id) ON DELETE SET NULL;
+
+-- ============================================================
+-- TEAMS TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS teams (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+  team_lead_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_teams_department ON teams(department_id);
+CREATE INDEX IF NOT EXISTS idx_teams_lead ON teams(team_lead_id);
+CREATE INDEX IF NOT EXISTS idx_teams_active ON teams(is_active);
+
+-- ============================================================
+-- TERRITORIES TABLE (hierarchical)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS territories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL,
+  code VARCHAR(30),
+  description TEXT,
+  type VARCHAR(50) DEFAULT 'geographic',
+  parent_territory_id UUID REFERENCES territories(id) ON DELETE SET NULL,
+  metadata JSONB DEFAULT '{}',
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_territories_parent ON territories(parent_territory_id);
+CREATE INDEX IF NOT EXISTS idx_territories_type ON territories(type);
+
+-- ============================================================
+-- USER_TEAMS (Many-to-Many)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS user_teams (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  role VARCHAR(50) DEFAULT 'member',
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, team_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_teams_user ON user_teams(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_teams_team ON user_teams(team_id);
+
+-- ============================================================
+-- USER_TERRITORIES (Many-to-Many)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS user_territories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  territory_id UUID NOT NULL REFERENCES territories(id) ON DELETE CASCADE,
+  role VARCHAR(50) DEFAULT 'member',
+  assigned_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, territory_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_territories_user ON user_territories(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_territories_territory ON user_territories(territory_id);
+
+-- ============================================================
+-- USER INVITATIONS TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS user_invitations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) NOT NULL,
+  first_name VARCHAR(100),
+  last_name VARCHAR(100),
+  role_id UUID REFERENCES roles(id) ON DELETE SET NULL,
+  department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+  team_ids UUID[] DEFAULT '{}',
+  job_title VARCHAR(150),
+  invited_by UUID NOT NULL REFERENCES users(id),
+  token VARCHAR(255) NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  accepted_at TIMESTAMPTZ,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_invitations_email ON user_invitations(email);
+CREATE INDEX IF NOT EXISTS idx_user_invitations_token ON user_invitations(token);
+CREATE INDEX IF NOT EXISTS idx_user_invitations_status ON user_invitations(status);
+
+-- Seed default department
+INSERT INTO departments (name, code, description, is_active)
+VALUES ('General', 'GEN', 'Default department', true)
+ON CONFLICT DO NOTHING;
 
 -- ============================================================
 -- CONTACTS TABLE

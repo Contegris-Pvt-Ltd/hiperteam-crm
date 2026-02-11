@@ -48,7 +48,7 @@ export class ContactsController {
     @Request() req: { user: JwtPayload },
     @Query() query: QueryContactsDto,
   ) {
-    return this.contactsService.findAll(req.user.tenantSchema, query);
+    return this.contactsService.findAll(req.user.tenantSchema, query, req.user.sub);
   }
 
   @Get(':id')

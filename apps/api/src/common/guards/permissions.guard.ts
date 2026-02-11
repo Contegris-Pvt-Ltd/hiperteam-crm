@@ -1,51 +1,83 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  SetMetadata,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { JwtPayload } from '../../modules/auth/strategies/jwt.strategy';
+import { ModuleAction, hasPermission } from '../types/permissions.types';
 
-export interface RequiredPermission {
-  module: string;
-  action: string;
-}
+// ============================================================
+// METADATA KEYS
+// ============================================================
+export const PERMISSION_KEY = 'required_permission';
+export const ADMIN_ONLY_KEY = 'admin_only';
 
-export const PERMISSIONS_KEY = 'permissions';
+// ============================================================
+// DECORATORS
+// ============================================================
+
+/**
+ * @RequirePermission('contacts', 'edit')
+ * Requires the user to have a specific module-level permission.
+ */
+export const RequirePermission = (module: string, action: ModuleAction) =>
+  SetMetadata(PERMISSION_KEY, { module, action });
+
+/**
+ * @AdminOnly()
+ * Restricts endpoint to admin role only.
+ */
+export const AdminOnly = () => SetMetadata(ADMIN_ONLY_KEY, true);
+
+// ============================================================
+// GUARD
+// ============================================================
 
 @Injectable()
-export class PermissionsGuard implements CanActivate {
+export class PermissionGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredPermissions = this.reflector.getAllAndOverride<RequiredPermission[]>(
-      PERMISSIONS_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const request = context.switchToHttp().getRequest();
+    const user = request.user as JwtPayload;
 
-    if (!requiredPermissions || requiredPermissions.length === 0) {
+    if (!user) {
+      throw new ForbiddenException('Authentication required');
+    }
+
+    // Check admin-only
+    const isAdminOnly = this.reflector.getAllAndOverride<boolean>(ADMIN_ONLY_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isAdminOnly) {
+      if (user.role !== 'admin' && user.roleLevel < 100) {
+        throw new ForbiddenException('Admin access required');
+      }
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest();
-    
-    if (!user || !user.permissions) {
-      throw new ForbiddenException('No permissions found');
-    }
+    // Check module-level permission
+    const requiredPermission = this.reflector.getAllAndOverride<{
+      module: string;
+      action: ModuleAction;
+    }>(PERMISSION_KEY, [context.getHandler(), context.getClass()]);
 
-    // Admin with wildcard has full access
-    if (user.permissions['*']?.['*'] === 'all') {
+    if (!requiredPermission) {
+      // No permission decorator → allow (guard only enforces when decorator is present)
       return true;
     }
 
-    for (const permission of requiredPermissions) {
-      const modulePerms = user.permissions[permission.module];
-      
-      if (!modulePerms) {
-        throw new ForbiddenException(`No access to ${permission.module}`);
-      }
+    const { module, action } = requiredPermission;
 
-      // Check for wildcard action or specific action
-      const hasAccess = modulePerms['*'] || modulePerms[permission.action];
-      
-      if (!hasAccess) {
-        throw new ForbiddenException(`No ${permission.action} access to ${permission.module}`);
-      }
+    if (!hasPermission(user.permissions || {}, module, action)) {
+      throw new ForbiddenException(
+        `You don't have permission to ${action} ${module}`,
+      );
     }
 
     return true;

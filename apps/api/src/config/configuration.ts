@@ -21,4 +21,13 @@ export default () => ({
     expiresIn: process.env.JWT_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
+  email: {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT ?? '587', 10),
+    secure: process.env.SMTP_SECURE === 'true',
+    user: process.env.SMTP_USER || '',
+    password: process.env.SMTP_PASS || process.env.SMTP_PASSWORD || '',
+    fromName: process.env.SMTP_FROM_NAME || 'Intellicon CRM',
+    fromEmail: process.env.SMTP_FROM_EMAIL || 'noreply@intellicon.io',
+  },
 });
