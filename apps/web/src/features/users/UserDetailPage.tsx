@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Shield, Building2, Users, Mail,
-  Phone, MapPin, Clock, Calendar, Briefcase, ChevronRight,
-  UserMinus, UserCheck, Trash2,
+  Phone, Clock, Briefcase, ChevronRight,
+  UserMinus, Trash2,
 } from 'lucide-react';
 import type { User } from '../../api/users.api';
 import { usersApi } from '../../api/users.api';

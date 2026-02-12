@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, Building2, Users, Layers, ChevronRight, ChevronDown,
-  Pencil, Trash2, Eye, GitBranch, MoreVertical, UserCircle,
+  Pencil, Trash2, Eye, GitBranch,
   FolderTree, List, X,
 } from 'lucide-react';
 import type {

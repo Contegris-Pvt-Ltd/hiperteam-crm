@@ -4,7 +4,7 @@ import {
   Plus, Search, Users, Pencil, Trash2, Eye, X, UserPlus, UserMinus,
   Building2, Crown,
 } from 'lucide-react';
-import type { Team, TeamsQuery, TeamMember } from '../../api/teams.api';
+import type { Team, TeamsQuery } from '../../api/teams.api';
 import { teamsApi } from '../../api/teams.api';
 import type { DepartmentLookupItem } from '../../api/departments.api';
 import { departmentsApi } from '../../api/departments.api';

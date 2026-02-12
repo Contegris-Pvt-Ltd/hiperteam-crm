@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
   ArrowLeft, Pencil, Trash2, MoreHorizontal,
-  Mail, Phone, Globe, MapPin, Building2, 
+  Mail, Phone, Globe, MapPin, 
   Calendar, User, Tag, Linkedin, Twitter, 
   Facebook, Instagram, Users, DollarSign,
   History, MessageSquare, FileText, Activity, Network,
@@ -191,7 +191,7 @@ export function AccountDetailPage() {
     setLinkedContacts(prev => prev.filter(c => c.id !== contactId));
   };
 
-  const handleQuickContactCreated = async (contact: QuickCreateContactResult) => {
+  const handleQuickContactCreated = async () => {
     // Refresh linked contacts list after creation
     if (!id) return;
     try {

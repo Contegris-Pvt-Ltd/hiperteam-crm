@@ -33,7 +33,7 @@ export function InviteUserModal({ isOpen, onClose, onInvited, roles, departments
 
     setSaving(true);
     try {
-      const result = await usersApi.invite({
+      await usersApi.invite({
         email: formData.email,
         firstName: formData.firstName || undefined,
         lastName: formData.lastName || undefined,

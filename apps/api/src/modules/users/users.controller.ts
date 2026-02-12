@@ -8,7 +8,7 @@ import { CreateUserDto, InviteUserDto, UpdateUserDto, QueryUsersDto } from './dt
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { PermissionGuard } from '../../common/guards/permissions.guard';
-import { RequirePermission, AdminOnly } from '../../common/guards/permissions.guard';
+import { RequirePermission } from '../../common/guards/permissions.guard';
 import { TenantService } from '../tenant/tenant.service';
 
 @ApiTags('Users')
@@ -64,7 +64,7 @@ export class UsersController {
   async getOrgTree(@Request() req: { user: JwtPayload }) {
     return this.usersService.getOrgTree(req.user.tenantSchema);
   }
-  
+
   // ============================================================
   // INVITATIONS
   // ============================================================

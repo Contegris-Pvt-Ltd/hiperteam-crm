@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
-  Plus, Search, Filter, UserPlus, Mail,
+  Plus, Search, Filter, Mail,
   ChevronLeft, ChevronRight, Eye, Pencil, Trash2,
-  Users, Shield, Building2, Clock, MoreVertical,
-  Send, XCircle, RefreshCw,
+  Users, Send, XCircle, RefreshCw,
 } from 'lucide-react';
 import type { User, UsersQuery, RoleLookup, DepartmentLookup, PendingInvitation } from '../../api/users.api';
 import { usersApi } from '../../api/users.api';
@@ -15,8 +14,8 @@ import { usePermissions } from '../../hooks/usePermissions';
 type Tab = 'users' | 'invitations';
 
 export function UsersPage() {
-  const navigate = useNavigate();
-  const { canCreate, canEdit, canDelete, canInvite, isAdmin } = usePermissions();
+  //const navigate = useNavigate();
+  const { canCreate, canEdit, canDelete, canInvite } = usePermissions();
 
   // State
   const [users, setUsers] = useState<User[]>([]);

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, ChevronDown, ChevronRight, Search, Loader2,
-  AlertCircle, Maximize2, Minimize2, ZoomIn, ZoomOut,
+  AlertCircle, Maximize2, ZoomIn, ZoomOut,
   Building2, Mail, Phone, ArrowLeft, UserCircle, Filter,
   ChevronUp,
 } from 'lucide-react';
