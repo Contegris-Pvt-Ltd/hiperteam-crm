@@ -9,16 +9,14 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [tenantSlug, setTenantSlug] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
-    const formData = new FormData(e.currentTarget);
-    const tenantSlug = formData.get('tenantSlug') as string;
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
 
     try {
       await login(tenantSlug, email, password);
@@ -126,6 +124,8 @@ export function LoginPage() {
                 <input
                   type="text"
                   name="tenantSlug"
+                  value={tenantSlug}
+                  onChange={(e) => setTenantSlug(e.target.value)}
                   required
                   className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="your-company"
@@ -142,6 +142,8 @@ export function LoginPage() {
                 <input
                   type="email"
                   name="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                   className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="you@company.com"
@@ -158,6 +160,8 @@ export function LoginPage() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   name="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
                   className="w-full pl-12 pr-12 py-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="••••••••"

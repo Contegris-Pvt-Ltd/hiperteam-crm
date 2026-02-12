@@ -13,13 +13,15 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Shield
+  Shield,
+  Package
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Accounts', href: '/accounts', icon: Building2 },
+  { name: 'Products', href: '/products', icon: Package },
   { name: 'Leads', href: '/leads', icon: UserPlus },
   { name: 'Opportunities', href: '/opportunities', icon: TrendingUp },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },

@@ -7,6 +7,7 @@ import { RegisterPage } from './features/auth/RegisterPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { ContactsPage, ContactDetailPage, ContactEditPage } from './features/contacts';
 import { AccountsPage, AccountDetailPage, AccountEditPage } from './features/accounts';
+import { ProductsPage, ProductDetailPage, ProductEditPage, PriceBooksPage } from './features/products';
 import { AdminLayout } from './features/admin/AdminLayout';
 import { CustomFieldsPage } from './features/admin/CustomFieldsPage';
 import { ProfileCompletionPage } from './features/admin/ProfileCompletionPage';
@@ -69,6 +70,13 @@ function App() {
           <Route path="accounts/new" element={<AccountEditPage />} />
           <Route path="accounts/:id" element={<AccountDetailPage />} />
           <Route path="accounts/:id/edit" element={<AccountEditPage />} />
+          
+          {/* Products */}
+          <Route path="products" element={<ProductsPage />} />
+          <Route path="products/new" element={<ProductEditPage />} />
+          <Route path="products/price-books" element={<PriceBooksPage />} />
+          <Route path="products/:id" element={<ProductDetailPage />} />
+          <Route path="products/:id/edit" element={<ProductEditPage />} />
           
           {/* Placeholder routes */}
           <Route path="leads" element={<PlaceholderPage title="Leads" />} />
