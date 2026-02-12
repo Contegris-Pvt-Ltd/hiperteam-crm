@@ -1,5 +1,6 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import * as fs from 'fs';
 
 // Load .env from apps/api/.env first, then project root
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -42,9 +43,19 @@ async function runTenantMigrations() {
         const tableNames = coreTables.map((t: { table_name: string }) => t.table_name);
 
         if (!tableNames.includes('roles') || !tableNames.includes('users')) {
-          console.log(`  ⚠️  Skipping ${schema} — missing core tables (roles: ${tableNames.includes('roles')}, users: ${tableNames.includes('users')})`);
-          console.log(`      This schema was not fully initialized. Re-register or run tenant-schema.sql first.\n`);
-          continue;
+          console.log(`  ⚠️  ${schema} missing core tables — auto-initializing from tenant-schema.sql...`);
+          try {
+            const sqlPath = path.join(__dirname, 'tenant-schema.sql');
+            let schemaSql = fs.readFileSync(sqlPath, 'utf8');
+            schemaSql = schemaSql.replace(/TENANT_SCHEMA/g, schema);
+            await dataSource.query(schemaSql);
+            console.log(`  ✅ ${schema} initialized successfully`);
+          } catch (initError: unknown) {
+            const initMsg = initError instanceof Error ? initError.message : String(initError);
+            console.error(`  ❌ Failed to initialize ${schema}: ${initMsg}`);
+            console.log(`  ⏩ Continuing to next schema...\n`);
+            continue;
+          }
         }
 
         // ── Ensure migrations tracking table ──────────────────────
