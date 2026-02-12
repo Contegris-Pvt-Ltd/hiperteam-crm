@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  Shield
 } from 'lucide-react';
 
 const navigation = [
@@ -26,6 +27,9 @@ const navigation = [
 
 const adminNavigation = [
   { name: 'Users', href: '/users', icon: Target },
+  { name: 'Departments', href: '/departments', icon: Building2 },
+  { name: 'Teams', href: '/teams', icon: Users },
+  { name: 'Roles', href: '/roles', icon: Shield },
   { name: 'Settings', href: '/admin', icon: Settings },
 ];
 

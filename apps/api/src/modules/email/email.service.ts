@@ -40,7 +40,7 @@ export class EmailService {
     // Verify connection on startup
     this.transporter.verify().then(() => {
       this.logger.log('SMTP connection established');
-    }).catch((err) => {
+    }).catch((err: Error) => {
       this.logger.warn(`SMTP connection failed: ${err.message}. Emails will be logged only.`);
     });
   }

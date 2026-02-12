@@ -6,7 +6,21 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
+
+  // Role
   role: string;
+  roleId?: string;
+  roleLevel?: number;
+
+  // RBAC — 3 levels
+  permissions?: Record<string, Record<string, boolean>>;
+  recordAccess?: Record<string, string>;
+  fieldPermissions?: Record<string, Record<string, string>>;
+
+  // Org context
+  departmentId?: string;
+  teamIds?: string[];
+  managerId?: string;
 }
 
 interface Tenant {
@@ -24,6 +38,7 @@ interface AuthState {
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 interface RegisterData {
@@ -94,21 +109,33 @@ export const useAuthStore = create<AuthState>((set) => ({
       return;
     }
 
-    // Fallback to /me endpoint
+    // Fallback to /me endpoint — now returns full RBAC context
     try {
       const response = await api.get('/auth/me');
+      const data = response.data;
+
+      const user: User = {
+        id: data.userId,
+        email: data.email,
+        firstName: '',
+        lastName: '',
+        role: data.role,
+        roleId: data.roleId,
+        roleLevel: data.roleLevel,
+        permissions: data.permissions,
+        recordAccess: data.recordAccess,
+        fieldPermissions: data.fieldPermissions,
+        departmentId: data.departmentId,
+        teamIds: data.teamIds,
+        managerId: data.managerId,
+      };
+
       set({ 
-        user: {
-          id: response.data.userId,
-          email: response.data.email,
-          firstName: '',
-          lastName: '',
-          role: response.data.role,
-        },
+        user,
         tenant: {
-          id: response.data.tenantId,
+          id: data.tenantId,
           name: '',
-          slug: response.data.tenantSlug,
+          slug: data.tenantSlug,
         },
         isAuthenticated: true,
         isLoading: false,
@@ -120,5 +147,18 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.removeItem('tenant');
       set({ isLoading: false });
     }
+  },
+
+  /**
+   * Update specific user fields without re-fetching.
+   * Useful after profile edits, role changes, etc.
+   */
+  updateUser: (updates: Partial<User>) => {
+    set((state) => {
+      if (!state.user) return state;
+      const updatedUser = { ...state.user, ...updates };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      return { user: updatedUser };
+    });
   },
 }));

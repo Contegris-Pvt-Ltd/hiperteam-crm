@@ -11,6 +11,7 @@
     "dev:web": "cd apps/web && npm run dev"
   },
   "devDependencies": {
+    "@types/nodemailer": "^7.0.9",
     "prettier": "^3.7.4",
     "turbo": "^2.8.3",
     "typescript": "5.9.2"
@@ -22,5 +23,8 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "nodemailer": "^8.0.1"
+  }
 }

@@ -15,6 +15,15 @@ import { LayoutBuilderPage } from './features/admin/LayoutBuilderPage';
 import { FormDesignerPage } from './features/admin/FormDesignerPage';
 import { PageDesignerPage } from './features/admin/PageDesignerPage';
 import { ModuleLayoutSettingsPage } from './features/admin/ModuleLayoutSettingsPage';
+import { UsersPage, UserDetailPage, UserEditPage } from './features/users';
+import { DepartmentsPage } from './features/departments';
+import { TeamsPage } from './features/teams';
+import { RolesPage } from './features/roles';
+import { InviteAcceptPage } from './features/auth/InviteAcceptPage';
+import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
+import { AuditLogViewer } from './components/shared/AuditLogViewer';
+import { OrgChartPage } from './features/users/OrgChartPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -42,7 +51,10 @@ function App() {
       <Routes>
         <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" />} />
         <Route path="/register" element={!isAuthenticated ? <RegisterPage /> : <Navigate to="/" />} />
-        
+        <Route path="invite/accept" element={<InviteAcceptPage />} />
+        <Route path="forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="reset-password" element={<ResetPasswordPage />} />
+
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<DashboardPage />} />
           
@@ -62,7 +74,13 @@ function App() {
           <Route path="leads" element={<PlaceholderPage title="Leads" />} />
           <Route path="opportunities" element={<PlaceholderPage title="Opportunities" />} />
           <Route path="tasks" element={<PlaceholderPage title="Tasks" />} />
-          <Route path="users" element={<PlaceholderPage title="Users" />} />
+          <Route path="users" element={<UsersPage />} />
+          <Route path="users/:id" element={<UserDetailPage />} />
+          <Route path="users/:id/edit" element={<UserEditPage />} />
+          <Route path="/org-chart" element={<OrgChartPage />} />
+          <Route path="departments" element={<DepartmentsPage />} />
+          <Route path="teams" element={<TeamsPage />} />
+          <Route path="roles" element={<RolesPage />} />
         </Route>
 
         {/* Admin Routes - Outside main layout */}
@@ -75,6 +93,7 @@ function App() {
           <Route path="form-designer" element={<FormDesignerPage />} />
           <Route path="page-designer" element={<PageDesignerPage />} />
           <Route path="module-layout-settings" element={<ModuleLayoutSettingsPage />} />
+          <Route path="audit-logs" element={<AuditLogViewer />} />
         </Route>
       </Routes>
     </BrowserRouter>

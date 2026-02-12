@@ -1,5 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Settings, ListPlus, BarChart3, Users, Building2, Target, Briefcase, LayoutGrid, ArrowLeft, LayoutTemplate } from 'lucide-react';
+import { Settings, ListPlus, BarChart3, Users, Building2, 
+  Target, Briefcase, LayoutGrid, ArrowLeft, LayoutTemplate, ClipboardList
+} from 'lucide-react';
 
 const adminNavItems = [
   { 
@@ -44,6 +46,18 @@ const adminNavItems = [
     icon: LayoutTemplate,
     description: 'Choose your Layouts'
   },
+  {
+    label: 'Org Chart',
+    path: '/org-chart',
+    icon: Building2,        // or use GitBranch / Network from lucide-react
+    description: ''
+  },
+  {
+    label: 'Audit Logs',
+    path: '/admin/audit-logs',
+    icon: ClipboardList,
+    description: 'View system audit trail'
+  }
 ];
 
 const moduleIcons: Record<string, typeof Users> = {
