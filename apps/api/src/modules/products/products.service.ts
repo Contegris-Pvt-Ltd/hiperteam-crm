@@ -190,7 +190,7 @@ export class ProductsService {
     };
   }
 
-  async findOne(schemaName: string, id: string) {
+  private async findOneRaw(schemaName: string, id: string): Promise<Record<string, unknown>> {
     const [product] = await this.dataSource.query(
       `SELECT p.*,
               c.name as category_name,
@@ -207,7 +207,11 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
-    const formatted = this.formatProduct(product);
+    return this.formatProduct(product);
+  }
+
+  async findOne(schemaName: string, id: string) {
+    const formatted = await this.findOneRaw(schemaName, id);
 
     // Get price book entries for this product
     const priceEntries = await this.dataSource.query(
@@ -276,7 +280,7 @@ export class ProductsService {
   }
 
   async update(schemaName: string, id: string, userId: string, dto: UpdateProductDto) {
-    const existing = await this.findOne(schemaName, id);
+    const existing = await this.findOneRaw(schemaName, id);
 
     // Check duplicate code
     if (dto.code && dto.code !== existing.code) {
@@ -369,7 +373,7 @@ export class ProductsService {
   }
 
   async remove(schemaName: string, id: string, userId: string) {
-    const existing = await this.findOne(schemaName, id);
+    const existing = await this.findOneRaw(schemaName, id);
 
     await this.dataSource.query(
       `UPDATE "${schemaName}".products SET deleted_at = NOW() WHERE id = $1`,
