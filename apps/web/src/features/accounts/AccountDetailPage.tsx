@@ -25,7 +25,7 @@ import { ProfileCompletion } from '../../components/shared/ProfileCompletion';
 import type { ProfileCompletionData } from '../../components/shared/ProfileCompletion';
 import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
 import { QuickCreateContactModal } from '../../components/shared/QuickCreateContactModal';
-import type { QuickCreateContactResult } from '../../components/shared/QuickCreateContactModal';
+
 // ============ PAGE DESIGNER IMPORTS ============
 import { useModuleLayout } from '../../hooks/useModuleLayout';
 import { DynamicPageRenderer } from '../../components/shared/DynamicPageRenderer';
