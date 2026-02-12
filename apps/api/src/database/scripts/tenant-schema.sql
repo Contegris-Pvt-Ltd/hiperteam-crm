@@ -5,6 +5,7 @@
 
 -- Create schema
 CREATE SCHEMA IF NOT EXISTS TENANT_SCHEMA;
+ALTER SCHEMA TENANT_SCHEMA OWNER TO intelli_hiper_app;
 SET search_path TO TENANT_SCHEMA;
 
 -- ============================================================
@@ -563,3 +564,7 @@ CREATE TABLE IF NOT EXISTS module_layout_settings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_module_layout_settings_module ON module_layout_settings(module);
+
+
+-- should always be at the bottom of the script to ensure all tables are created before granting privileges
+ALTER DEFAULT PRIVILEGES IN SCHEMA TENANT_SCHEMA GRANT ALL ON TABLES TO intelli_hiper_app;
