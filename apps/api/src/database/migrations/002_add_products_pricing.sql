@@ -2,6 +2,9 @@
 -- Description: Add products, product_categories, price_books, price_book_entries, 
 --              product_bundles, bundle_items, and opportunity_line_items tables
 
+-- CRITICAL: Set search_path so all FK references resolve within tenant schema
+SET search_path TO "TENANT_SCHEMA";
+
 -- ============================================================
 -- PRODUCT CATEGORIES TABLE (hierarchical)
 -- ============================================================

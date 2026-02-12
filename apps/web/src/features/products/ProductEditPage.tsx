@@ -1,8 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2 } from 'lucide-react';
+import {
+  ArrowLeft, Save, Loader2, Plus, Trash2, Search, Package,
+  AlertCircle, Layers, X,
+} from 'lucide-react';
 import { productsApi } from '../../api/products.api';
-import type { CreateProductData, ProductCategory, ProductType, ProductStatus } from '../../api/products.api';
+import type {
+  CreateProductData, ProductCategory, ProductType, ProductStatus,
+  Product, BundleDetail,
+} from '../../api/products.api';
 
 const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
   { value: 'product', label: 'Product' },
@@ -55,6 +61,24 @@ export function ProductEditPage() {
     externalUrl: '',
   });
 
+  // Bundle state (only used when editing an existing bundle-type product)
+  const [bundle, setBundle] = useState<BundleDetail | null>(null);
+  const [bundleConfig, setBundleConfig] = useState({
+    bundleType: 'fixed' as 'fixed' | 'flexible',
+    minItems: 0,
+    maxItems: undefined as number | undefined,
+    discountType: 'percentage' as 'percentage' | 'fixed',
+    discountValue: 0,
+  });
+  const [bundleSaving, setBundleSaving] = useState(false);
+  const [bundleError, setBundleError] = useState('');
+
+  // Product search for adding bundle items
+  const [itemSearch, setItemSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showItemPicker, setShowItemPicker] = useState(false);
+
   useEffect(() => {
     productsApi.getCategories().then(setCategories).catch(console.error);
 
@@ -77,6 +101,17 @@ export function ProductEditPage() {
             imageUrl: product.imageUrl || '',
             externalUrl: product.externalUrl || '',
           });
+          // Load bundle data if this is a bundle product
+          if (product.bundle) {
+            setBundle(product.bundle);
+            setBundleConfig({
+              bundleType: product.bundle.bundleType,
+              minItems: product.bundle.minItems,
+              maxItems: product.bundle.maxItems ?? undefined,
+              discountType: product.bundle.discountType,
+              discountValue: product.bundle.discountValue,
+            });
+          }
         })
         .catch((err) => setError(err.response?.data?.message || 'Failed to load product'))
         .finally(() => setLoading(false));
@@ -121,6 +156,89 @@ export function ProductEditPage() {
     }
   };
 
+  // ============================================================
+  // BUNDLE HANDLERS
+  // ============================================================
+  const handleSaveBundleConfig = async () => {
+    if (!id) return;
+    setBundleSaving(true);
+    setBundleError('');
+    try {
+      const result = await productsApi.configureBundle(id, {
+        bundleType: bundleConfig.bundleType,
+        minItems: bundleConfig.minItems,
+        maxItems: bundleConfig.maxItems,
+        discountType: bundleConfig.discountType,
+        discountValue: bundleConfig.discountValue,
+      });
+      setBundle(result);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      setBundleError(error.response?.data?.message || 'Failed to save bundle config');
+    } finally {
+      setBundleSaving(false);
+    }
+  };
+
+  const handleSearchProducts = useCallback(async () => {
+    if (!itemSearch.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const results = await productsApi.searchProducts(itemSearch, id);
+      // Filter out products already in the bundle and the bundle itself
+      const existingIds = new Set(bundle?.items.map(i => i.productId) || []);
+      setSearchResults(results.filter(p => p.id !== id && !existingIds.has(p.id)));
+    } catch (err) {
+      console.error('Product search failed:', err);
+    } finally {
+      setSearching(false);
+    }
+  }, [itemSearch, id, bundle]);
+
+  const handleAddItem = async (productId: string) => {
+    if (!id) return;
+    setBundleError('');
+    try {
+      const result = await productsApi.addBundleItem(id, { productId });
+      setBundle(result);
+      setSearchResults(prev => prev.filter(p => p.id !== productId));
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      setBundleError(error.response?.data?.message || 'Failed to add item');
+    }
+  };
+
+  const handleUpdateItem = async (itemId: string, field: string, value: unknown) => {
+    if (!id) return;
+    setBundleError('');
+    try {
+      const result = await productsApi.updateBundleItem(id, itemId, { [field]: value });
+      setBundle(result);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      setBundleError(error.response?.data?.message || 'Failed to update item');
+    }
+  };
+
+  const handleRemoveItem = async (itemId: string) => {
+    if (!id) return;
+    setBundleError('');
+    try {
+      const result = await productsApi.removeBundleItem(id, itemId);
+      setBundle(result);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      setBundleError(error.response?.data?.message || 'Failed to remove item');
+    }
+  };
+
+  const formatCurrency = (amount: number, currency = 'USD') => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -128,6 +246,9 @@ export function ProductEditPage() {
       </div>
     );
   }
+
+  const isBundle = formData.type === 'bundle';
+  const isExistingBundle = !isNew && isBundle;
 
   return (
     <div className="animate-fadeIn max-w-4xl mx-auto">
@@ -364,6 +485,302 @@ export function ProductEditPage() {
             </div>
           </div>
         </div>
+
+        {/* ============================================================ */}
+        {/* BUNDLE CONFIGURATION (only for existing bundle-type products)*/}
+        {/* ============================================================ */}
+        {isExistingBundle && (
+          <div className="mt-6 bg-white dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-amber-800/50 divide-y divide-gray-100 dark:divide-slate-800">
+            {/* Bundle Settings */}
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
+                  <Layers className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                  Bundle Configuration
+                </h3>
+              </div>
+
+              {bundleError && (
+                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>{bundleError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Bundle Type</label>
+                  <select
+                    value={bundleConfig.bundleType}
+                    onChange={(e) => setBundleConfig(prev => ({ ...prev, bundleType: e.target.value as 'fixed' | 'flexible' }))}
+                    className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  >
+                    <option value="fixed">Fixed (all items required)</option>
+                    <option value="flexible">Flexible (pick & choose)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Discount Type</label>
+                  <select
+                    value={bundleConfig.discountType}
+                    onChange={(e) => setBundleConfig(prev => ({ ...prev, discountType: e.target.value as 'percentage' | 'fixed' }))}
+                    className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  >
+                    <option value="percentage">Percentage (%)</option>
+                    <option value="fixed">Fixed Amount ($)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Discount Value</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                      {bundleConfig.discountType === 'percentage' ? '%' : '$'}
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={bundleConfig.discountValue}
+                      onChange={(e) => setBundleConfig(prev => ({ ...prev, discountValue: parseFloat(e.target.value) || 0 }))}
+                      className="w-full pl-8 pr-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                {bundleConfig.bundleType === 'flexible' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Min Items</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={bundleConfig.minItems}
+                        onChange={(e) => setBundleConfig(prev => ({ ...prev, minItems: parseInt(e.target.value) || 0 }))}
+                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Max Items</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={bundleConfig.maxItems ?? ''}
+                        onChange={(e) => setBundleConfig(prev => ({ ...prev, maxItems: e.target.value ? parseInt(e.target.value) : undefined }))}
+                        placeholder="No limit"
+                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleSaveBundleConfig}
+                  disabled={bundleSaving}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-xl text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  {bundleSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  {bundle ? 'Update Bundle Settings' : 'Initialize Bundle'}
+                </button>
+              </div>
+            </div>
+
+            {/* Bundle Items */}
+            {bundle && (
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+                    Bundle Items ({bundle.items.length})
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => { setShowItemPicker(true); setItemSearch(''); setSearchResults([]); }}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Product
+                  </button>
+                </div>
+
+                {/* Product Search Picker */}
+                {showItemPicker && (
+                  <div className="mb-4 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="text-sm font-medium text-gray-700 dark:text-slate-300">Search Products to Add</h5>
+                      <button type="button" onClick={() => setShowItemPicker(false)} className="text-gray-400 hover:text-gray-600">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex gap-2 mb-3">
+                      <div className="flex-1 relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={itemSearch}
+                          onChange={(e) => setItemSearch(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSearchProducts(); } }}
+                          placeholder="Search by name or code..."
+                          className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm"
+                          autoFocus
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSearchProducts}
+                        disabled={searching}
+                        className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-xl text-sm font-medium"
+                      >
+                        {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
+                      </button>
+                    </div>
+                    {searchResults.length > 0 && (
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {searchResults.map(p => (
+                          <div
+                            key={p.id}
+                            className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{p.name}</p>
+                              <p className="text-xs text-gray-500 dark:text-slate-400">
+                                {p.code && <span className="font-mono">{p.code} · </span>}
+                                {formatCurrency(p.basePrice, p.currency)}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAddItem(p.id)}
+                              className="px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg text-xs font-medium hover:bg-amber-200 dark:hover:bg-amber-900/50 flex-shrink-0"
+                            >
+                              <Plus className="w-3 h-3 inline mr-1" />
+                              Add
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {searchResults.length === 0 && itemSearch && !searching && (
+                      <p className="text-xs text-gray-400 text-center py-3">No products found</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Items Table */}
+                {bundle.items.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Package className="w-8 h-8 text-gray-300 dark:text-slate-700 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500 dark:text-slate-400">No items in this bundle yet</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Click "Add Product" to add items</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-100 dark:border-slate-800">
+                          <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 uppercase">Product</th>
+                          <th className="text-center px-3 py-2 text-xs font-medium text-gray-500 uppercase w-20">Qty</th>
+                          <th className="text-right px-3 py-2 text-xs font-medium text-gray-500 uppercase w-28">Override $</th>
+                          <th className="text-center px-3 py-2 text-xs font-medium text-gray-500 uppercase w-20">Optional</th>
+                          <th className="text-right px-3 py-2 text-xs font-medium text-gray-500 uppercase w-24">Base Price</th>
+                          <th className="text-right px-3 py-2 text-xs font-medium text-gray-500 uppercase w-12"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50 dark:divide-slate-800/50">
+                        {bundle.items.map(item => (
+                          <tr key={item.id} className="group">
+                            <td className="px-3 py-2.5">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">{item.productName}</p>
+                              {item.productCode && (
+                                <p className="text-xs text-gray-400 font-mono">{item.productCode}</p>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => handleUpdateItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                                className="w-16 px-2 py-1 text-center border border-gray-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                              />
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.overridePrice ?? ''}
+                                onChange={(e) => handleUpdateItem(item.id, 'overridePrice', e.target.value ? parseFloat(e.target.value) : 0)}
+                                placeholder="—"
+                                className="w-24 px-2 py-1 text-right border border-gray-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                              />
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <input
+                                type="checkbox"
+                                checked={item.isOptional}
+                                onChange={(e) => handleUpdateItem(item.id, 'isOptional', e.target.checked)}
+                                className="rounded border-gray-300 dark:border-slate-600 text-amber-600 focus:ring-amber-500"
+                              />
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-sm text-gray-500 dark:text-slate-400">
+                              {formatCurrency(item.basePrice, formData.currency || 'USD')}
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(item.id)}
+                                className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                                title="Remove from bundle"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Info: Initialize bundle first */}
+            {!bundle && (
+              <div className="p-6 text-center">
+                <p className="text-sm text-gray-500 dark:text-slate-400">
+                  Click "Initialize Bundle" above to start adding items to this bundle.
+                </p>
+              </div>
+            )}
+
+            {/* New product notice */}
+            {isNew && isBundle && (
+              <div className="p-6">
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                  <p className="text-sm text-amber-700 dark:text-amber-400">
+                    <strong>Tip:</strong> Save this product first, then you can configure the bundle items by editing it.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* New bundle notice (shown when type is bundle and creating new) */}
+        {isNew && isBundle && (
+          <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+            <p className="text-sm text-amber-700 dark:text-amber-400 flex items-start gap-2">
+              <Layers className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>Save this bundle product first. After creation, you'll be able to configure bundle settings and add products to it.</span>
+            </p>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-3 mt-6">

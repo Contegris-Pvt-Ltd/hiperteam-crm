@@ -167,9 +167,10 @@ export function AccountDetailPage() {
   const handleLogoUpload = async (file: File): Promise<string> => {
     if (!id) throw new Error('No account ID');
     const result = await uploadApi.uploadAvatar('accounts', id, file);
-    await accountsApi.update(id, { logoUrl: result.url });
-    setAccount(prev => prev ? { ...prev, logoUrl: result.url } : null);
-    return result.url;
+    const freshUrl = `${result.url}?v=${Date.now()}`;
+    await accountsApi.update(id, { logoUrl: freshUrl });
+    setAccount(prev => prev ? { ...prev, logoUrl: freshUrl } : null);
+    return freshUrl;
   };
 
   const handleAddNote = async (content: string) => {

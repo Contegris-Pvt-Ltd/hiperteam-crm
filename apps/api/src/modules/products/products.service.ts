@@ -10,6 +10,9 @@ import {
   UpdatePriceBookEntryDto,
   CreateProductCategoryDto,
   UpdateProductCategoryDto,
+  ConfigureBundleDto,
+  AddBundleItemDto,
+  UpdateBundleItemDto,
 } from './dto';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
@@ -190,7 +193,7 @@ export class ProductsService {
     };
   }
 
-  private async findOneRaw(schemaName: string, id: string): Promise<Record<string, unknown>> {
+  async findOne(schemaName: string, id: string) {
     const [product] = await this.dataSource.query(
       `SELECT p.*,
               c.name as category_name,
@@ -207,11 +210,7 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
-    return this.formatProduct(product);
-  }
-
-  async findOne(schemaName: string, id: string) {
-    const formatted = await this.findOneRaw(schemaName, id);
+    const formatted = this.formatProduct(product);
 
     // Get price book entries for this product
     const priceEntries = await this.dataSource.query(
@@ -280,7 +279,7 @@ export class ProductsService {
   }
 
   async update(schemaName: string, id: string, userId: string, dto: UpdateProductDto) {
-    const existing = await this.findOneRaw(schemaName, id);
+    const existing = await this.findOne(schemaName, id);
 
     // Check duplicate code
     if (dto.code && dto.code !== existing.code) {
@@ -373,7 +372,7 @@ export class ProductsService {
   }
 
   async remove(schemaName: string, id: string, userId: string) {
-    const existing = await this.findOneRaw(schemaName, id);
+    const existing = await this.findOne(schemaName, id);
 
     await this.dataSource.query(
       `UPDATE "${schemaName}".products SET deleted_at = NOW() WHERE id = $1`,
@@ -441,6 +440,17 @@ export class ProductsService {
       throw new BadRequestException(`Category slug "${slug}" already exists`);
     }
 
+    // Validate parent exists in same tenant schema
+    if (dto.parentId) {
+      const [parent] = await this.dataSource.query(
+        `SELECT id FROM "${schemaName}".product_categories WHERE id = $1`,
+        [dto.parentId],
+      );
+      if (!parent) {
+        throw new BadRequestException('Parent category not found');
+      }
+    }
+
     const [category] = await this.dataSource.query(
       `INSERT INTO "${schemaName}".product_categories (name, slug, description, parent_id, display_order)
        VALUES ($1, $2, $3, $4, $5)
@@ -484,6 +494,16 @@ export class ProductsService {
       // Prevent self-referencing
       if (dto.parentId === id) {
         throw new BadRequestException('A category cannot be its own parent');
+      }
+      // Validate parent exists in same tenant schema
+      if (dto.parentId) {
+        const [parent] = await this.dataSource.query(
+          `SELECT id FROM "${schemaName}".product_categories WHERE id = $1`,
+          [dto.parentId],
+        );
+        if (!parent) {
+          throw new BadRequestException('Parent category not found');
+        }
       }
       updates.push(`parent_id = $${paramIndex}`);
       params.push(dto.parentId || null);
@@ -786,10 +806,293 @@ export class ProductsService {
   }
 
   // ============================================================
+  // BUNDLES — Configure + Item CRUD
+  // ============================================================
+
+  /**
+   * Create or update the bundle configuration for a bundle-type product.
+   * If no product_bundles row exists yet, INSERT one; otherwise UPDATE.
+   */
+  async configureBundle(
+    schemaName: string,
+    productId: string,
+    dto: ConfigureBundleDto,
+  ) {
+    // Verify product exists and is type 'bundle'
+    const [product] = await this.dataSource.query(
+      `SELECT id, type FROM "${schemaName}".products WHERE id = $1 AND deleted_at IS NULL`,
+      [productId],
+    );
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.type !== 'bundle') {
+      throw new BadRequestException('Only bundle-type products can have bundle configuration');
+    }
+
+    // Check if bundle config already exists
+    const [existing] = await this.dataSource.query(
+      `SELECT id FROM "${schemaName}".product_bundles WHERE product_id = $1`,
+      [productId],
+    );
+
+    let bundleId: string;
+
+    if (existing) {
+      // Update existing
+      const setClauses: string[] = ['updated_at = NOW()'];
+      const params: unknown[] = [];
+      let idx = 1;
+
+      if (dto.bundleType !== undefined) {
+        setClauses.push(`bundle_type = $${idx}`);
+        params.push(dto.bundleType);
+        idx++;
+      }
+      if (dto.minItems !== undefined) {
+        setClauses.push(`min_items = $${idx}`);
+        params.push(dto.minItems);
+        idx++;
+      }
+      if (dto.maxItems !== undefined) {
+        setClauses.push(`max_items = $${idx}`);
+        params.push(dto.maxItems);
+        idx++;
+      }
+      if (dto.discountType !== undefined) {
+        setClauses.push(`discount_type = $${idx}`);
+        params.push(dto.discountType);
+        idx++;
+      }
+      if (dto.discountValue !== undefined) {
+        setClauses.push(`discount_value = $${idx}`);
+        params.push(dto.discountValue);
+        idx++;
+      }
+
+      params.push(existing.id);
+      await this.dataSource.query(
+        `UPDATE "${schemaName}".product_bundles SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+        params,
+      );
+      bundleId = existing.id;
+    } else {
+      // Create new
+      const [created] = await this.dataSource.query(
+        `INSERT INTO "${schemaName}".product_bundles
+           (product_id, bundle_type, min_items, max_items, discount_type, discount_value)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [
+          productId,
+          dto.bundleType || 'fixed',
+          dto.minItems ?? 0,
+          dto.maxItems ?? null,
+          dto.discountType || 'percentage',
+          dto.discountValue ?? 0,
+        ],
+      );
+      bundleId = created.id;
+    }
+
+    return this.getBundleDetail(schemaName, bundleId);
+  }
+
+  /**
+   * Add a product as an item inside a bundle.
+   */
+  async addBundleItem(
+    schemaName: string,
+    productId: string,
+    dto: AddBundleItemDto,
+  ) {
+    // Get or verify bundle exists
+    const [bundle] = await this.dataSource.query(
+      `SELECT pb.id FROM "${schemaName}".product_bundles pb
+       JOIN "${schemaName}".products p ON pb.product_id = p.id
+       WHERE pb.product_id = $1 AND p.deleted_at IS NULL`,
+      [productId],
+    );
+    if (!bundle) {
+      throw new NotFoundException('Bundle not found. Configure the bundle first.');
+    }
+
+    // Verify the item product exists and is not the bundle itself
+    if (dto.productId === productId) {
+      throw new BadRequestException('A bundle cannot contain itself');
+    }
+    const [itemProduct] = await this.dataSource.query(
+      `SELECT id FROM "${schemaName}".products WHERE id = $1 AND deleted_at IS NULL`,
+      [dto.productId],
+    );
+    if (!itemProduct) {
+      throw new NotFoundException('Item product not found');
+    }
+
+    // Check for duplicate (UNIQUE constraint: bundle_id + product_id)
+    const [duplicate] = await this.dataSource.query(
+      `SELECT id FROM "${schemaName}".bundle_items WHERE bundle_id = $1 AND product_id = $2`,
+      [bundle.id, dto.productId],
+    );
+    if (duplicate) {
+      throw new BadRequestException('This product is already in the bundle');
+    }
+
+    // Get next display order
+    const [maxOrder] = await this.dataSource.query(
+      `SELECT COALESCE(MAX(display_order), -1) + 1 as next_order
+       FROM "${schemaName}".bundle_items WHERE bundle_id = $1`,
+      [bundle.id],
+    );
+
+    await this.dataSource.query(
+      `INSERT INTO "${schemaName}".bundle_items
+         (bundle_id, product_id, quantity, is_optional, override_price, display_order)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        bundle.id,
+        dto.productId,
+        dto.quantity ?? 1,
+        dto.isOptional ?? false,
+        dto.overridePrice ?? null,
+        dto.displayOrder ?? maxOrder.next_order,
+      ],
+    );
+
+    // Return the full bundle detail so frontend can refresh
+    return this.getBundleDetail(schemaName, bundle.id);
+  }
+
+  /**
+   * Update an existing bundle item (quantity, optional flag, override price, order).
+   */
+  async updateBundleItem(
+    schemaName: string,
+    productId: string,
+    itemId: string,
+    dto: UpdateBundleItemDto,
+  ) {
+    // Verify the item belongs to this product's bundle
+    const [item] = await this.dataSource.query(
+      `SELECT bi.id, bi.bundle_id
+       FROM "${schemaName}".bundle_items bi
+       JOIN "${schemaName}".product_bundles pb ON bi.bundle_id = pb.id
+       WHERE bi.id = $1 AND pb.product_id = $2`,
+      [itemId, productId],
+    );
+    if (!item) {
+      throw new NotFoundException('Bundle item not found');
+    }
+
+    const setClauses: string[] = [];
+    const params: unknown[] = [];
+    let idx = 1;
+
+    if (dto.quantity !== undefined) {
+      setClauses.push(`quantity = $${idx}`);
+      params.push(dto.quantity);
+      idx++;
+    }
+    if (dto.isOptional !== undefined) {
+      setClauses.push(`is_optional = $${idx}`);
+      params.push(dto.isOptional);
+      idx++;
+    }
+    if (dto.overridePrice !== undefined) {
+      setClauses.push(`override_price = $${idx}`);
+      params.push(dto.overridePrice);
+      idx++;
+    }
+    if (dto.displayOrder !== undefined) {
+      setClauses.push(`display_order = $${idx}`);
+      params.push(dto.displayOrder);
+      idx++;
+    }
+
+    if (setClauses.length === 0) {
+      return this.getBundleDetail(schemaName, item.bundle_id);
+    }
+
+    params.push(itemId);
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".bundle_items SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+      params,
+    );
+
+    return this.getBundleDetail(schemaName, item.bundle_id);
+  }
+
+  /**
+   * Remove a product from the bundle.
+   */
+  async removeBundleItem(
+    schemaName: string,
+    productId: string,
+    itemId: string,
+  ) {
+    const [item] = await this.dataSource.query(
+      `SELECT bi.id, bi.bundle_id
+       FROM "${schemaName}".bundle_items bi
+       JOIN "${schemaName}".product_bundles pb ON bi.bundle_id = pb.id
+       WHERE bi.id = $1 AND pb.product_id = $2`,
+      [itemId, productId],
+    );
+    if (!item) {
+      throw new NotFoundException('Bundle item not found');
+    }
+
+    await this.dataSource.query(
+      `DELETE FROM "${schemaName}".bundle_items WHERE id = $1`,
+      [itemId],
+    );
+
+    return this.getBundleDetail(schemaName, item.bundle_id);
+  }
+
+  /**
+   * Helper: Fetch full bundle detail with items.
+   */
+  private async getBundleDetail(schemaName: string, bundleId: string) {
+    const [bundleRow] = await this.dataSource.query(
+      `SELECT * FROM "${schemaName}".product_bundles WHERE id = $1`,
+      [bundleId],
+    );
+    if (!bundleRow) throw new NotFoundException('Bundle not found');
+
+    const bundleItems = await this.dataSource.query(
+      `SELECT bi.*, p.name as product_name, p.code as product_code, p.base_price
+       FROM "${schemaName}".bundle_items bi
+       JOIN "${schemaName}".products p ON bi.product_id = p.id
+       WHERE bi.bundle_id = $1
+       ORDER BY bi.display_order ASC`,
+      [bundleId],
+    );
+
+    return {
+      id: bundleRow.id,
+      bundleType: bundleRow.bundle_type,
+      minItems: bundleRow.min_items,
+      maxItems: bundleRow.max_items,
+      discountType: bundleRow.discount_type,
+      discountValue: parseFloat(bundleRow.discount_value),
+      items: bundleItems.map((bi: Record<string, unknown>) => ({
+        id: bi.id,
+        productId: bi.product_id,
+        productName: bi.product_name,
+        productCode: bi.product_code,
+        basePrice: parseFloat(bi.base_price as string),
+        quantity: bi.quantity,
+        isOptional: bi.is_optional,
+        overridePrice: bi.override_price ? parseFloat(bi.override_price as string) : null,
+        displayOrder: bi.display_order,
+      })),
+    };
+  }
+
+  // ============================================================
   // FORMAT HELPER
   // ============================================================
 
-  private formatProduct(product: Record<string, unknown>): Record<string, unknown> {
+  private formatProduct(product: Record<string, unknown>): any {
     return {
       id: product.id,
       name: product.name,

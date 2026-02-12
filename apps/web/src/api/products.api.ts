@@ -166,6 +166,29 @@ export interface BundleItem {
   displayOrder: number;
 }
 
+export interface ConfigureBundleData {
+  bundleType?: 'fixed' | 'flexible';
+  minItems?: number;
+  maxItems?: number;
+  discountType?: 'percentage' | 'fixed';
+  discountValue?: number;
+}
+
+export interface AddBundleItemData {
+  productId: string;
+  quantity?: number;
+  isOptional?: boolean;
+  overridePrice?: number;
+  displayOrder?: number;
+}
+
+export interface UpdateBundleItemData {
+  quantity?: number;
+  isOptional?: boolean;
+  overridePrice?: number;
+  displayOrder?: number;
+}
+
 // ============================================================
 // API METHODS
 // ============================================================
@@ -260,5 +283,35 @@ export const productsApi = {
 
   deletePriceBookEntry: async (entryId: string): Promise<void> => {
     await api.delete(`/products/price-book-entries/${entryId}`);
+  },
+
+  // Bundles
+  configureBundle: async (productId: string, config: ConfigureBundleData): Promise<BundleDetail> => {
+    const { data } = await api.put(`/products/${productId}/bundle`, config);
+    return data;
+  },
+
+  addBundleItem: async (productId: string, item: AddBundleItemData): Promise<BundleDetail> => {
+    const { data } = await api.post(`/products/${productId}/bundle/items`, item);
+    return data;
+  },
+
+  updateBundleItem: async (productId: string, itemId: string, item: UpdateBundleItemData): Promise<BundleDetail> => {
+    const { data } = await api.put(`/products/${productId}/bundle/items/${itemId}`, item);
+    return data;
+  },
+
+  removeBundleItem: async (productId: string, itemId: string): Promise<BundleDetail> => {
+    const { data } = await api.delete(`/products/${productId}/bundle/items/${itemId}`);
+    return data;
+  },
+
+  // Product search (for bundle item picker — returns just product list, not paginated response)
+  searchProducts: async (search: string, excludeId?: string): Promise<Product[]> => {
+    const params = new URLSearchParams({ search, limit: '20' });
+    const { data } = await api.get(`/products?${params.toString()}`);
+    const products = data.data as Product[];
+    // Filter out bundles and the current product client-side
+    return products.filter((p: Product) => p.id !== excludeId && p.type !== 'bundle');
   },
 };

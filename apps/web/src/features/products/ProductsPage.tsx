@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus, Search, Filter, Package, MoreVertical,
   ChevronLeft, ChevronRight, Loader2, Trash2, Edit, Eye,
-  Tag, Box, RefreshCw,
+  Tag, Box, RefreshCw, X, FolderTree, Pencil,
+  AlertCircle,
 } from 'lucide-react';
 import { productsApi } from '../../api/products.api';
 import type { Product, ProductsQuery, ProductCategory } from '../../api/products.api';
@@ -38,6 +39,14 @@ export function ProductsPage() {
   const [searchInput, setSearchInput] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  // Categories panel state
+  const [showCategories, setShowCategories] = useState(false);
+  const [catError, setCatError] = useState('');
+  const [editingCat, setEditingCat] = useState<ProductCategory | null>(null);
+  const [showCatForm, setShowCatForm] = useState(false);
+  const [catForm, setCatForm] = useState({ name: '', description: '', parentId: '' });
+  const [catSaving, setCatSaving] = useState(false);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -92,6 +101,90 @@ export function ProductsPage() {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
   };
 
+  // ============================================================
+  // CATEGORY PANEL HANDLERS
+  // ============================================================
+  const closeCategoryPanel = () => {
+    setShowCategories(false);
+    setShowCatForm(false);
+    setEditingCat(null);
+    setCatError('');
+  };
+
+  const openCatCreate = () => {
+    setEditingCat(null);
+    setCatForm({ name: '', description: '', parentId: '' });
+    setShowCatForm(true);
+    setCatError('');
+  };
+
+  const openCatEdit = (cat: ProductCategory) => {
+    setEditingCat(cat);
+    setCatForm({
+      name: cat.name,
+      description: cat.description || '',
+      parentId: cat.parentId || '',
+    });
+    setShowCatForm(true);
+    setCatError('');
+  };
+
+  const cancelCatForm = () => {
+    setShowCatForm(false);
+    setEditingCat(null);
+    setCatError('');
+  };
+
+  const handleCatSave = async () => {
+    if (!catForm.name.trim()) {
+      setCatError('Category name is required');
+      return;
+    }
+    setCatSaving(true);
+    setCatError('');
+    try {
+      const payload = {
+        name: catForm.name.trim(),
+        description: catForm.description.trim() || undefined,
+        parentId: catForm.parentId || undefined,
+      };
+
+      if (editingCat) {
+        await productsApi.updateCategory(editingCat.id, payload);
+      } else {
+        await productsApi.createCategory(payload);
+      }
+      await fetchCategories();
+      setShowCatForm(false);
+      setEditingCat(null);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      setCatError(error.response?.data?.message || 'Failed to save category');
+    } finally {
+      setCatSaving(false);
+    }
+  };
+
+  const handleCatDelete = async (cat: ProductCategory) => {
+    if (cat.productCount > 0) {
+      setCatError(`Cannot delete "${cat.name}" — it has ${cat.productCount} product(s). Reassign them first.`);
+      return;
+    }
+    if (!confirm(`Delete category "${cat.name}"?`)) return;
+    setCatError('');
+    try {
+      await productsApi.deleteCategory(cat.id);
+      await fetchCategories();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      setCatError(error.response?.data?.message || 'Failed to delete category');
+    }
+  };
+
+  // Build hierarchical display
+  const topLevelCats = categories.filter(c => !c.parentId);
+  const childCats = (parentId: string) => categories.filter(c => c.parentId === parentId);
+
   return (
     <div className="animate-fadeIn">
       {/* Header */}
@@ -103,6 +196,13 @@ export function ProductsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setShowCategories(true); setCatError(''); }}
+            className="px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2"
+          >
+            <FolderTree className="w-4 h-4" />
+            Categories
+          </button>
           <Link
             to="/products/price-books"
             className="px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2"
@@ -355,6 +455,211 @@ export function ProductsPage() {
           </>
         )}
       </div>
+
+      {/* ============================================================ */}
+      {/* CATEGORIES SLIDE-OUT PANEL                                   */}
+      {/* ============================================================ */}
+      {showCategories && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={closeCategoryPanel} />
+
+          {/* Panel */}
+          <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-slate-900 shadow-2xl z-50 flex flex-col">
+            {/* Panel Header */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-violet-600 to-purple-600">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
+                  <FolderTree className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Product Categories</h2>
+                  <p className="text-violet-200 text-xs">{categories.length} {categories.length === 1 ? 'category' : 'categories'}</p>
+                </div>
+              </div>
+              <button onClick={closeCategoryPanel} className="text-white/70 hover:text-white p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Error */}
+            {catError && (
+              <div className="mx-6 mt-4 px-3 py-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{catError}</span>
+              </div>
+            )}
+
+            {/* Add Button */}
+            {!showCatForm && (
+              <div className="px-6 py-3 border-b border-gray-100 dark:border-slate-800">
+                <button
+                  onClick={openCatCreate}
+                  className="w-full px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Category
+                </button>
+              </div>
+            )}
+
+            {/* Inline Form */}
+            {showCatForm && (
+              <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 space-y-3 bg-gray-50 dark:bg-slate-800/50">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+                    {editingCat ? 'Edit Category' : 'New Category'}
+                  </h3>
+                  <button onClick={cancelCatForm} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Name *</label>
+                  <input
+                    type="text"
+                    value={catForm.name}
+                    onChange={(e) => setCatForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g. Software, Hardware"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:text-white"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Parent Category</label>
+                  <select
+                    value={catForm.parentId}
+                    onChange={(e) => setCatForm(prev => ({ ...prev, parentId: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm dark:text-white"
+                  >
+                    <option value="">— None (top level) —</option>
+                    {categories
+                      .filter(c => !editingCat || c.id !== editingCat.id)
+                      .map(cat => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.parentName ? `${cat.parentName} → ` : ''}{cat.name}
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Description</label>
+                  <input
+                    type="text"
+                    value={catForm.description}
+                    onChange={(e) => setCatForm(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Optional description"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm dark:text-white"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={handleCatSave}
+                    disabled={catSaving}
+                    className="flex-1 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {catSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    {editingCat ? 'Save Changes' : 'Create'}
+                  </button>
+                  <button
+                    onClick={cancelCatForm}
+                    className="px-4 py-2 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Category List */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {categories.length === 0 ? (
+                <div className="text-center py-12">
+                  <FolderTree className="w-10 h-10 text-gray-300 dark:text-slate-700 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500 dark:text-slate-400">No categories yet</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Create your first category to organize products</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {topLevelCats.map(cat => (
+                    <div key={cat.id}>
+                      {/* Parent Category */}
+                      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/50 group transition-colors">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FolderTree className="w-4 h-4 text-violet-500 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{cat.name}</p>
+                            {cat.description && (
+                              <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{cat.description}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                          <span className="text-xs text-gray-400 dark:text-slate-500 mr-1">{cat.productCount}</span>
+                          <button
+                            onClick={() => openCatEdit(cat)}
+                            className="p-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg"
+                            title="Edit"
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" />
+                          </button>
+                          <button
+                            onClick={() => handleCatDelete(cat)}
+                            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Child Categories */}
+                      {childCats(cat.id).map(child => (
+                        <div
+                          key={child.id}
+                          className="flex items-center justify-between px-3 py-2 ml-6 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/50 group transition-colors border-l-2 border-gray-200 dark:border-slate-700"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FolderTree className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm text-gray-700 dark:text-slate-300 truncate">{child.name}</p>
+                              {child.description && (
+                                <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{child.description}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                            <span className="text-xs text-gray-400 dark:text-slate-500 mr-1">{child.productCount}</span>
+                            <button
+                              onClick={() => openCatEdit(child)}
+                              className="p-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg"
+                              title="Edit"
+                            >
+                              <Pencil className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" />
+                            </button>
+                            <button
+                              onClick={() => handleCatDelete(child)}
+                              className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

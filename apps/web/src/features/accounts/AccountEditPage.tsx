@@ -416,8 +416,9 @@ export function AccountEditPage() {
       return url;
     }
     const result = await uploadApi.uploadAvatar('accounts', id!, file);
-    setLogoUrl(result.url);
-    return result.url;
+    const freshUrl = `${result.url}?v=${Date.now()}`;
+    setLogoUrl(freshUrl);
+    return freshUrl;
   };
 
   // Email handlers

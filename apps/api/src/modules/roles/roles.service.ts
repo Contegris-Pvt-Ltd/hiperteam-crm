@@ -16,6 +16,7 @@ import { CreateRoleDto, UpdateRoleDto, QueryRolesDto } from './dto';
 export const MODULE_DEFINITIONS: Record<string, { label: string; actions: string[] }> = {
   contacts: { label: 'Contacts', actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
   accounts: { label: 'Accounts', actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
+  products: { label: 'Products', actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
   leads:    { label: 'Leads',    actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
   deals:    { label: 'Deals',    actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
   tasks:    { label: 'Tasks',    actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
@@ -26,7 +27,7 @@ export const MODULE_DEFINITIONS: Record<string, { label: string; actions: string
   admin:    { label: 'Admin',    actions: ['view', 'edit'] },
 };
 
-export const RECORD_ACCESS_MODULES = ['contacts', 'accounts', 'leads', 'deals', 'tasks', 'reports'];
+export const RECORD_ACCESS_MODULES = ['contacts', 'accounts', 'products', 'leads', 'deals', 'tasks', 'reports'];
 export const RECORD_ACCESS_LEVELS = ['own', 'team', 'department', 'reporting_line', 'all'];
 
 export interface FormattedRole {
