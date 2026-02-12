@@ -18,6 +18,7 @@ import { UsersModule } from './modules/users/users.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { TeamsModule } from './modules/teams/teams.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { ProductsModule } from './modules/products/products.module';
 
 @Module({
   imports: [
@@ -52,7 +53,8 @@ import { RolesModule } from './modules/roles/roles.module';
     AdminModule,
     DepartmentsModule,
     TeamsModule,
-    RolesModule
+    RolesModule,
+    ProductsModule
   ],
   controllers: [AppController],
   providers: [AppService],
