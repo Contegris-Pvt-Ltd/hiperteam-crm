@@ -45,7 +45,8 @@ async function runTenantMigrations() {
         if (!tableNames.includes('roles') || !tableNames.includes('users')) {
           console.log(`  ⚠️  ${schema} missing core tables — auto-initializing from tenant-schema.sql...`);
           try {
-            const sqlPath = path.join(__dirname, 'tenant-schema.sql');
+            //const sqlPath = path.join(__dirname, 'tenant-schema.sql');
+            const sqlPath = path.join(__dirname, '..', 'database', 'scripts', 'tenant-schema.sql');
             let schemaSql = fs.readFileSync(sqlPath, 'utf8');
             schemaSql = schemaSql.replace(/TENANT_SCHEMA/g, schema);
             await dataSource.query(schemaSql);
