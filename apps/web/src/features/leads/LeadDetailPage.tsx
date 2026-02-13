@@ -6,14 +6,14 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Trash2, MoreHorizontal,
   Mail, Phone, Globe, MapPin, Building2,
-  Calendar, Tag, Activity, History,
-  MessageSquare, FileText, Users, UserPlus,
+  Tag, Activity, History,
+  MessageSquare, FileText,
   ExternalLink, Flame, Thermometer, Snowflake, Sun, Minus,
   AlertTriangle, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
-import { leadsApi, leadSettingsApi } from '../../api/leads.api';
-import type { Lead, TeamMember, DuplicateMatch, QualificationField } from '../../api/leads.api';
+import { leadsApi } from '../../api/leads.api';
+import type { Lead } from '../../api/leads.api';
 import { StageJourneyBar } from './components/StageJourneyBar';
 import { ConvertLeadModal } from './components/ConvertLeadModal';
 import { DisqualifyModal } from './components/DisqualifyModal';

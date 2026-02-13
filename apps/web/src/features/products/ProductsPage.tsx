@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Plus, Search, Filter, Package,
+  Plus, Search, Filter,
   Loader2, Trash2, Eye,
   Tag, Box, RefreshCw, X, FolderTree, Pencil,
   AlertCircle,

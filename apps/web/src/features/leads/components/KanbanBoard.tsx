@@ -2,8 +2,7 @@
 // FILE: apps/web/src/features/leads/components/KanbanBoard.tsx
 // ============================================================
 import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Building2, GripVertical, User } from 'lucide-react';
+import { Building2, GripVertical } from 'lucide-react';
 import type { KanbanStageData, Lead } from '../../../api/leads.api';
 
 interface KanbanBoardProps {

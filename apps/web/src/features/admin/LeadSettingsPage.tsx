@@ -523,7 +523,6 @@ function EditStageInline({
 
 function PrioritiesTab({ priorities, onReload }: { priorities: LeadPriority[]; onReload: () => void }) {
   const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: '', color: '#3B82F6', icon: 'minus', scoreMin: '', scoreMax: '',

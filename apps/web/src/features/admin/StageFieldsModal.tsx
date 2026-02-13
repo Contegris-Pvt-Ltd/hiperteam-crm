@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import {
   X, Save, Loader2, Plus, Trash2,
-  CheckCircle2, Lock, Unlock,
+  Lock, Unlock,
   Type, Hash, Calendar, List, CheckSquare, Mail, Phone, FileText,
 } from 'lucide-react';
 import { leadSettingsApi } from '../../api/leads.api';

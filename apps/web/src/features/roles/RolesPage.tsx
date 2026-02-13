@@ -302,7 +302,7 @@ export function RolesPage() {
             onColumnWidthsChange={tablePrefs.setColumnWidths}
             onRowClick={(row) => loadDetail(row.id)}
             emptyMessage="No roles found."
-            renderCell={(col, value, row) => {
+            renderCell={(col, _value, row) => {
               const role = row;
 
               // Name column — shield icon + name + description

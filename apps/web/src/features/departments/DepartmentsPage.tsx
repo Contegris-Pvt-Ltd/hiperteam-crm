@@ -344,7 +344,7 @@ export function DepartmentsPage() {
               onColumnWidthsChange={tablePrefs.setColumnWidths}
               onRowClick={(row) => loadDetail(row.id)}
               emptyMessage="No departments found. Create your first department to organize your team."
-              renderCell={(col, value, row) => {
+              renderCell={(col, _value, row) => {
                 const dept = row;
 
                 // Name column — icon + name + code + parent

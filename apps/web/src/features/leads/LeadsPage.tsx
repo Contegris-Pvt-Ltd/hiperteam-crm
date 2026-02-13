@@ -15,7 +15,6 @@ import { leadsApi, leadSettingsApi } from '../../api/leads.api';
 import { KanbanBoard } from './components/KanbanBoard';
 import { usePermissions } from '../../hooks/usePermissions';
 import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
-import type { TableColumn } from '../../api/tablePreferences.api';
 
 // Priority icon map
 const PRIORITY_ICONS: Record<string, any> = {

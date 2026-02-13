@@ -2,7 +2,7 @@
 // FILE: apps/web/src/features/leads/components/RecordTeamPanel.tsx
 // ============================================================
 import { useState, useEffect } from 'react';
-import { UserPlus, X, Search, Users, Shield } from 'lucide-react';
+import { UserPlus, X, Search, Users } from 'lucide-react';
 import { leadsApi, leadSettingsApi } from '../../../api/leads.api';
 import type { TeamMember } from '../../../api/leads.api';
 
@@ -52,7 +52,7 @@ export function RecordTeamPanel({ leadId, teamMembers, onRefresh, canEdit }: Rec
     return () => clearTimeout(timer);
   }, [userSearch, teamMembers]);
 
-  const handleAddMember = async (userId: string, userName: string) => {
+  const handleAddMember = async (userId: string, _userName: string) => {
     const roleName = teamRoles.find(r => r.id === selectedRoleId)?.name || '';
     try {
       await leadsApi.addTeamMember(leadId, userId, selectedRoleId || undefined, roleName, selectedAccess);

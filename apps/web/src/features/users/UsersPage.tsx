@@ -345,7 +345,7 @@ export function UsersPage() {
             onColumnsChange={tablePrefs.setVisibleColumns}
             onColumnWidthsChange={tablePrefs.setColumnWidths}
             emptyMessage="No users found. Try adjusting your search or filters."
-            renderCell={(col, value, row) => {
+            renderCell={(col, _value, row) => {
               const user = row;
 
               // Name column — avatar + name + email + job title

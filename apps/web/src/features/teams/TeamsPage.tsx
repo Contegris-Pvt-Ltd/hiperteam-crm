@@ -291,7 +291,7 @@ export function TeamsPage() {
             onColumnWidthsChange={tablePrefs.setColumnWidths}
             onRowClick={(row) => loadDetail(row.id)}
             emptyMessage="No teams found. Create your first team to get started."
-            renderCell={(col, value, row) => {
+            renderCell={(col, _value, row) => {
               const team = row;
 
               // Name column — icon + name + description

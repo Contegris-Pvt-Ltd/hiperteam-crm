@@ -23,7 +23,7 @@ export function ConvertLeadModal({ lead, onClose, onConverted }: ConvertLeadModa
   const [existingContactId, setExistingContactId] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const [contactResults, setContactResults] = useState<any[]>([]);
-  const [searchingContacts, setSearchingContacts] = useState(false);
+  const [_searchingContacts, setSearchingContacts] = useState(false);
 
   const [accountAction, setAccountAction] = useState<'create_new' | 'link_existing' | 'skip'>(
     lead.company ? 'create_new' : 'skip',
@@ -32,7 +32,7 @@ export function ConvertLeadModal({ lead, onClose, onConverted }: ConvertLeadModa
   const [accountName, setAccountName] = useState(lead.company || '');
   const [accountSearch, setAccountSearch] = useState('');
   const [accountResults, setAccountResults] = useState<any[]>([]);
-  const [searchingAccounts, setSearchingAccounts] = useState(false);
+  const [_searchingAccounts, setSearchingAccounts] = useState(false);
 
   const [createOpportunity, setCreateOpportunity] = useState(false);
   const [opportunityName, setOpportunityName] = useState(
