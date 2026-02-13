@@ -24,7 +24,6 @@ import { NotesPanel } from '../../components/shared/NotesPanel';
 import { DocumentsPanel } from '../../components/shared/DocumentsPanel';
 import { adminApi } from '../../api/admin.api';
 import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.api';
-import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
 import { usePermissions } from '../../hooks/usePermissions';
 
 type TabType = 'activity' | 'notes' | 'documents' | 'history';
