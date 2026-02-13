@@ -53,9 +53,13 @@ export function UsersPage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'users') fetchUsers();
-    else fetchInvitations();
-  }, [query, activeTab]);
+    if (activeTab === 'users') {
+      if (tablePrefs.loading) return;
+      fetchUsers();
+    } else {
+      fetchInvitations();
+    }
+  }, [query, activeTab, tablePrefs.loading]);
 
   // ── Sync table preferences into query once loaded ──
   useEffect(() => {

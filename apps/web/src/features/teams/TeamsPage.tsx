@@ -72,7 +72,10 @@ export function TeamsPage() {
     }
   }, [query]);
 
-  useEffect(() => { fetchTeams(); }, [fetchTeams]);
+  useEffect(() => {
+    if (tablePrefs.loading) return;
+    fetchTeams();
+  }, [fetchTeams, tablePrefs.loading]);
 
   useEffect(() => {
     departmentsApi.getLookup().then(setDepartments).catch(console.error);

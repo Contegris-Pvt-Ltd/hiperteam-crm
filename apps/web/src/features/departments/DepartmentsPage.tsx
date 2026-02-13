@@ -76,9 +76,13 @@ export function DepartmentsPage() {
   }, []);
 
   useEffect(() => {
-    if (viewMode === 'list') fetchDepartments();
-    else fetchHierarchy();
-  }, [viewMode, fetchDepartments, fetchHierarchy]);
+    if (viewMode === 'list') {
+      if (tablePrefs.loading) return;
+      fetchDepartments();
+    } else {
+      fetchHierarchy();
+    }
+  }, [viewMode, fetchDepartments, fetchHierarchy, tablePrefs.loading]);
 
   // ── Sync table preferences into query once loaded ──
   useEffect(() => {

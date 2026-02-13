@@ -85,10 +85,11 @@ export function ProductsPage() {
       console.error('Failed to fetch categories:', err);
     }
   }, []);
-
+  
   useEffect(() => {
+    if (tablePrefs.loading) return;
     fetchProducts();
-  }, [fetchProducts]);
+  }, [fetchProducts, tablePrefs.loading]);
 
   useEffect(() => {
     fetchCategories();

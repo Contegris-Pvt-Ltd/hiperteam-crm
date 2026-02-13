@@ -64,7 +64,10 @@ export function RolesPage() {
     }
   }, [query]);
 
-  useEffect(() => { fetchRoles(); }, [fetchRoles]);
+  useEffect(() => {
+    if (tablePrefs.loading) return;
+    fetchRoles();
+  }, [fetchRoles, tablePrefs.loading]);
 
   useEffect(() => {
     rolesApi.getModuleDefinitions().then(setModuleDefs).catch(console.error);

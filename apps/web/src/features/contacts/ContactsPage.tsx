@@ -36,8 +36,9 @@ export function ContactsPage() {
   }, [tablePrefs.loading]);
 
   useEffect(() => {
+    if (tablePrefs.loading) return;
     fetchContacts();
-  }, [query]);
+  }, [query, tablePrefs.loading]);
 
   const fetchContacts = async () => {
     setLoading(true);

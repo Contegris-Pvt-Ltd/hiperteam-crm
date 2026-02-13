@@ -92,8 +92,9 @@ export function LeadsPage() {
 
   // ── Fetch leads when query changes ──
   useEffect(() => {
+    if (tablePrefs.loading) return;
     fetchLeads();
-  }, [query]);
+  }, [query, tablePrefs.loading]);
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);

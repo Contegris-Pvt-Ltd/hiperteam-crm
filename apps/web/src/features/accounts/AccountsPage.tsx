@@ -36,8 +36,9 @@ export function AccountsPage() {
   }, [tablePrefs.loading]);
 
   useEffect(() => {
+    if (tablePrefs.loading) return;
     fetchAccounts();
-  }, [query]);
+  }, [query, tablePrefs.loading]);
 
   const fetchAccounts = async () => {
     setLoading(true);
