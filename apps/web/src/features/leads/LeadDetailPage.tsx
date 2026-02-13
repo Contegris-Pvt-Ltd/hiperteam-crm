@@ -6,14 +6,14 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Trash2, MoreHorizontal,
   Mail, Phone, Globe, MapPin, Building2,
-  Tag, Activity, History,
-  MessageSquare, FileText,
+  Calendar, Tag, Activity, History,
+  MessageSquare, FileText, Users, UserPlus,
   ExternalLink, Flame, Thermometer, Snowflake, Sun, Minus,
   AlertTriangle, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
-import { leadsApi } from '../../api/leads.api';
-import type { Lead } from '../../api/leads.api';
+import { leadsApi, leadSettingsApi } from '../../api/leads.api';
+import type { Lead, TeamMember, DuplicateMatch, QualificationField } from '../../api/leads.api';
 import { StageJourneyBar } from './components/StageJourneyBar';
 import { ConvertLeadModal } from './components/ConvertLeadModal';
 import { DisqualifyModal } from './components/DisqualifyModal';
@@ -24,6 +24,7 @@ import { NotesPanel } from '../../components/shared/NotesPanel';
 import { DocumentsPanel } from '../../components/shared/DocumentsPanel';
 import { adminApi } from '../../api/admin.api';
 import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.api';
+import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
 import { usePermissions } from '../../hooks/usePermissions';
 
 type TabType = 'activity' | 'notes' | 'documents' | 'history';
@@ -40,10 +41,7 @@ export function LeadDetailPage() {
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('activity');
-  const [activities, setActivities] = useState<any[]>([]);
-  const [notes, setNotes] = useState<any[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
-  const [documents, setDocuments] = useState<any[]>([]);
+  const [tabData, setTabData] = useState<any>(null);
   const [tabLoading, setTabLoading] = useState(false);
 
   // Modals
@@ -109,20 +107,10 @@ export function LeadDetailPage() {
     setTabLoading(true);
     try {
       switch (activeTab) {
-        case 'activity':
-          const actData = await leadsApi.getActivities(id);
-          setActivities(actData.data || actData || []);
-          break;
-        case 'history':
-          setHistory(await leadsApi.getHistory(id));
-          break;
-        case 'notes':
-          setNotes(await leadsApi.getNotes(id));
-          break;
-        case 'documents':
-          const docsData = await leadsApi.getDocuments(id);
-          setDocuments(Array.isArray(docsData) ? docsData : docsData?.data || []);
-          break;
+        case 'activity': setTabData(await leadsApi.getActivities(id)); break;
+        case 'history': setTabData(await leadsApi.getHistory(id)); break;
+        case 'notes': setTabData(await leadsApi.getNotes(id)); break;
+        case 'documents': setTabData(await leadsApi.getDocuments(id)); break;
       }
     } catch (error) {
       console.error('Failed to fetch tab data:', error);
@@ -146,7 +134,7 @@ export function LeadDetailPage() {
   const handleNoteAdded = async (content: string) => {
     if (!id) return;
     await leadsApi.addNote(id, content);
-     setNotes(await leadsApi.getNotes(id));
+    setTabData(await leadsApi.getNotes(id));
   };
 
   if (loading || !lead) {
@@ -184,6 +172,14 @@ export function LeadDetailPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{fullName}</h1>
+              {lead.pipeline && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 text-sm font-semibold rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M3 8h14M3 12h10M3 16h6" />
+                  </svg>
+                  {lead.pipeline.name}
+                </span>
+              )}
               {lead.priority && PriorityIcon && (
                 <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
                   style={{ backgroundColor: `${lead.priority.color}18`, color: lead.priority.color }}>
@@ -481,20 +477,20 @@ export function LeadDetailPage() {
                   <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : activeTab === 'activity' ? (
-                <Timeline activities={activities} />
+                <Timeline activities={tabData?.data || tabData || []} />
               ) : activeTab === 'notes' ? (
                 <NotesPanel
-                  notes={notes}
+                  notes={tabData || []}
                   onAddNote={handleNoteAdded}
                 />
               ) : activeTab === 'documents' ? (
                 <DocumentsPanel
-                  documents={documents}
-                  entityType={"leads" as any}
+                  documents={tabData || []}
+                  entityType="leads"
                   entityId={id!}
                 />
               ) : activeTab === 'history' ? (
-                <ChangeHistory history={history} />
+                <ChangeHistory history={tabData || []} />
               ) : null}
             </div>
           </div>
@@ -603,9 +599,23 @@ export function LeadDetailPage() {
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Details</h3>
             <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500">Pipeline</span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M3 8h14M3 12h10M3 16h6" />
+                  </svg>
+                  {lead.pipeline?.name || 'Default'}
+                </span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Stage</span>
-                <span className="text-gray-900 dark:text-white">{lead.stage?.name || 'None'}</span>
+                <span className="text-gray-900 dark:text-white flex items-center gap-1.5">
+                  {lead.stage?.color && (
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: lead.stage.color }} />
+                  )}
+                  {lead.stage?.name || 'None'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Source</span>

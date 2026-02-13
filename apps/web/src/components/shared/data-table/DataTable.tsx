@@ -93,10 +93,10 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 // COMPONENT
 // ============================================================
 export function DataTable<T>({
-  module, allColumns, defaultVisibleKeys, data, loading, meta,
+  allColumns, defaultVisibleKeys, data, loading, meta,
   visibleColumns, sortColumn, sortOrder, pageSize,
   columnWidths = {},
-  onSort, onPageChange, onPageSizeChange, onColumnsChange, onColumnWidthsChange,
+  onSort, onPageChange, onPageSizeChange, onColumnsChange,
   onRowClick, renderCell, renderActions,
   emptyMessage = 'No records found',
   searchValue, onSearchChange, onSearchSubmit,

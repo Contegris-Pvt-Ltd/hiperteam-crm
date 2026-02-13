@@ -10,7 +10,7 @@ import {
   Filter, X, Building2,
   Loader2, AlertTriangle,
 } from 'lucide-react';
-import type { Lead, LeadsQuery, LeadStage, LeadPriority, KanbanStageData } from '../../api/leads.api';
+import type { Lead, LeadsQuery, LeadStage, LeadPriority, KanbanStageData, Pipeline } from '../../api/leads.api';
 import { leadsApi, leadSettingsApi } from '../../api/leads.api';
 import { KanbanBoard } from './components/KanbanBoard';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -43,6 +43,8 @@ export function LeadsPage() {
   const [stages, setStages] = useState<LeadStage[]>([]);
   const [priorities, setPriorities] = useState<LeadPriority[]>([]);
   const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
 
   // Query state
   const [query, setQuery] = useState<LeadsQuery>({ page: 1, limit: 20, view: 'list' });
@@ -80,13 +82,18 @@ export function LeadsPage() {
   // ── Fetch lookups on mount ──
   useEffect(() => {
     Promise.all([
+      leadSettingsApi.getPipelines(),
       leadSettingsApi.getStages(),
       leadSettingsApi.getPriorities(),
       leadSettingsApi.getSources(),
-    ]).then(([stagesData, prioritiesData, sourcesData]) => {
+    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData]) => {
+      setPipelines(pipelinesData);
       setStages(stagesData);
       setPriorities(prioritiesData);
       setSources(sourcesData);
+      // Auto-select default pipeline
+      const defaultPl = pipelinesData.find((p: Pipeline) => p.isDefault);
+      if (defaultPl) setSelectedPipelineId(defaultPl.id);
     }).catch(console.error);
   }, []);
 
@@ -99,7 +106,8 @@ export function LeadsPage() {
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await leadsApi.getAll({ ...query, view: viewMode });
+      const queryWithPipeline = { ...query, view: viewMode, pipelineId: selectedPipelineId || undefined };
+      const response = await leadsApi.getAll(queryWithPipeline);
       if (viewMode === 'kanban') {
         setKanbanData(response.stages || []);
       } else {
@@ -111,7 +119,7 @@ export function LeadsPage() {
     } finally {
       setLoading(false);
     }
-  }, [query, viewMode]);
+  }, [query, viewMode, selectedPipelineId]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -225,6 +233,18 @@ export function LeadsPage() {
     setQuery({ page: 1, limit: 20, view: viewMode });
   };
 
+  // Pipeline change: reload stages for that pipeline, reset stage filter, refetch
+  const handlePipelineChange = async (pipelineId: string) => {
+    setSelectedPipelineId(pipelineId);
+    setQuery(prev => ({ ...prev, stageId: undefined, page: 1 }));
+    try {
+      const newStages = await leadSettingsApi.getStages(pipelineId || undefined, 'leads');
+      setStages(newStages);
+    } catch (err) {
+      console.error('Failed to load stages for pipeline:', err);
+    }
+  };
+
   const activeFilterCount = [
     query.stageId, query.priorityId, query.source, query.ownerId,
     query.tag, query.scoreMin, query.scoreMax, query.convertedStatus,
@@ -251,17 +271,37 @@ export function LeadsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Leads</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {meta.total || kanbanData.reduce((s, st) => s + st.count, 0)} total leads
+            {selectedPipelineId && pipelines.length > 1 && (
+              <span className="ml-1 text-blue-600">
+                · {pipelines.find(p => p.id === selectedPipelineId)?.name}
+              </span>
+            )}
           </p>
         </div>
-        {canCreate('leads') && (
-          <button
-            onClick={() => navigate('/leads/new')}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={18} />
-            New Lead
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Pipeline selector — only shows when multiple pipelines exist */}
+          {pipelines.length > 1 && (
+            <select
+              value={selectedPipelineId}
+              onChange={(e) => handlePipelineChange(e.target.value)}
+              className="border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Pipelines</option>
+              {pipelines.filter(p => p.isActive).map((p) => (
+                <option key={p.id} value={p.id}>{p.name}{p.isDefault ? ' (Default)' : ''}</option>
+              ))}
+            </select>
+          )}
+          {canCreate('leads') && (
+            <button
+              onClick={() => navigate('/leads/new')}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus size={18} />
+              New Lead
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search & Controls Bar */}
@@ -449,6 +489,15 @@ export function LeadsPage() {
                     style={{ backgroundColor: `${lead.stage.color}18`, color: lead.stage.color }}
                   >
                     {lead.stage.name}
+                  </span>
+                );
+              }
+
+              // Pipeline column
+              if (col.key === 'pipelineName' && lead.pipeline) {
+                return (
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {lead.pipeline.name}
                   </span>
                 );
               }

@@ -262,6 +262,11 @@ export class CreateLeadDto {
   @IsOptional()
   sourceDetails?: SourceDetailsDto;
 
+  @ApiPropertyOptional({ description: 'Pipeline ID (defaults to tenant default pipeline)' })
+  @IsUUID()
+  @IsOptional()
+  pipelineId?: string;
+
   @ApiPropertyOptional({ description: 'Stage ID (defaults to first active stage)' })
   @IsUUID()
   @IsOptional()

@@ -9,15 +9,23 @@ import { api } from './contacts.api';
 
 export interface LeadStage {
   id: string;
+  pipelineId: string;
+  pipelineName?: string;
+  module: string;
   name: string;
   slug: string;
   color: string;
+  description?: string;
+  probability: number;
   sortOrder: number;
   isWon: boolean;
   isLost: boolean;
   isSystem: boolean;
   isActive: boolean;
   requiredFields: string[];
+  visibleFields: string[];
+  autoActions: any[];
+  exitCriteria: string[];
   lockPreviousFields: boolean;
   leadCount?: number;
 }
@@ -32,6 +40,21 @@ export interface LeadPriority {
   scoreMin: number | null;
   scoreMax: number | null;
   isActive: boolean;
+}
+
+export interface Pipeline {
+  id: string;
+  name: string;
+  description: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  leadStageCount: number;
+  oppStageCount: number;
+  leadCount: number;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LeadOwner {
@@ -97,6 +120,8 @@ export interface Lead {
   socialProfiles: Record<string, string>;
   source: string | null;
   sourceDetails: Record<string, any>;
+  pipelineId: string | null;
+  pipeline: { id: string; name: string } | null;
   stageId: string | null;
   stage: LeadStage | null;
   priorityId: string | null;
@@ -137,6 +162,7 @@ export interface Lead {
 
 export interface LeadsQuery {
   search?: string;
+  pipelineId?: string;
   stageId?: string;
   stageSlug?: string;
   priorityId?: string;
@@ -188,6 +214,7 @@ export interface CreateLeadData {
   socialProfiles?: Record<string, string>;
   source?: string;
   sourceDetails?: Record<string, any>;
+  pipelineId?: string;
   stageId?: string;
   priorityId?: string;
   qualification?: Record<string, any>;
@@ -327,9 +354,36 @@ export const leadsApi = {
 // ============================================================
 
 export const leadSettingsApi = {
+  // Pipelines
+  getPipelines: async (): Promise<Pipeline[]> => {
+    const { data } = await api.get('/lead-settings/pipelines');
+    return data;
+  },
+  getPipeline: async (id: string): Promise<Pipeline> => {
+    const { data } = await api.get(`/lead-settings/pipelines/${id}`);
+    return data;
+  },
+  createPipeline: async (pipelineData: { name: string; description?: string; isDefault?: boolean }) => {
+    const { data } = await api.post('/lead-settings/pipelines', pipelineData);
+    return data;
+  },
+  updatePipeline: async (id: string, pipelineData: Partial<Pipeline>) => {
+    const { data } = await api.put(`/lead-settings/pipelines/${id}`, pipelineData);
+    return data;
+  },
+  deletePipeline: async (id: string) => {
+    const { data } = await api.delete(`/lead-settings/pipelines/${id}`);
+    return data;
+  },
+  setDefaultPipeline: async (id: string) => {
+    const { data } = await api.post(`/lead-settings/pipelines/${id}/set-default`);
+    return data;
+  },
   // Stages
-  getStages: async (): Promise<LeadStage[]> => {
-    const { data } = await api.get('/lead-settings/stages');
+  getStages: async (pipelineId?: string, module: string = 'leads'): Promise<LeadStage[]> => {
+    const params: Record<string, string> = { module };
+    if (pipelineId) params.pipelineId = pipelineId;
+    const { data } = await api.get('/lead-settings/stages', { params });
     return data;
   },
   createStage: async (stageData: any) => {

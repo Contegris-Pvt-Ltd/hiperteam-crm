@@ -11,6 +11,11 @@ export class QueryLeadsDto {
   @IsOptional()
   search?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by pipeline ID' })
+  @IsUUID()
+  @IsOptional()
+  pipelineId?: string;
+  
   @ApiPropertyOptional({ description: 'Filter by stage ID' })
   @IsUUID()
   @IsOptional()

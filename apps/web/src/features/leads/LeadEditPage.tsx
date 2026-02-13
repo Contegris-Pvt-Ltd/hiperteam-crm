@@ -59,6 +59,16 @@ export function LeadEditPage() {
   const [duplicates, setDuplicates] = useState<DuplicateMatch[]>([]);
   const [_checkingDuplicates, setCheckingDuplicates] = useState(false);
 
+  // Stage change — required fields modal
+  const [stageFieldsModal, setStageFieldsModal] = useState<{
+    targetStageId: string;
+    targetStageName: string;
+    missingFields: { fieldKey: string; fieldLabel: string; fieldType: string; sortOrder: number }[];
+  } | null>(null);
+  const [stageFieldValues, setStageFieldValues] = useState<Record<string, any>>({});
+  const [stageFieldErrors, setStageFieldErrors] = useState<Record<string, string>>({});
+  const [stageChangeLoading, setStageChangeLoading] = useState(false);
+
   // Page Designer hook
   const { useCustomLayout: _useCustomLayout, loading: _layoutLoading } = useModuleLayout('leads', 'edit');
 
@@ -260,6 +270,108 @@ export function LeadEditPage() {
 
   const handleRemoveTag = (tag: string) => {
     setFormData(prev => ({ ...prev, tags: (prev.tags || []).filter(t => t !== tag) }));
+  };
+
+  // ── Stage change with required-fields check ──
+  const handleStageChange = async (newStageId: string) => {
+    if (!newStageId || newStageId === formData.stageId) return;
+
+    setStageChangeLoading(true);
+    try {
+      // 1. Fetch required fields for the target stage
+      const stageFields = await leadSettingsApi.getStageFields(newStageId);
+      const requiredFields = (Array.isArray(stageFields) ? stageFields : []).filter((f: any) => f.isRequired);
+
+      if (requiredFields.length === 0) {
+        // No required fields — change directly
+        handleChange('stageId', newStageId);
+        return;
+      }
+
+      // 2. Check which required fields are missing in the current formData
+      const missing = requiredFields.filter((f: any) => {
+        let val: any;
+        if (f.fieldKey.startsWith('qualification.')) {
+          const qKey = f.fieldKey.replace('qualification.', '');
+          val = (formData.qualification as Record<string, any>)?.[qKey];
+        } else if (f.fieldKey.startsWith('custom.')) {
+          const cKey = f.fieldKey.replace('custom.', '');
+          val = (formData.customFields as Record<string, any>)?.[cKey];
+        } else {
+          val = (formData as any)[f.fieldKey];
+        }
+        return val === undefined || val === null || (typeof val === 'string' && val.trim() === '');
+      });
+
+      if (missing.length === 0) {
+        // All required fields already filled — change directly
+        handleChange('stageId', newStageId);
+        return;
+      }
+
+      // 3. Show modal to collect missing fields
+      const targetStage = stages.find(s => s.id === newStageId);
+      setStageFieldsModal({
+        targetStageId: newStageId,
+        targetStageName: targetStage?.name || 'Selected Stage',
+        missingFields: missing.map((f: any) => ({
+          fieldKey: f.fieldKey,
+          fieldLabel: f.fieldLabel,
+          fieldType: f.fieldType || 'text',
+          sortOrder: f.sortOrder || 0,
+        })),
+      });
+      setStageFieldValues({});
+      setStageFieldErrors({});
+    } catch (err) {
+      console.error('Failed to check stage fields:', err);
+      // Fallback: allow change without check
+      handleChange('stageId', newStageId);
+    } finally {
+      setStageChangeLoading(false);
+    }
+  };
+
+  const handleStageFieldsSubmit = () => {
+    if (!stageFieldsModal) return;
+
+    // Validate all missing fields are filled
+    const errors: Record<string, string> = {};
+    stageFieldsModal.missingFields.forEach(f => {
+      const val = stageFieldValues[f.fieldKey];
+      if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) {
+        errors[f.fieldKey] = `${f.fieldLabel} is required`;
+      }
+    });
+    if (Object.keys(errors).length > 0) {
+      setStageFieldErrors(errors);
+      return;
+    }
+
+    // Merge collected field values into formData
+    const updates: Record<string, any> = {};
+    stageFieldsModal.missingFields.forEach(f => {
+      const val = stageFieldValues[f.fieldKey];
+      if (f.fieldKey.startsWith('qualification.')) {
+        const qKey = f.fieldKey.replace('qualification.', '');
+        updates.qualification = { ...(formData.qualification || {}), ...updates.qualification, [qKey]: val };
+      } else if (f.fieldKey.startsWith('custom.')) {
+        const cKey = f.fieldKey.replace('custom.', '');
+        updates.customFields = { ...(formData.customFields || {}), ...updates.customFields, [cKey]: val };
+        setCustomFieldValues(prev => ({ ...prev, [cKey]: val }));
+      } else {
+        updates[f.fieldKey] = val;
+      }
+    });
+
+    // Apply all updates + change the stage
+    setFormData(prev => ({
+      ...prev,
+      ...updates,
+      stageId: stageFieldsModal.targetStageId,
+    }));
+
+    setStageFieldsModal(null);
   };
 
   // ── Save ──
@@ -533,12 +645,24 @@ export function LeadEditPage() {
               </div>
               <div>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Stage</label>
-                <select value={formData.stageId || ''} onChange={(e) => handleChange('stageId', e.target.value)} className={inputClass}>
-                  <option value="">Select stage...</option>
-                  {stages.filter(s => !s.isWon && !s.isLost).map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={formData.stageId || ''}
+                    onChange={(e) => handleStageChange(e.target.value)}
+                    disabled={stageChangeLoading}
+                    className={inputClass}
+                  >
+                    <option value="">Select stage...</option>
+                    {stages.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}{s.isWon ? ' ✓' : s.isLost ? ' ✗' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {stageChangeLoading && (
+                    <Loader2 size={14} className="absolute right-8 top-1/2 -translate-y-1/2 animate-spin text-blue-500" />
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Priority</label>
@@ -731,6 +855,111 @@ export function LeadEditPage() {
           </div>
         )}
       </div>
+
+      {/* ── Stage Required Fields Modal ── */}
+      {stageFieldsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setStageFieldsModal(null)} />
+          <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'min(520px, 80vh)' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-slate-700 flex-shrink-0">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                  Required for "{stageFieldsModal.targetStageName}"
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                  Fill in the required fields to move to this stage
+                </p>
+              </div>
+              <button onClick={() => setStageFieldsModal(null)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl">
+                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  {stageFieldsModal.missingFields.length} required field{stageFieldsModal.missingFields.length !== 1 ? 's' : ''} must be filled
+                </p>
+              </div>
+
+              {stageFieldsModal.missingFields
+                .sort((a, b) => a.sortOrder - b.sortOrder)
+                .map((field) => (
+                  <div key={field.fieldKey}>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                      {field.fieldLabel} <span className="text-red-500">*</span>
+                    </label>
+                    {field.fieldType === 'textarea' ? (
+                      <textarea
+                        value={stageFieldValues[field.fieldKey] || ''}
+                        onChange={(e) => {
+                          setStageFieldValues(prev => ({ ...prev, [field.fieldKey]: e.target.value }));
+                          setStageFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; });
+                        }}
+                        rows={2}
+                        className={`w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${
+                          stageFieldErrors[field.fieldKey] ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'
+                        }`}
+                        placeholder={`Enter ${field.fieldLabel.toLowerCase()}`}
+                      />
+                    ) : field.fieldType === 'checkbox' ? (
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={stageFieldValues[field.fieldKey] || false}
+                          onChange={(e) => {
+                            setStageFieldValues(prev => ({ ...prev, [field.fieldKey]: e.target.checked }));
+                            setStageFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; });
+                          }}
+                          className="rounded text-blue-600"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-slate-300">{field.fieldLabel}</span>
+                      </label>
+                    ) : (
+                      <input
+                        type={
+                          field.fieldType === 'email' ? 'email' :
+                          field.fieldType === 'number' ? 'number' :
+                          field.fieldType === 'date' ? 'date' :
+                          field.fieldType === 'phone' ? 'tel' :
+                          field.fieldType === 'url' ? 'url' : 'text'
+                        }
+                        value={stageFieldValues[field.fieldKey] || ''}
+                        onChange={(e) => {
+                          setStageFieldValues(prev => ({ ...prev, [field.fieldKey]: e.target.value }));
+                          setStageFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; });
+                        }}
+                        className={`w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${
+                          stageFieldErrors[field.fieldKey] ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'
+                        }`}
+                        placeholder={`Enter ${field.fieldLabel.toLowerCase()}`}
+                      />
+                    )}
+                    {stageFieldErrors[field.fieldKey] && (
+                      <p className="text-xs text-red-500 mt-1">{stageFieldErrors[field.fieldKey]}</p>
+                    )}
+                  </div>
+                ))}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/30 rounded-b-2xl flex-shrink-0">
+              <button onClick={() => setStageFieldsModal(null)} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
+                Cancel
+              </button>
+              <button
+                onClick={handleStageFieldsSubmit}
+                className="flex items-center gap-1.5 px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+              >
+                Move to {stageFieldsModal.targetStageName}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

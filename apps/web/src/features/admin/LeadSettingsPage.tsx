@@ -16,7 +16,7 @@ import {
   Sun, Snowflake, Minus,
 } from 'lucide-react';
 import { leadSettingsApi } from '../../api/leads.api';
-import type { LeadStage, LeadPriority } from '../../api/leads.api';
+import type { LeadStage, LeadPriority, Pipeline } from '../../api/leads.api';
 import { StageFieldsModal } from './StageFieldsModal';
 
 // ============================================================
@@ -108,6 +108,7 @@ interface LeadSettings {
 // ============================================================
 
 const TABS = [
+  { id: 'pipelines', label: 'Pipelines', icon: Route },
   { id: 'stages', label: 'Stages', icon: Target },
   { id: 'priorities', label: 'Priorities', icon: Flame },
   { id: 'scoring', label: 'Scoring', icon: Zap },
@@ -135,11 +136,13 @@ const PRIORITY_ICONS: Record<string, typeof Flame> = {
 // ============================================================
 
 export function LeadSettingsPage() {
-  const [activeTab, setActiveTab] = useState<TabId>('stages');
+  const [activeTab, setActiveTab] = useState<TabId>('pipelines');
   const [loading, setLoading] = useState(true);
 
   // Data states
   const [stages, setStages] = useState<LeadStage[]>([]);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
   const [priorities, setPriorities] = useState<LeadPriority[]>([]);
   const [scoringTemplates, setScoringTemplates] = useState<ScoringTemplate[]>([]);
   const [routingRules, setRoutingRules] = useState<RoutingRule[]>([]);
@@ -157,9 +160,25 @@ export function LeadSettingsPage() {
     setLoading(true);
     try {
       switch (tab) {
-        case 'stages':
-          setStages(await leadSettingsApi.getStages());
+        case 'pipelines': {
+          const pipelinesData = await leadSettingsApi.getPipelines();
+          setPipelines(pipelinesData);
+          // Auto-select default pipeline
+          const defaultPl = pipelinesData.find(p => p.isDefault);
+          if (defaultPl && !selectedPipelineId) setSelectedPipelineId(defaultPl.id);
           break;
+        }
+        case 'stages': {
+          // Load pipelines for the selector if not already loaded
+          if (pipelines.length === 0) {
+            const pipelinesData = await leadSettingsApi.getPipelines();
+            setPipelines(pipelinesData);
+            const defaultPl = pipelinesData.find(p => p.isDefault);
+            if (defaultPl && !selectedPipelineId) setSelectedPipelineId(defaultPl.id);
+          }
+          setStages(await leadSettingsApi.getStages(selectedPipelineId || undefined, 'leads'));
+          break;
+        }
         case 'priorities':
           setPriorities(await leadSettingsApi.getPriorities());
           break;
@@ -244,8 +263,21 @@ export function LeadSettingsPage() {
         </div>
       ) : (
         <div>
+          {activeTab === 'pipelines' && (
+            <PipelinesTab pipelines={pipelines} onReload={() => loadTabData('pipelines')} />
+          )}
           {activeTab === 'stages' && (
-            <StagesTab stages={stages} onReload={() => loadTabData('stages')} />
+            <StagesTab
+              stages={stages}
+              pipelines={pipelines}
+              selectedPipelineId={selectedPipelineId}
+              onPipelineChange={(id) => {
+                setSelectedPipelineId(id);
+                // Reload stages for the new pipeline
+                leadSettingsApi.getStages(id, 'leads').then(setStages);
+              }}
+              onReload={() => loadTabData('stages')}
+            />
           )}
           {activeTab === 'priorities' && (
             <PrioritiesTab priorities={priorities} onReload={() => loadTabData('priorities')} />
@@ -275,11 +307,238 @@ export function LeadSettingsPage() {
   );
 }
 
+function PipelinesTab({ pipelines, onReload }: { pipelines: Pipeline[]; onReload: () => void }) {
+  const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState({ name: '', description: '' });
+
+  const handleCreate = async () => {
+    if (!formData.name.trim()) return;
+    setSaving(true);
+    try {
+      await leadSettingsApi.createPipeline({
+        name: formData.name,
+        description: formData.description || undefined,
+        isDefault: pipelines.length === 0, // First pipeline is auto-default
+      });
+      setCreating(false);
+      setFormData({ name: '', description: '' });
+      onReload();
+    } catch (err: any) {
+      console.error('Failed to create pipeline:', err);
+      alert(err.response?.data?.message || 'Failed to create pipeline');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdate = async (id: string, updates: any) => {
+    setSaving(true);
+    try {
+      await leadSettingsApi.updatePipeline(id, updates);
+      setEditing(null);
+      onReload();
+    } catch (err: any) {
+      console.error('Failed to update pipeline:', err);
+      alert(err.response?.data?.message || 'Failed to update');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this pipeline? All stages in this pipeline will also be deleted.')) return;
+    try {
+      await leadSettingsApi.deletePipeline(id);
+      onReload();
+    } catch (err: any) {
+      console.error('Failed to delete pipeline:', err);
+      alert(err.response?.data?.message || 'Cannot delete this pipeline');
+    }
+  };
+
+  const handleSetDefault = async (id: string) => {
+    try {
+      await leadSettingsApi.setDefaultPipeline(id);
+      onReload();
+    } catch (err: any) {
+      console.error('Failed to set default:', err);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Pipelines</h2>
+          <p className="text-sm text-gray-500 dark:text-slate-400">
+            Pipelines define the different sales processes for your leads and opportunities
+          </p>
+        </div>
+        <button
+          onClick={() => setCreating(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+        >
+          <Plus className="w-4 h-4" /> Add Pipeline
+        </button>
+      </div>
+
+      {/* Create form */}
+      {creating && (
+        <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Pipeline Name *</label>
+              <input
+                type="text"
+                placeholder="e.g. Enterprise Sales, Inbound Leads"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+              <input
+                type="text"
+                placeholder="Optional description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleCreate}
+              disabled={saving || !formData.name.trim()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50 flex items-center gap-2"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              Create
+            </button>
+            <button
+              onClick={() => { setCreating(false); setFormData({ name: '', description: '' }); }}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pipelines list */}
+      <div className="space-y-2">
+        {pipelines.length === 0 ? (
+          <div className="text-center py-10 text-gray-500 dark:text-gray-400">
+            <p>No pipelines configured. Create your first pipeline to get started.</p>
+          </div>
+        ) : (
+          pipelines.map((pipeline) => (
+            <div
+              key={pipeline.id}
+              className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-sm transition-shadow"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div>
+                    {editing === pipeline.id ? (
+                      <input
+                        type="text"
+                        defaultValue={pipeline.name}
+                        onBlur={(e) => handleUpdate(pipeline.id, { name: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleUpdate(pipeline.id, { name: (e.target as HTMLInputElement).value });
+                          if (e.key === 'Escape') setEditing(null);
+                        }}
+                        className="px-2 py-1 border border-blue-300 rounded text-sm bg-white dark:bg-slate-800 font-medium"
+                        autoFocus
+                      />
+                    ) : (
+                      <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                        {pipeline.name}
+                        {pipeline.isDefault && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full font-medium">
+                            DEFAULT
+                          </span>
+                        )}
+                      </h3>
+                    )}
+                    {pipeline.description && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{pipeline.description}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  {/* Stage counts */}
+                  <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                    <span title="Lead stages">
+                      <Target className="w-3.5 h-3.5 inline mr-1" />
+                      {pipeline.leadStageCount} lead stages
+                    </span>
+                    <span title="Opportunity stages">
+                      <Zap className="w-3.5 h-3.5 inline mr-1" />
+                      {pipeline.oppStageCount} opp stages
+                    </span>
+                    <span title="Leads using this pipeline" className="font-medium">
+                      {pipeline.leadCount} leads
+                    </span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1">
+                    {!pipeline.isDefault && (
+                      <button
+                        onClick={() => handleSetDefault(pipeline.id)}
+                        className="p-1.5 text-gray-400 hover:text-green-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+                        title="Set as default"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setEditing(pipeline.id)}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+                      title="Rename"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    {!pipeline.isDefault && (
+                      <button
+                        onClick={() => handleDelete(pipeline.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 // TAB 1: STAGES
 // ============================================================
 
-function StagesTab({ stages, onReload }: { stages: LeadStage[]; onReload: () => void }) {
+function StagesTab({
+  stages, pipelines, selectedPipelineId, onPipelineChange, onReload,
+}: {
+  stages: LeadStage[];
+  pipelines: Pipeline[];
+  selectedPipelineId: string;
+  onPipelineChange: (id: string) => void;
+  onReload: () => void;
+}) {
   const [editing, setEditing] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -359,6 +618,23 @@ function StagesTab({ stages, onReload }: { stages: LeadStage[]; onReload: () => 
 
   return (
     <div>
+      {/* Pipeline Selector */}
+      {pipelines.length > 1 && (
+        <div className="mb-4 flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Pipeline:</label>
+          <select
+            value={selectedPipelineId}
+            onChange={(e) => onPipelineChange(e.target.value)}
+            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800"
+          >
+            {pipelines.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.name} {p.isDefault ? '(Default)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Lead Stages</h2>

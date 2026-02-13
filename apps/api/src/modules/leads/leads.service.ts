@@ -16,7 +16,7 @@ export class LeadsService {
   // Fields tracked for audit
   private readonly trackedFields = [
     'firstName', 'lastName', 'email', 'phone', 'mobile', 'company', 'jobTitle',
-    'website', 'source', 'stageId', 'priorityId', 'score', 'qualification',
+    'website', 'source', 'pipelineId', 'stageId', 'priorityId', 'score', 'qualification',
     'ownerId', 'tags', 'doNotContact', 'doNotEmail', 'doNotCall',
   ];
 
@@ -36,12 +36,23 @@ export class LeadsService {
     await this.checkDuplicates(schemaName, dto.email, dto.phone, null);
 
     // 2. Get default stage if not provided
+    let pipelineId = dto.pipelineId;
+    if (!pipelineId) {
+      const [defaultPipeline] = await this.dataSource.query(
+        `SELECT id FROM "${schemaName}".pipelines WHERE is_default = true AND is_active = true LIMIT 1`,
+      );
+      pipelineId = defaultPipeline?.id;
+    }
+
+    // 2b. Get default stage if not provided
     let stageId = dto.stageId;
-    if (!stageId) {
+    if (!stageId && pipelineId) {
       const [defaultStage] = await this.dataSource.query(
-        `SELECT id FROM "${schemaName}".lead_stages 
-         WHERE is_active = true AND is_won = false AND is_lost = false
+        `SELECT id FROM "${schemaName}".pipeline_stages 
+         WHERE pipeline_id = $1 AND module = 'leads'
+           AND is_active = true AND is_won = false AND is_lost = false
          ORDER BY sort_order ASC LIMIT 1`,
+        [pipelineId],
       );
       stageId = defaultStage?.id;
     }
@@ -88,7 +99,7 @@ export class LeadsService {
         address_line1, address_line2, city, state, postal_code, country,
         emails, phones, addresses, social_profiles,
         source, source_details,
-        stage_id, priority_id,
+        pipeline_id, stage_id, priority_id,
         qualification, qualification_framework_id,
         do_not_contact, do_not_email, do_not_call,
         tags, custom_fields,
@@ -100,12 +111,12 @@ export class LeadsService {
         $9, $10, $11, $12, $13, $14,
         $15, $16, $17, $18,
         $19, $20,
-        $21, $22,
-        $23, $24,
-        $25, $26, $27,
-        $28, $29,
-        $30, $31, $31,
-        NOW(), $32
+        $21, $22, $23,
+        $24, $25,
+        $26, $27, $28,
+        $29, $30,
+        $31, $32, $33,
+        NOW(), $34
       ) RETURNING *`,
       [
         dto.firstName || null,
@@ -128,6 +139,7 @@ export class LeadsService {
         JSON.stringify(dto.socialProfiles || {}),
         dto.source || null,
         JSON.stringify(dto.sourceDetails || {}),
+        pipelineId || null,
         stageId || null,
         priorityId || null,
         JSON.stringify(dto.qualification || {}),
@@ -152,7 +164,9 @@ export class LeadsService {
     const scored = await this.findOneRaw(schemaName, lead.id);
 
     // 9. Auto-set priority from score if enabled
-    await this.autoSetPriority(schemaName, lead.id, scored.score);
+    if (!dto.priorityId) {
+      await this.autoSetPriority(schemaName, lead.id, scored.score);
+    }
 
     // 10. Activity + Audit
     await this.activityService.create(schemaName, {
@@ -182,7 +196,7 @@ export class LeadsService {
   // ============================================================
   async findAll(schemaName: string, query: QueryLeadsDto, userId?: string) {
     const {
-      search, stageId, stageSlug, priorityId, source, ownerId, tag, company,
+      search, pipelineId, stageId, stageSlug, priorityId, source, ownerId, tag, company,
       scoreMin, scoreMax, convertedStatus, ownership, view,
       page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC',
     } = query;
@@ -200,6 +214,12 @@ export class LeadsService {
         OR CONCAT(l.first_name, ' ', l.last_name) ILIKE $${paramIndex}
       )`);
       params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (pipelineId) {
+      conditions.push(`l.pipeline_id = $${paramIndex}`);
+      params.push(pipelineId);
       paramIndex++;
     }
 
@@ -312,7 +332,7 @@ export class LeadsService {
     const [{ count }] = await this.dataSource.query(
       `SELECT COUNT(*) as count
        FROM "${schemaName}".leads l
-       LEFT JOIN "${schemaName}".lead_stages ls ON l.stage_id = ls.id
+       LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
        WHERE ${whereClause}`,
       params,
     );
@@ -330,7 +350,7 @@ export class LeadsService {
               cu.first_name as created_by_first_name, cu.last_name as created_by_last_name
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
-       LEFT JOIN "${schemaName}".lead_stages ls ON l.stage_id = ls.id
+       LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
        LEFT JOIN "${schemaName}".lead_priorities lp ON l.priority_id = lp.id
        LEFT JOIN "${schemaName}".users cu ON l.created_by = cu.id
        WHERE ${whereClause}
@@ -356,10 +376,11 @@ export class LeadsService {
   private async findAllKanban(schemaName: string, whereClause: string, params: unknown[]) {
     // Get all active stages
     const stages = await this.dataSource.query(
-      `SELECT id, name, slug, color, sort_order, is_won, is_lost
-       FROM "${schemaName}".lead_stages
-       WHERE is_active = true
-       ORDER BY sort_order ASC`,
+      `SELECT ps.id, ps.name, ps.slug, ps.color, ps.sort_order, ps.is_won, ps.is_lost
+       FROM "${schemaName}".pipeline_stages ps
+       JOIN "${schemaName}".pipelines p ON p.id = ps.pipeline_id
+       WHERE ps.is_active = true AND ps.module = 'leads' AND p.is_default = true
+       ORDER BY ps.sort_order ASC`,
     );
 
     // Get leads grouped by stage (limited per column)
@@ -371,7 +392,7 @@ export class LeadsService {
               lp.name as priority_name, lp.color as priority_color, lp.icon as priority_icon
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
-       LEFT JOIN "${schemaName}".lead_stages ls ON l.stage_id = ls.id
+       LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
        LEFT JOIN "${schemaName}".lead_priorities lp ON l.priority_id = lp.id
        WHERE ${whereClause}
        ORDER BY ls.sort_order ASC, l.score DESC, l.created_at DESC`,
@@ -382,7 +403,7 @@ export class LeadsService {
     const counts = await this.dataSource.query(
       `SELECT l.stage_id, COUNT(*) as count
        FROM "${schemaName}".leads l
-       LEFT JOIN "${schemaName}".lead_stages ls ON l.stage_id = ls.id
+       LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
        WHERE ${whereClause}
        GROUP BY l.stage_id`,
       params,
@@ -442,7 +463,7 @@ export class LeadsService {
       stageFields = await this.dataSource.query(
         `SELECT sf.field_key, sf.field_label, sf.field_type, sf.field_options,
                 sf.is_required, sf.is_visible, sf.sort_order
-         FROM "${schemaName}".lead_stage_fields sf
+         FROM "${schemaName}".pipeline_stage_fields sf
          WHERE sf.stage_id = $1 AND sf.is_visible = true
          ORDER BY sf.sort_order ASC`,
         [formatted.stageId],
@@ -450,11 +471,15 @@ export class LeadsService {
     }
 
     // Get all stages for journey bar
+    const pipelineIdForStages = formatted.pipelineId;
     const allStages = await this.dataSource.query(
-      `SELECT id, name, slug, color, sort_order, is_won, is_lost, required_fields, lock_previous_fields
-       FROM "${schemaName}".lead_stages
-       WHERE is_active = true
-       ORDER BY sort_order ASC`,
+      `SELECT ps.id, ps.name, ps.slug, ps.color, ps.sort_order, ps.is_won, ps.is_lost,
+              ps.required_fields, ps.exit_criteria, ps.lock_previous_fields
+       FROM "${schemaName}".pipeline_stages ps
+       WHERE ps.is_active = true AND ps.module = 'leads'
+         AND ps.pipeline_id = COALESCE($1, (SELECT id FROM "${schemaName}".pipelines WHERE is_default = true LIMIT 1))
+       ORDER BY ps.sort_order ASC`,
+      [pipelineIdForStages || null],
     );
 
     // Get stage settings
@@ -510,13 +535,15 @@ export class LeadsService {
               ls.name as stage_name, ls.slug as stage_slug, ls.color as stage_color,
               ls.sort_order as stage_sort_order, ls.is_won as stage_is_won, ls.is_lost as stage_is_lost,
               ls.lock_previous_fields as stage_lock_previous,
+              pl.id as pipeline_id_joined, pl.name as pipeline_name,
               lp.name as priority_name, lp.color as priority_color, lp.icon as priority_icon,
               cu.first_name as created_by_first_name, cu.last_name as created_by_last_name,
               lqf.name as framework_name, lqf.slug as framework_slug,
               dr.name as disqualification_reason_name
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
-       LEFT JOIN "${schemaName}".lead_stages ls ON l.stage_id = ls.id
+       LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
+       LEFT JOIN "${schemaName}".pipelines pl ON l.pipeline_id = pl.id
        LEFT JOIN "${schemaName}".lead_priorities lp ON l.priority_id = lp.id
        LEFT JOIN "${schemaName}".users cu ON l.created_by = cu.id
        LEFT JOIN "${schemaName}".lead_qualification_frameworks lqf ON l.qualification_framework_id = lqf.id
@@ -665,10 +692,22 @@ export class LeadsService {
 
     // Re-score if relevant fields changed
     const scoringFields = ['email', 'phone', 'company', 'jobTitle', 'qualification', 'customFields', 'source'];
-    if (scoringFields.some(f => (dto as any)[f] !== undefined)) {
+    const scoringFieldsChanged = scoringFields.some(f => {
+      const newVal = (dto as any)[f];
+      if (newVal === undefined) return false;
+      const oldVal = (existing as any)[f];
+      if (typeof newVal === 'object' && typeof oldVal === 'object') {
+        return JSON.stringify(newVal) !== JSON.stringify(oldVal);
+      }
+      return String(newVal ?? '') !== String(oldVal ?? '');
+    });
+
+    if (scoringFieldsChanged) {
       await this.scoringService.scoreLead(schemaName, id);
-      const rescored = await this.findOneRaw(schemaName, id);
-      await this.autoSetPriority(schemaName, id, rescored.score);
+      if (dto.priorityId === undefined) {
+        const rescored = await this.findOneRaw(schemaName, id);
+        await this.autoSetPriority(schemaName, id, rescored.score);
+      }
     }
 
     const updated = await this.findOneRaw(schemaName, id);
@@ -712,7 +751,7 @@ export class LeadsService {
 
     // Get target stage
     const [targetStage] = await this.dataSource.query(
-      `SELECT * FROM "${schemaName}".lead_stages WHERE id = $1 AND is_active = true`,
+      `SELECT * FROM "${schemaName}".pipeline_stages WHERE id = $1 AND is_active = true`,
       [dto.stageId],
     );
 
@@ -722,7 +761,7 @@ export class LeadsService {
 
     // Get current stage
     const [currentStage] = await this.dataSource.query(
-      `SELECT * FROM "${schemaName}".lead_stages WHERE id = $1`,
+      `SELECT * FROM "${schemaName}".pipeline_stages WHERE id = $1`,
       [lead.stageId],
     );
 
@@ -740,7 +779,7 @@ export class LeadsService {
     // Validate required fields for target stage (query lead_stage_fields table)
     const stageFieldRows = await this.dataSource.query(
       `SELECT field_key, field_label, is_required
-       FROM "${schemaName}".lead_stage_fields
+       FROM "${schemaName}".pipeline_stage_fields
        WHERE stage_id = $1 AND is_required = true`,
       [dto.stageId],
     );
@@ -1556,6 +1595,11 @@ export class LeadsService {
       socialProfiles: typeof lead.social_profiles === 'string' ? JSON.parse(lead.social_profiles as string) : (lead.social_profiles || {}),
       source: lead.source,
       sourceDetails: typeof lead.source_details === 'string' ? JSON.parse(lead.source_details as string) : (lead.source_details || {}),
+      pipelineId: lead.pipeline_id,
+      pipeline: lead.pipeline_name ? {
+        id: lead.pipeline_id,
+        name: lead.pipeline_name,
+      } : null,
       stageId: lead.stage_id,
       stage: lead.stage_name ? {
         id: lead.stage_id,
