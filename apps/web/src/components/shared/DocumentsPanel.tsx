@@ -7,7 +7,7 @@ import { uploadApi } from '../../api/upload.api';
 interface DocumentsPanelProps {
   documents: Document[];
   loading?: boolean;
-  entityType: 'contacts' | 'accounts';
+  entityType: "contacts" | "accounts" | "leads";
   entityId: string;
   onDocumentUploaded?: (doc: Document) => void;
   onDocumentDeleted?: (docId: string) => void;

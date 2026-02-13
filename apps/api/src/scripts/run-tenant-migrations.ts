@@ -247,7 +247,32 @@ async function runTenantMigrations() {
               CREATE INDEX IF NOT EXISTS idx_oli_opportunity ON "${schema}".opportunity_line_items(opportunity_id);
               CREATE INDEX IF NOT EXISTS idx_oli_product ON "${schema}".opportunity_line_items(product_id);
             `
-          }
+          },
+          {
+            name: '006_add_leads_module',
+            sql: buildLeadsMigration(schema),
+          },
+          {
+            name: '007_add_user_table_preferences',
+            sql: `
+              CREATE TABLE IF NOT EXISTS "${schema}".user_table_preferences (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              user_id UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+              module VARCHAR(50) NOT NULL,           -- 'leads', 'contacts', 'accounts', 'products', etc.
+              visible_columns JSONB DEFAULT '[]',    -- ordered array of column keys: ["firstName","email","company"]
+              column_widths JSONB DEFAULT '{}',      -- { "firstName": 180, "email": 220 }
+              page_size INTEGER DEFAULT 25,
+              default_sort_column VARCHAR(100) DEFAULT 'created_at',
+              default_sort_order VARCHAR(4) DEFAULT 'DESC',
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW(),
+              UNIQUE(user_id, module)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_user_table_prefs_user_module 
+              ON "${schema}".user_table_preferences(user_id, module);
+            `
+          },
         ];
 
         // ── Execute pending migrations ────────────────────────────
@@ -577,6 +602,366 @@ function buildRbacMigration(schema: string): string {
   `;
 
   
+}
+
+function buildLeadsMigration(schema: string): string {
+  return `
+    -- ============================================================
+    -- RECORD TEAM ROLES (shared, cross-module)
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".record_team_roles (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(100) NOT NULL,
+      description TEXT,
+      is_system BOOLEAN DEFAULT false,
+      is_active BOOLEAN DEFAULT true,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    INSERT INTO "${schema}".record_team_roles (name, description, is_system, sort_order) VALUES
+      ('Lead Generator', 'Originally created or sourced the record', true, 1),
+      ('Account Manager', 'Primary account relationship owner', true, 2),
+      ('Sales Manager', 'Oversight and approval authority', true, 3),
+      ('Observer', 'Read-only visibility into the record', true, 4),
+      ('Collaborator', 'Active participant with edit access', true, 5)
+    ON CONFLICT DO NOTHING;
+
+    -- ============================================================
+    -- RECORD TEAM MEMBERS (shared, cross-module)
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".record_team_members (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      entity_type VARCHAR(50) NOT NULL,
+      entity_id UUID NOT NULL,
+      user_id UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+      role_id UUID REFERENCES "${schema}".record_team_roles(id) ON DELETE SET NULL,
+      role_name VARCHAR(100),
+      access_level VARCHAR(20) DEFAULT 'read',
+      added_by UUID REFERENCES "${schema}".users(id),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(entity_type, entity_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_record_team_entity ON "${schema}".record_team_members(entity_type, entity_id);
+    CREATE INDEX IF NOT EXISTS idx_record_team_user ON "${schema}".record_team_members(user_id, entity_type);
+
+    -- ============================================================
+    -- LEAD STAGES
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_stages (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(100) NOT NULL,
+      slug VARCHAR(100) NOT NULL UNIQUE,
+      color VARCHAR(20) DEFAULT '#3B82F6',
+      description TEXT,
+      sort_order INT NOT NULL DEFAULT 0,
+      is_system BOOLEAN DEFAULT false,
+      is_active BOOLEAN DEFAULT true,
+      is_won BOOLEAN DEFAULT false,
+      is_lost BOOLEAN DEFAULT false,
+      required_fields JSONB DEFAULT '[]',
+      visible_fields JSONB DEFAULT '[]',
+      auto_actions JSONB DEFAULT '[]',
+      lock_previous_fields BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    INSERT INTO "${schema}".lead_stages (name, slug, color, sort_order, is_system) VALUES
+      ('New',          'new',          '#3B82F6', 1, false),
+      ('Contacted',    'contacted',    '#F59E0B', 2, false),
+      ('Qualified',    'qualified',    '#10B981', 3, false),
+      ('Proposal',     'proposal',     '#8B5CF6', 4, false),
+      ('Negotiation',  'negotiation',  '#EC4899', 5, false),
+      ('Converted',    'converted',    '#059669', 90, true),
+      ('Disqualified', 'disqualified', '#EF4444', 91, true)
+    ON CONFLICT (slug) DO NOTHING;
+
+    UPDATE "${schema}".lead_stages SET is_won = true WHERE slug = 'converted';
+    UPDATE "${schema}".lead_stages SET is_lost = true WHERE slug = 'disqualified';
+
+    -- ============================================================
+    -- LEAD STAGE FIELDS
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_stage_fields (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      stage_id UUID NOT NULL REFERENCES "${schema}".lead_stages(id) ON DELETE CASCADE,
+      field_key VARCHAR(100) NOT NULL,
+      field_label VARCHAR(200) NOT NULL,
+      field_type VARCHAR(50) DEFAULT 'text',
+      field_options JSONB DEFAULT '[]',
+      is_required BOOLEAN DEFAULT false,
+      is_visible BOOLEAN DEFAULT true,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(stage_id, field_key)
+    );
+
+    -- ============================================================
+    -- LEAD PRIORITIES
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_priorities (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(100) NOT NULL,
+      color VARCHAR(20) NOT NULL DEFAULT '#9CA3AF',
+      icon VARCHAR(50),
+      sort_order INT NOT NULL DEFAULT 0,
+      is_default BOOLEAN DEFAULT false,
+      is_system BOOLEAN DEFAULT false,
+      is_active BOOLEAN DEFAULT true,
+      score_min INT,
+      score_max INT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    INSERT INTO "${schema}".lead_priorities (name, color, icon, sort_order, is_system, score_min, score_max) VALUES
+      ('Critical', '#EF4444', 'flame',       1, false, 80, 100),
+      ('Hot',      '#F97316', 'thermometer', 2, false, 60, 79),
+      ('Warm',     '#EAB308', 'sun',         3, false, 40, 59),
+      ('Cold',     '#3B82F6', 'snowflake',   4, false, 1,  39),
+      ('None',     '#9CA3AF', 'minus',       5, false, NULL, NULL)
+    ON CONFLICT DO NOTHING;
+    UPDATE "${schema}".lead_priorities SET is_default = true WHERE name = 'None';
+
+    -- ============================================================
+    -- LEAD QUALIFICATION FRAMEWORKS
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_qualification_frameworks (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(100) NOT NULL,
+      slug VARCHAR(100) NOT NULL UNIQUE,
+      description TEXT,
+      is_active BOOLEAN DEFAULT false,
+      is_system BOOLEAN DEFAULT false,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    INSERT INTO "${schema}".lead_qualification_frameworks (name, slug, description, is_active, is_system, sort_order) VALUES
+      ('BANT',  'bant',  'Budget, Authority, Need, Timeline', true,  true, 1),
+      ('CHAMP', 'champ', 'Challenges, Authority, Money, Prioritization', false, true, 2)
+    ON CONFLICT (slug) DO NOTHING;
+
+    -- ============================================================
+    -- LEAD QUALIFICATION FIELDS
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_qualification_fields (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      framework_id UUID NOT NULL REFERENCES "${schema}".lead_qualification_frameworks(id) ON DELETE CASCADE,
+      field_key VARCHAR(100) NOT NULL,
+      field_label VARCHAR(200) NOT NULL,
+      field_type VARCHAR(50) NOT NULL DEFAULT 'select',
+      field_options JSONB DEFAULT '[]',
+      description TEXT,
+      score_weight INT DEFAULT 0,
+      sort_order INT DEFAULT 0,
+      is_required BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(framework_id, field_key)
+    );
+
+    -- BANT fields
+    INSERT INTO "${schema}".lead_qualification_fields (framework_id, field_key, field_label, field_type, field_options, score_weight, sort_order, is_required)
+    SELECT f.id, v.fk, v.fl, v.ft, v.fo::jsonb, v.sw, v.so, true
+    FROM "${schema}".lead_qualification_frameworks f,
+    (VALUES
+      ('budget','Budget','select','[{"label":"Confirmed","value":"confirmed"},{"label":"Estimated","value":"estimated"},{"label":"Unknown","value":"unknown"},{"label":"No Budget","value":"no_budget"}]',25,1),
+      ('authority','Authority','select','[{"label":"Decision Maker","value":"decision_maker"},{"label":"Influencer","value":"influencer"},{"label":"Champion","value":"champion"},{"label":"End User","value":"end_user"},{"label":"Unknown","value":"unknown"}]',20,2),
+      ('need','Need','select','[{"label":"Confirmed","value":"confirmed"},{"label":"Implied","value":"implied"},{"label":"Not Confirmed","value":"not_confirmed"}]',15,3),
+      ('timeline','Timeline','select','[{"label":"Immediate","value":"immediate"},{"label":"Short-term (1-3m)","value":"short_term"},{"label":"Medium-term (3-6m)","value":"medium_term"},{"label":"Long-term (6m+)","value":"long_term"},{"label":"No Timeline","value":"none"}]',15,4)
+    ) AS v(fk,fl,ft,fo,sw,so)
+    WHERE f.slug = 'bant'
+    ON CONFLICT (framework_id, field_key) DO NOTHING;
+
+    -- CHAMP fields
+    INSERT INTO "${schema}".lead_qualification_fields (framework_id, field_key, field_label, field_type, field_options, score_weight, sort_order, is_required)
+    SELECT f.id, v.fk, v.fl, v.ft, v.fo::jsonb, v.sw, v.so, true
+    FROM "${schema}".lead_qualification_frameworks f,
+    (VALUES
+      ('challenges','Challenges','select','[{"label":"Clearly Identified","value":"identified"},{"label":"Partially","value":"partial"},{"label":"Not Identified","value":"not_identified"}]',25,1),
+      ('authority','Authority','select','[{"label":"Decision Maker","value":"decision_maker"},{"label":"Influencer","value":"influencer"},{"label":"Champion","value":"champion"},{"label":"Unknown","value":"unknown"}]',20,2),
+      ('money','Money','select','[{"label":"Budget Approved","value":"approved"},{"label":"Available","value":"available"},{"label":"Required","value":"required"},{"label":"No Budget","value":"no_budget"}]',20,3),
+      ('prioritization','Prioritization','select','[{"label":"Top Priority","value":"top"},{"label":"High","value":"high"},{"label":"Medium","value":"medium"},{"label":"Low","value":"low"}]',15,4)
+    ) AS v(fk,fl,ft,fo,sw,so)
+    WHERE f.slug = 'champ'
+    ON CONFLICT (framework_id, field_key) DO NOTHING;
+
+    -- ============================================================
+    -- LEAD SCORING TEMPLATES & RULES
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_scoring_templates (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      max_score INT DEFAULT 100,
+      is_active BOOLEAN DEFAULT true,
+      is_default BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    INSERT INTO "${schema}".lead_scoring_templates (name, description, max_score, is_active, is_default) VALUES
+      ('Default Scoring', 'Standard lead scoring based on demographics and qualification', 100, true, true)
+    ON CONFLICT DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_scoring_rules (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      template_id UUID NOT NULL REFERENCES "${schema}".lead_scoring_templates(id) ON DELETE CASCADE,
+      name VARCHAR(255) NOT NULL,
+      category VARCHAR(50) NOT NULL DEFAULT 'demographic',
+      type VARCHAR(50) NOT NULL DEFAULT 'field_match',
+      field_key VARCHAR(200) NOT NULL,
+      operator VARCHAR(30) NOT NULL DEFAULT 'equals',
+      value JSONB NOT NULL DEFAULT '""',
+      score_delta INT NOT NULL DEFAULT 0,
+      is_active BOOLEAN DEFAULT true,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_lead_scoring_rules_template ON "${schema}".lead_scoring_rules(template_id);
+
+    -- ============================================================
+    -- LEAD ROUTING RULES
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_routing_rules (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      priority INT DEFAULT 0,
+      conditions JSONB NOT NULL DEFAULT '[]',
+      assignment_type VARCHAR(50) NOT NULL DEFAULT 'round_robin',
+      assigned_to JSONB DEFAULT '[]',
+      round_robin_index INT DEFAULT 0,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- ============================================================
+    -- LEAD AUTOMATION RULES
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_automation_rules (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      trigger_event VARCHAR(50) NOT NULL,
+      conditions JSONB DEFAULT '[]',
+      actions JSONB DEFAULT '[]',
+      is_active BOOLEAN DEFAULT true,
+      run_count INT DEFAULT 0,
+      last_run_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- ============================================================
+    -- LEAD DISQUALIFICATION REASONS
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_disqualification_reasons (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(200) NOT NULL,
+      description TEXT,
+      is_system BOOLEAN DEFAULT false,
+      is_active BOOLEAN DEFAULT true,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    INSERT INTO "${schema}".lead_disqualification_reasons (name, is_system, sort_order) VALUES
+      ('No Budget',true,1),('No Authority',true,2),('No Need',true,3),('No Timeline',true,4),
+      ('Competitor Chosen',true,5),('Invalid / Spam',true,6),('Duplicate',true,7),('Unresponsive',true,8),('Other',true,9)
+    ON CONFLICT DO NOTHING;
+
+    -- ============================================================
+    -- LEAD SOURCES
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_sources (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(200) NOT NULL,
+      description TEXT,
+      is_system BOOLEAN DEFAULT false,
+      is_active BOOLEAN DEFAULT true,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    INSERT INTO "${schema}".lead_sources (name, is_system, sort_order) VALUES
+      ('Website',true,1),('Referral',true,2),('LinkedIn',true,3),('Cold Call',true,4),('Email Campaign',true,5),
+      ('Trade Show',true,6),('Partner',true,7),('Social Media',true,8),('Advertising',true,9),('Inbound Call',true,10),('Other',true,11)
+    ON CONFLICT DO NOTHING;
+
+    -- ============================================================
+    -- LEAD SETTINGS
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_settings (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      setting_key VARCHAR(100) NOT NULL UNIQUE,
+      setting_value JSONB NOT NULL DEFAULT '{}',
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    INSERT INTO "${schema}".lead_settings (setting_key, setting_value) VALUES
+      ('general', '{"defaultStatus":"new","defaultPriority":"none","autoScoring":true,"autoPriorityFromScore":true,"activeQualificationFramework":"bant"}'),
+      ('conversion', '{"makeReadOnly":true,"allowNotes":true,"allowActivities":true,"allowFieldEdit":false,"showConversionLinks":true,"copyActivities":true,"copyNotes":true,"copyDocuments":true}'),
+      ('stages', '{"lockPreviousStages":false,"showUpcomingStages":true,"requireUnlockReason":false}'),
+      ('duplicateDetection', '{"enabled":true,"checkLeads":true,"checkContacts":true,"checkAccounts":true,"exactEmailMatch":"block","exactPhoneMatch":"block","fuzzyNameMatch":"warn","fuzzyNameThreshold":85,"similarDomain":"warn","showDuplicatePanel":true}'),
+      ('ownership', '{"addPreviousOwnerToTeam":true,"previousOwnerRole":"Lead Generator","previousOwnerAccess":"read","notifyPreviousOwner":false,"notifyNewOwner":true}')
+    ON CONFLICT (setting_key) DO NOTHING;
+
+    -- ============================================================
+    -- LEADS TABLE
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".leads (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      first_name VARCHAR(100),
+      last_name VARCHAR(100) NOT NULL,
+      email VARCHAR(255),
+      phone VARCHAR(50),
+      mobile VARCHAR(50),
+      company VARCHAR(255),
+      job_title VARCHAR(255),
+      website VARCHAR(500),
+      address_line1 VARCHAR(255), address_line2 VARCHAR(255),
+      city VARCHAR(100), state VARCHAR(100), postal_code VARCHAR(20), country VARCHAR(100),
+      emails JSONB DEFAULT '[]', phones JSONB DEFAULT '[]', addresses JSONB DEFAULT '[]',
+      social_profiles JSONB DEFAULT '{}',
+      source VARCHAR(100), source_details JSONB DEFAULT '{}',
+      stage_id UUID REFERENCES "${schema}".lead_stages(id) ON DELETE SET NULL,
+      priority_id UUID REFERENCES "${schema}".lead_priorities(id) ON DELETE SET NULL,
+      score INT DEFAULT 0, score_breakdown JSONB DEFAULT '{}',
+      qualification JSONB DEFAULT '{}',
+      qualification_framework_id UUID REFERENCES "${schema}".lead_qualification_frameworks(id) ON DELETE SET NULL,
+      converted_at TIMESTAMPTZ, converted_by UUID REFERENCES "${schema}".users(id),
+      converted_contact_id UUID, converted_account_id UUID, converted_opportunity_id UUID,
+      conversion_notes TEXT,
+      disqualified_at TIMESTAMPTZ, disqualified_by UUID REFERENCES "${schema}".users(id),
+      disqualification_reason_id UUID REFERENCES "${schema}".lead_disqualification_reasons(id) ON DELETE SET NULL,
+      disqualification_notes TEXT,
+      stage_entered_at TIMESTAMPTZ DEFAULT NOW(), stage_history JSONB DEFAULT '[]',
+      do_not_contact BOOLEAN DEFAULT false, do_not_email BOOLEAN DEFAULT false, do_not_call BOOLEAN DEFAULT false,
+      tags TEXT[] DEFAULT '{}', custom_fields JSONB DEFAULT '{}',
+      owner_id UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+      created_by UUID REFERENCES "${schema}".users(id),
+      updated_by UUID REFERENCES "${schema}".users(id),
+      last_activity_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), deleted_at TIMESTAMPTZ
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_leads_email ON "${schema}".leads(email);
+    CREATE INDEX IF NOT EXISTS idx_leads_phone ON "${schema}".leads(phone);
+    CREATE INDEX IF NOT EXISTS idx_leads_company ON "${schema}".leads(company);
+    CREATE INDEX IF NOT EXISTS idx_leads_stage ON "${schema}".leads(stage_id);
+    CREATE INDEX IF NOT EXISTS idx_leads_priority ON "${schema}".leads(priority_id);
+    CREATE INDEX IF NOT EXISTS idx_leads_source ON "${schema}".leads(source);
+    CREATE INDEX IF NOT EXISTS idx_leads_score ON "${schema}".leads(score);
+    CREATE INDEX IF NOT EXISTS idx_leads_owner ON "${schema}".leads(owner_id);
+    CREATE INDEX IF NOT EXISTS idx_leads_created_by ON "${schema}".leads(created_by);
+    CREATE INDEX IF NOT EXISTS idx_leads_deleted ON "${schema}".leads(deleted_at);
+  `;
 }
 
 runTenantMigrations();

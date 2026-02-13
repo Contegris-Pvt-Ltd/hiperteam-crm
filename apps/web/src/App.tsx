@@ -25,6 +25,8 @@ import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { AuditLogViewer } from './components/shared/AuditLogViewer';
 import { OrgChartPage } from './features/users/OrgChartPage';
+import { LeadsPage, LeadDetailPage, LeadEditPage } from './features/leads';
+import { LeadSettingsPage } from './features/admin/LeadSettingsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -71,6 +73,12 @@ function App() {
           <Route path="accounts/:id" element={<AccountDetailPage />} />
           <Route path="accounts/:id/edit" element={<AccountEditPage />} />
           
+          {/* Leads */}
+          <Route path="/leads" element={<LeadsPage />} />
+          <Route path="/leads/new" element={<LeadEditPage />} />
+          <Route path="/leads/:id" element={<LeadDetailPage />} />
+          <Route path="/leads/:id/edit" element={<LeadEditPage />} />
+
           {/* Products */}
           <Route path="products" element={<ProductsPage />} />
           <Route path="products/new" element={<ProductEditPage />} />
@@ -102,6 +110,7 @@ function App() {
           <Route path="page-designer" element={<PageDesignerPage />} />
           <Route path="module-layout-settings" element={<ModuleLayoutSettingsPage />} />
           <Route path="audit-logs" element={<AuditLogViewer />} />
+          <Route path="lead-settings" element={<LeadSettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -2,20 +2,38 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Plus, Search, Filter, Download, 
-  Mail, Phone, Building2, ChevronLeft, ChevronRight,
-  Eye, Pencil, Trash2, Users
+  Mail, Phone, Building2,
+  Eye, Pencil, Trash2
 } from 'lucide-react';
 import type { Contact, ContactsQuery } from '../../api/contacts.api';
 import { contactsApi } from '../../api/contacts.api';
+import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
 
 export function ContactsPage() {
   const navigate = useNavigate();
+
+  // ── DataTable: dynamic columns + user preferences ──
+  const { allColumns, defaultVisibleKeys, loading: columnsLoading } = useTableColumns('contacts');
+  const tablePrefs = useTablePreferences('contacts', allColumns, defaultVisibleKeys);
+
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 20, totalPages: 0 });
   const [query, setQuery] = useState<ContactsQuery>({ page: 1, limit: 20 });
   const [searchInput, setSearchInput] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+
+  // ── Sync table preferences into query once loaded ──
+  useEffect(() => {
+    if (!tablePrefs.loading) {
+      setQuery(prev => ({
+        ...prev,
+        limit: tablePrefs.pageSize,
+        sortBy: tablePrefs.sortColumn,
+        sortOrder: tablePrefs.sortOrder,
+      }));
+    }
+  }, [tablePrefs.loading]);
 
   useEffect(() => {
     fetchContacts();
@@ -39,10 +57,6 @@ export function ContactsPage() {
     setQuery({ ...query, search: searchInput, page: 1 });
   };
 
-  const handlePageChange = (newPage: number) => {
-    setQuery({ ...query, page: newPage });
-  };
-
   const handleDeleteContact = async (id: string) => {
     try {
       await contactsApi.delete(id);
@@ -54,7 +68,7 @@ export function ContactsPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="p-6 max-w-[1400px] mx-auto space-y-6 animate-fadeIn">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -111,215 +125,132 @@ export function ContactsPage() {
         </form>
       </div>
 
-      {/* Contacts Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : contacts.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Users className="w-8 h-8 text-gray-400 dark:text-slate-500" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No contacts yet</h3>
-            <p className="text-gray-500 dark:text-slate-400 mb-6 max-w-sm mx-auto">
-              Get started by adding your first contact.
-            </p>
-            <Link
-              to="/contacts/new"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4" />
-              Add Your First Contact
-            </Link>
-          </div>
-        ) : (
-          <>
-            {/* Desktop Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-slate-800/50">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                      Contact
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                      Company
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                      Contact Info
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-                  {contacts.map((contact) => (
-                    <tr
-                      key={contact.id}
-                      className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-                      onClick={() => navigate(`/contacts/${contact.id}`)}
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          {contact.avatarUrl ? (
-                            <img
-                              src={contact.avatarUrl}
-                              alt={`${contact.firstName} ${contact.lastName}`}
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                              {contact.firstName[0]}{contact.lastName[0]}
-                            </div>
-                          )}
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {contact.firstName} {contact.lastName}
-                            </p>
-                            {contact.jobTitle && (
-                              <p className="text-sm text-gray-500 dark:text-slate-400">
-                                {contact.jobTitle}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {contact.company && (
-                          <div className="flex items-center gap-2 text-gray-600 dark:text-slate-300">
-                            <Building2 className="w-4 h-4 text-gray-400 dark:text-slate-500" />
-                            {contact.company}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="space-y-1">
-                          {contact.email && (
-                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
-                              <Mail className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
-                              {contact.email}
-                            </div>
-                          )}
-                          {contact.phone && (
-                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
-                              <Phone className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
-                              {contact.phone}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${
-                          contact.status === 'active'
-                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                            : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
-                        }`}>
-                          {contact.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                          <Link
-                            to={`/contacts/${contact.id}`}
-                            className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
-                            title="View"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Link>
-                          <Link
-                            to={`/contacts/${contact.id}/edit`}
-                            className="p-2 text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
-                            title="Edit"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Link>
-                          <button
-                            onClick={() => setShowDeleteConfirm(contact.id)}
-                            className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      {/* ── DataTable ── */}
+      <DataTable<Contact>
+        module="contacts"
+        allColumns={allColumns}
+        defaultVisibleKeys={defaultVisibleKeys}
+        data={contacts}
+        loading={loading || columnsLoading}
+        meta={meta}
+        visibleColumns={tablePrefs.visibleColumns}
+        sortColumn={query.sortBy || 'created_at'}
+        sortOrder={query.sortOrder || 'DESC'}
+        pageSize={query.limit || 20}
+        columnWidths={tablePrefs.columnWidths}
+        onSort={(col, order) => {
+          setQuery(prev => ({ ...prev, sortBy: col, sortOrder: order, page: 1 }));
+          tablePrefs.setSortColumn(col);
+          tablePrefs.setSortOrder(order);
+        }}
+        onPageChange={(page) => setQuery(prev => ({ ...prev, page }))}
+        onPageSizeChange={(size) => {
+          setQuery(prev => ({ ...prev, limit: size, page: 1 }));
+          tablePrefs.setPageSize(size);
+        }}
+        onColumnsChange={tablePrefs.setVisibleColumns}
+        onColumnWidthsChange={tablePrefs.setColumnWidths}
+        onRowClick={(row) => navigate(`/contacts/${row.id}`)}
+        emptyMessage="No contacts found. Try adjusting your search or filters."
+        renderCell={(col, value, row) => {
+          const contact = row;
 
-            {/* Mobile Cards */}
-            <div className="md:hidden divide-y divide-gray-100 dark:divide-slate-800">
-              {contacts.map((contact) => (
-                <Link
-                  key={contact.id}
-                  to={`/contacts/${contact.id}`}
-                  className="block p-4 hover:bg-gray-50 dark:hover:bg-slate-800/50"
-                >
-                  <div className="flex items-start gap-3">
-                    {contact.avatarUrl ? (
-                      <img
-                        src={contact.avatarUrl}
-                        alt={`${contact.firstName} ${contact.lastName}`}
-                        className="w-12 h-12 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
-                        {contact.firstName[0]}{contact.lastName[0]}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {contact.firstName} {contact.lastName}
-                      </p>
-                      {contact.jobTitle && (
-                        <p className="text-sm text-gray-500 dark:text-slate-400">{contact.jobTitle}</p>
-                      )}
-                      {contact.company && (
-                        <p className="text-sm text-gray-500 dark:text-slate-400">{contact.company}</p>
-                      )}
-                    </div>
+          // Name column — avatar + name + job title
+          if (col.key === 'name') {
+            return (
+              <div className="flex items-center gap-3">
+                {contact.avatarUrl ? (
+                  <img
+                    src={contact.avatarUrl}
+                    alt={`${contact.firstName} ${contact.lastName}`}
+                    className="w-9 h-9 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                    {contact.firstName?.[0]}{contact.lastName?.[0]}
                   </div>
-                </Link>
-              ))}
-            </div>
-
-            {/* Pagination */}
-            {meta.totalPages > 1 && (
-              <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between">
-                <p className="text-sm text-gray-500 dark:text-slate-400">
-                  Showing {((meta.page - 1) * meta.limit) + 1} to {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handlePageChange(meta.page - 1)}
-                    disabled={meta.page === 1}
-                    className="p-2 border border-gray-200 dark:border-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-slate-800"
-                  >
-                    <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-slate-400" />
-                  </button>
-                  <span className="text-sm text-gray-600 dark:text-slate-400">
-                    {meta.page} / {meta.totalPages}
-                  </span>
-                  <button
-                    onClick={() => handlePageChange(meta.page + 1)}
-                    disabled={meta.page === meta.totalPages}
-                    className="p-2 border border-gray-200 dark:border-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-slate-800"
-                  >
-                    <ChevronRight className="w-4 h-4 text-gray-600 dark:text-slate-400" />
-                  </button>
+                )}
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {contact.firstName} {contact.lastName}
+                  </p>
+                  {contact.jobTitle && (
+                    <p className="text-xs text-gray-500 dark:text-slate-400">{contact.jobTitle}</p>
+                  )}
                 </div>
               </div>
-            )}
-          </>
+            );
+          }
+
+          // Company column — building icon
+          if (col.key === 'company' && value) {
+            return (
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
+                <Building2 className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
+                {String(value)}
+              </div>
+            );
+          }
+
+          // Email column — mail icon
+          if (col.key === 'email' && value) {
+            return (
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
+                <Mail className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
+                {String(value)}
+              </div>
+            );
+          }
+
+          // Phone column — phone icon
+          if (col.key === 'phone' && value) {
+            return (
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
+                <Phone className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
+                {String(value)}
+              </div>
+            );
+          }
+
+          // Status column — colored badge
+          if (col.key === 'status' && value) {
+            const status = String(value);
+            return (
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium ${
+                status === 'active'
+                  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
+              }`}>
+                {status}
+              </span>
+            );
+          }
+
+          // Owner column
+          if (col.key === 'ownerName' && contact.owner) {
+            return (
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {contact.owner.firstName} {contact.owner.lastName}
+              </span>
+            );
+          }
+
+          return undefined; // default renderer
+        }}
+        renderActions={(row) => (
+          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+            <Link to={`/contacts/${row.id}`} className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded">
+              <Eye className="w-4 h-4" />
+            </Link>
+            <Link to={`/contacts/${row.id}/edit`} className="p-1.5 text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 rounded">
+              <Pencil className="w-4 h-4" />
+            </Link>
+            <button onClick={() => setShowDeleteConfirm(row.id)} className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         )}
-      </div>
+      />
 
       {/* Delete Confirmation */}
       {showDeleteConfirm && (

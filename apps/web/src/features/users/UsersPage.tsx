@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Plus, Search, Filter, Mail,
-  ChevronLeft, ChevronRight, Eye, Pencil, Trash2,
+  Eye, Pencil, Trash2,
   Users, Send, XCircle, RefreshCw,
 } from 'lucide-react';
 import type { User, UsersQuery, RoleLookup, DepartmentLookup, PendingInvitation } from '../../api/users.api';
@@ -10,12 +10,17 @@ import { usersApi } from '../../api/users.api';
 import { InviteUserModal } from './InviteUserModal';
 import { CreateUserModal } from './CreateUserModal';
 import { usePermissions } from '../../hooks/usePermissions';
+import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
 
 type Tab = 'users' | 'invitations';
 
 export function UsersPage() {
   //const navigate = useNavigate();
   const { canCreate, canEdit, canDelete, canInvite } = usePermissions();
+
+  // ── DataTable: dynamic columns + user preferences ──
+  const { allColumns, defaultVisibleKeys, loading: columnsLoading } = useTableColumns('users');
+  const tablePrefs = useTablePreferences('users', allColumns, defaultVisibleKeys);
 
   // State
   const [users, setUsers] = useState<User[]>([]);
@@ -51,6 +56,18 @@ export function UsersPage() {
     if (activeTab === 'users') fetchUsers();
     else fetchInvitations();
   }, [query, activeTab]);
+
+  // ── Sync table preferences into query once loaded ──
+  useEffect(() => {
+    if (!tablePrefs.loading && activeTab === 'users') {
+      setQuery(prev => ({
+        ...prev,
+        limit: tablePrefs.pageSize,
+        sortBy: tablePrefs.sortColumn,
+        sortOrder: tablePrefs.sortOrder,
+      }));
+    }
+  }, [tablePrefs.loading]);
 
   const fetchLookups = async () => {
     try {
@@ -169,7 +186,7 @@ export function UsersPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="p-6 max-w-[1400px] mx-auto space-y-6 animate-fadeIn">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -302,113 +319,105 @@ export function UsersPage() {
             )}
           </div>
 
-          {/* Users Table */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : users.length === 0 ? (
-              <div className="text-center py-12">
-                <Users className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">No users found</h3>
-                <p className="text-gray-500 dark:text-slate-400 text-sm">Try adjusting your search or filters.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50">
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">User</th>
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Role</th>
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Department</th>
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Last Login</th>
-                      <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50 dark:divide-slate-800">
-                    {users.map((user) => (
-                      <tr key={user.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <Link to={`/users/${user.id}`} className="flex items-center gap-3">
-                            {user.avatarUrl ? (
-                              <img src={user.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
-                            ) : (
-                              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                                {user.firstName?.[0]}{user.lastName?.[0]}
-                              </div>
-                            )}
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">{user.firstName} {user.lastName}</p>
-                              <p className="text-sm text-gray-500 dark:text-slate-400">{user.email}</p>
-                              {user.jobTitle && <p className="text-xs text-gray-400 dark:text-slate-500">{user.jobTitle}</p>}
-                            </div>
-                          </Link>
-                        </td>
-                        <td className="px-6 py-4">{getRoleBadge(user.role)}</td>
-                        <td className="px-6 py-4">
-                          {user.department ? (
-                            <span className="text-sm text-gray-700 dark:text-slate-300">{user.department.name}</span>
-                          ) : (
-                            <span className="text-sm text-gray-400 dark:text-slate-500">—</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">{getStatusBadge(user.status)}</td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm text-gray-500 dark:text-slate-400">
-                            {user.lastLoginAt
-                              ? new Date(user.lastLoginAt).toLocaleDateString()
-                              : 'Never'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-1">
-                            <Link to={`/users/${user.id}`}
-                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg">
-                              <Eye className="w-4 h-4" />
-                            </Link>
-                            {canEdit('users') && (
-                              <Link to={`/users/${user.id}/edit`}
-                                className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg">
-                                <Pencil className="w-4 h-4" />
-                              </Link>
-                            )}
-                            {canDelete('users') && (
-                              <button onClick={() => setShowDeleteConfirm(user.id)}
-                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          {/* ── Users DataTable ── */}
+          <DataTable<User>
+            module="users"
+            allColumns={allColumns}
+            defaultVisibleKeys={defaultVisibleKeys}
+            data={users}
+            loading={loading || columnsLoading}
+            meta={meta}
+            visibleColumns={tablePrefs.visibleColumns}
+            sortColumn={query.sortBy || 'created_at'}
+            sortOrder={query.sortOrder || 'DESC'}
+            pageSize={query.limit || 20}
+            columnWidths={tablePrefs.columnWidths}
+            onSort={(col, order) => {
+              setQuery(prev => ({ ...prev, sortBy: col, sortOrder: order, page: 1 }));
+              tablePrefs.setSortColumn(col);
+              tablePrefs.setSortOrder(order);
+            }}
+            onPageChange={(page) => setQuery(prev => ({ ...prev, page }))}
+            onPageSizeChange={(size) => {
+              setQuery(prev => ({ ...prev, limit: size, page: 1 }));
+              tablePrefs.setPageSize(size);
+            }}
+            onColumnsChange={tablePrefs.setVisibleColumns}
+            onColumnWidthsChange={tablePrefs.setColumnWidths}
+            emptyMessage="No users found. Try adjusting your search or filters."
+            renderCell={(col, value, row) => {
+              const user = row;
 
-            {/* Pagination */}
-            {meta.totalPages > 1 && (
-              <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between">
-                <p className="text-sm text-gray-500 dark:text-slate-400">
-                  Showing {((meta.page - 1) * meta.limit) + 1} to {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setQuery({ ...query, page: meta.page - 1 })} disabled={meta.page === 1}
-                    className="p-2 border border-gray-200 dark:border-slate-700 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800">
-                    <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-slate-400" />
+              // Name column — avatar + name + email + job title
+              if (col.key === 'name') {
+                return (
+                  <Link to={`/users/${user.id}`} className="flex items-center gap-3">
+                    {user.avatarUrl ? (
+                      <img src={user.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                        {user.firstName?.[0]}{user.lastName?.[0]}
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{user.firstName} {user.lastName}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">{user.email}</p>
+                      {user.jobTitle && <p className="text-xs text-gray-400 dark:text-slate-500">{user.jobTitle}</p>}
+                    </div>
+                  </Link>
+                );
+              }
+
+              // Role column — colored badge
+              if (col.key === 'roleName') {
+                return getRoleBadge(user.role);
+              }
+
+              // Department column
+              if (col.key === 'departmentName') {
+                if (!user.department) return <span className="text-sm text-gray-400 dark:text-slate-500">—</span>;
+                return <span className="text-sm text-gray-700 dark:text-slate-300">{user.department.name}</span>;
+              }
+
+              // Status column — colored badge
+              if (col.key === 'status') {
+                return getStatusBadge(user.status);
+              }
+
+              // Last login column
+              if (col.key === 'lastLoginAt') {
+                return (
+                  <span className="text-sm text-gray-500 dark:text-slate-400">
+                    {user.lastLoginAt
+                      ? new Date(user.lastLoginAt).toLocaleDateString()
+                      : 'Never'}
+                  </span>
+                );
+              }
+
+              return undefined; // default renderer
+            }}
+            renderActions={(row) => (
+              <div className="flex items-center justify-end gap-1">
+                <Link to={`/users/${row.id}`}
+                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg">
+                  <Eye className="w-4 h-4" />
+                </Link>
+                {canEdit('users') && (
+                  <Link to={`/users/${row.id}/edit`}
+                    className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg">
+                    <Pencil className="w-4 h-4" />
+                  </Link>
+                )}
+                {canDelete('users') && (
+                  <button onClick={() => setShowDeleteConfirm(row.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                    <Trash2 className="w-4 h-4" />
                   </button>
-                  <span className="text-sm text-gray-600 dark:text-slate-400">{meta.page} / {meta.totalPages}</span>
-                  <button onClick={() => setQuery({ ...query, page: meta.page + 1 })} disabled={meta.page === meta.totalPages}
-                    className="p-2 border border-gray-200 dark:border-slate-700 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800">
-                    <ChevronRight className="w-4 h-4 text-gray-600 dark:text-slate-400" />
-                  </button>
-                </div>
+                )}
               </div>
             )}
-          </div>
+          />
         </>
       )}
 

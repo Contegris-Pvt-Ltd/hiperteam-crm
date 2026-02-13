@@ -57,7 +57,13 @@ const adminNavItems = [
     path: '/admin/audit-logs',
     icon: ClipboardList,
     description: 'View system audit trail'
-  }
+  },
+  {
+    label: 'Lead Settings',
+    path: '/admin/lead-settings',
+    icon: Target,
+    description: 'Stages, scoring, routing & more'
+  },
 ];
 
 const moduleIcons: Record<string, typeof Users> = {

@@ -19,6 +19,7 @@ import { DepartmentsModule } from './modules/departments/departments.module';
 import { TeamsModule } from './modules/teams/teams.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ProductsModule } from './modules/products/products.module';
+import { LeadsModule } from './modules/leads/leads.module';
 
 @Module({
   imports: [
@@ -54,7 +55,8 @@ import { ProductsModule } from './modules/products/products.module';
     DepartmentsModule,
     TeamsModule,
     RolesModule,
-    ProductsModule
+    ProductsModule,
+    LeadsModule
   ],
   controllers: [AppController],
   providers: [AppService],

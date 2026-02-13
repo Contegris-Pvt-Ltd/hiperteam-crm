@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Plus, Search, Filter, Package, MoreVertical,
-  ChevronLeft, ChevronRight, Loader2, Trash2, Edit, Eye,
+  Plus, Search, Filter, Package,
+  Loader2, Trash2, Eye,
   Tag, Box, RefreshCw, X, FolderTree, Pencil,
   AlertCircle,
 } from 'lucide-react';
 import { productsApi } from '../../api/products.api';
 import type { Product, ProductsQuery, ProductCategory } from '../../api/products.api';
+import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
 
 const TYPE_BADGES: Record<string, { label: string; className: string }> = {
   product: { label: 'Product', className: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' },
@@ -24,11 +25,15 @@ const STATUS_BADGES: Record<string, { label: string; className: string }> = {
 
 export function ProductsPage() {
   const navigate = useNavigate();
+
+  // ── DataTable: dynamic columns + user preferences ──
+  const { allColumns, defaultVisibleKeys, loading: columnsLoading } = useTableColumns('products');
+  const tablePrefs = useTablePreferences('products', allColumns, defaultVisibleKeys);
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
+  const [meta, setMeta] = useState({ total: 0, page: 1, limit: 20, totalPages: 1 });
 
   const [query, setQuery] = useState<ProductsQuery>({
     page: 1,
@@ -38,7 +43,6 @@ export function ProductsPage() {
   });
   const [searchInput, setSearchInput] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   // Categories panel state
   const [showCategories, setShowCategories] = useState(false);
@@ -48,13 +52,24 @@ export function ProductsPage() {
   const [catForm, setCatForm] = useState({ name: '', description: '', parentId: '' });
   const [catSaving, setCatSaving] = useState(false);
 
+  // ── Sync table preferences into query once loaded ──
+  useEffect(() => {
+    if (!tablePrefs.loading) {
+      setQuery(prev => ({
+        ...prev,
+        limit: tablePrefs.pageSize,
+        sortBy: tablePrefs.sortColumn,
+        sortOrder: tablePrefs.sortOrder,
+      }));
+    }
+  }, [tablePrefs.loading]);
+
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
       const res = await productsApi.getAll(query);
       setProducts(res.data);
-      setTotal(res.meta.total);
-      setTotalPages(res.meta.totalPages);
+      setMeta(res.meta);
     } catch (err) {
       console.error('Failed to fetch products:', err);
     } finally {
@@ -186,13 +201,13 @@ export function ProductsPage() {
   const childCats = (parentId: string) => categories.filter(c => c.parentId === parentId);
 
   return (
-    <div className="animate-fadeIn">
+    <div className="p-6 max-w-[1400px] mx-auto animate-fadeIn">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Products & Services</h1>
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-            {total} {total === 1 ? 'product' : 'products'}
+            {meta.total} {meta.total === 1 ? 'product' : 'products'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -300,161 +315,124 @@ export function ProductsPage() {
         )}
       </div>
 
-      {/* Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-          </div>
-        ) : products.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <Package className="w-12 h-12 text-gray-300 dark:text-slate-700 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">No products yet</h3>
-            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">Start by adding your first product or service</p>
-            <Link
-              to="/products/new"
-              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Add Product
-            </Link>
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100 dark:border-slate-800">
-                    <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Product</th>
-                    <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Code</th>
-                    <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Type</th>
-                    <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Category</th>
-                    <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Price</th>
-                    <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
-                    <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-slate-800/50">
-                  {products.map((product) => {
-                    const typeBadge = TYPE_BADGES[product.type] || TYPE_BADGES.product;
-                    const statusBadge = STATUS_BADGES[product.status] || STATUS_BADGES.active;
+      {/* ── DataTable ── */}
+      <DataTable<Product>
+        module="products"
+        allColumns={allColumns}
+        defaultVisibleKeys={defaultVisibleKeys}
+        data={products}
+        loading={loading || columnsLoading}
+        meta={meta}
+        visibleColumns={tablePrefs.visibleColumns}
+        sortColumn={query.sortBy || 'created_at'}
+        sortOrder={query.sortOrder || 'DESC'}
+        pageSize={query.limit || 20}
+        columnWidths={tablePrefs.columnWidths}
+        onSort={(col, order) => {
+          setQuery(prev => ({ ...prev, sortBy: col, sortOrder: order, page: 1 }));
+          tablePrefs.setSortColumn(col);
+          tablePrefs.setSortOrder(order);
+        }}
+        onPageChange={(page) => setQuery(prev => ({ ...prev, page }))}
+        onPageSizeChange={(size) => {
+          setQuery(prev => ({ ...prev, limit: size, page: 1 }));
+          tablePrefs.setPageSize(size);
+        }}
+        onColumnsChange={tablePrefs.setVisibleColumns}
+        onColumnWidthsChange={tablePrefs.setColumnWidths}
+        onRowClick={(row) => navigate(`/products/${row.id}`)}
+        emptyMessage="No products yet. Start by adding your first product or service."
+        renderCell={(col, value, row) => {
+          const product = row;
 
-                    return (
-                      <tr
-                        key={product.id}
-                        className="hover:bg-gray-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
-                        onClick={() => navigate(`/products/${product.id}`)}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            {product.imageUrl ? (
-                              <img src={product.imageUrl} alt={product.name} className="w-10 h-10 rounded-lg object-cover" />
-                            ) : (
-                              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                                <Box className="w-5 h-5 text-white" />
-                              </div>
-                            )}
-                            <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-white">{product.name}</p>
-                              {product.shortDescription && (
-                                <p className="text-xs text-gray-500 dark:text-slate-400 truncate max-w-[250px]">{product.shortDescription}</p>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm text-gray-600 dark:text-slate-400 font-mono">{product.code || '—'}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium ${typeBadge.className}`}>
-                            {typeBadge.label}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm text-gray-600 dark:text-slate-400">{product.categoryName || '—'}</span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            {formatCurrency(product.basePrice, product.currency)}
-                          </span>
-                          {product.unit !== 'each' && (
-                            <span className="text-xs text-gray-500 dark:text-slate-400">/{product.unit}</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium ${statusBadge.className}`}>
-                            {statusBadge.label}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="relative inline-block">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuId(openMenuId === product.id ? null : product.id);
-                              }}
-                              className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                            >
-                              <MoreVertical className="w-4 h-4 text-gray-500" />
-                            </button>
-                            {openMenuId === product.id && (
-                              <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-lg z-10 py-1">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); navigate(`/products/${product.id}`); }}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700"
-                                >
-                                  <Eye className="w-4 h-4" /> View
-                                </button>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); navigate(`/products/${product.id}/edit`); }}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700"
-                                >
-                                  <Edit className="w-4 h-4" /> Edit
-                                </button>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDelete(product.id); }}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                >
-                                  <Trash2 className="w-4 h-4" /> Delete
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-slate-800">
-                <p className="text-sm text-gray-500 dark:text-slate-400">
-                  Page {query.page} of {totalPages} ({total} results)
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setQuery(prev => ({ ...prev, page: (prev.page || 1) - 1 }))}
-                    disabled={(query.page || 1) <= 1}
-                    className="p-2 border border-gray-200 dark:border-slate-700 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setQuery(prev => ({ ...prev, page: (prev.page || 1) + 1 }))}
-                    disabled={(query.page || 1) >= totalPages}
-                    className="p-2 border border-gray-200 dark:border-slate-700 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+          // Name column — image/icon + name + description
+          if (col.key === 'name') {
+            return (
+              <div className="flex items-center gap-3">
+                {product.imageUrl ? (
+                  <img src={product.imageUrl} alt={product.name} className="w-9 h-9 rounded-lg object-cover" />
+                ) : (
+                  <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                    <Box className="w-4 h-4 text-white" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{product.name}</p>
+                  {product.shortDescription && (
+                    <p className="text-xs text-gray-500 dark:text-slate-400 truncate max-w-[220px]">{product.shortDescription}</p>
+                  )}
                 </div>
               </div>
-            )}
-          </>
+            );
+          }
+
+          // Code column — monospace
+          if (col.key === 'code') {
+            return (
+              <span className="text-sm text-gray-600 dark:text-slate-400 font-mono">{product.code || '—'}</span>
+            );
+          }
+
+          // Type column — colored badge
+          if (col.key === 'type' && value) {
+            const badge = TYPE_BADGES[String(value)] || TYPE_BADGES.product;
+            return (
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium ${badge.className}`}>
+                {badge.label}
+              </span>
+            );
+          }
+
+          // Base price column — currency formatted
+          if (col.key === 'basePrice') {
+            return (
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                {formatCurrency(product.basePrice, product.currency)}
+                {product.unit !== 'each' && (
+                  <span className="text-xs text-gray-500 dark:text-slate-400">/{product.unit}</span>
+                )}
+              </span>
+            );
+          }
+
+          // Status column — colored badge
+          if (col.key === 'status' && value) {
+            const badge = STATUS_BADGES[String(value)] || STATUS_BADGES.active;
+            return (
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium ${badge.className}`}>
+                {badge.label}
+              </span>
+            );
+          }
+
+          return undefined; // default renderer
+        }}
+        renderActions={(row) => (
+          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => navigate(`/products/${row.id}`)}
+              className="p-1.5 text-gray-400 hover:text-blue-600 rounded"
+              title="View"
+            >
+              <Eye className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => navigate(`/products/${row.id}/edit`)}
+              className="p-1.5 text-gray-400 hover:text-amber-600 rounded"
+              title="Edit"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleDelete(row.id)}
+              className="p-1.5 text-gray-400 hover:text-red-600 rounded"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         )}
-      </div>
+      />
 
       {/* ============================================================ */}
       {/* CATEGORIES SLIDE-OUT PANEL                                   */}

@@ -11,6 +11,7 @@ import { departmentsApi } from '../../api/departments.api';
 import { usersApi } from '../../api/users.api';
 import { TeamFormModal } from './TeamFormModal';
 import { usePermissions } from '../../hooks/usePermissions';
+import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
 
 interface UserOption {
   id: string;
@@ -22,6 +23,10 @@ interface UserOption {
 export function TeamsPage() {
   const navigate = useNavigate();
   const { canCreate, canEdit, canDelete } = usePermissions();
+
+  // ── DataTable: dynamic columns + user preferences ──
+  const { allColumns, defaultVisibleKeys, loading: columnsLoading } = useTableColumns('teams');
+  const tablePrefs = useTablePreferences('teams', allColumns, defaultVisibleKeys);
 
   // State
   const [teams, setTeams] = useState<Team[]>([]);
@@ -72,6 +77,18 @@ export function TeamsPage() {
   useEffect(() => {
     departmentsApi.getLookup().then(setDepartments).catch(console.error);
   }, []);
+
+  // ── Sync table preferences into query once loaded ──
+  useEffect(() => {
+    if (!tablePrefs.loading) {
+      setQuery(prev => ({
+        ...prev,
+        limit: tablePrefs.pageSize,
+        sortBy: tablePrefs.sortColumn,
+        sortOrder: tablePrefs.sortOrder,
+      }));
+    }
+  }, [tablePrefs.loading]);
 
   const loadDetail = async (id: string) => {
     setDetailLoading(true);
@@ -202,7 +219,7 @@ export function TeamsPage() {
   // RENDER
   // ============================================================
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="p-6 max-w-[1400px] mx-auto space-y-6 animate-fadeIn">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -246,159 +263,128 @@ export function TeamsPage() {
 
       {/* Main content */}
       <div className="flex gap-6">
-        {/* Left: table */}
+        {/* Left: DataTable */}
         <div className={`${selectedTeam ? 'w-1/2 xl:w-3/5' : 'w-full'} transition-all`}>
-          {loading ? (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-12 text-center">
-              <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto" />
-              <p className="text-gray-500 dark:text-slate-400 mt-3 text-sm">Loading teams...</p>
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100 dark:border-slate-800">
-                    <th className="text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider px-4 py-3">Team</th>
-                    <th className="text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider px-4 py-3">Department</th>
-                    <th className="text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider px-4 py-3">Lead</th>
-                    <th className="text-center text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider px-4 py-3">Members</th>
-                    <th className="text-center text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider px-4 py-3">Status</th>
-                    <th className="text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider px-4 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-slate-800/50">
-                  {teams.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
-                        <Users className="w-10 h-10 mx-auto mb-3 text-gray-300 dark:text-slate-600" />
-                        <p className="font-medium">No teams found</p>
-                        <p className="text-sm mt-1">Create your first team to get started.</p>
-                      </td>
-                    </tr>
-                  ) : teams.map((team) => (
-                    <tr
-                      key={team.id}
-                      className={`hover:bg-gray-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors ${
-                        selectedTeam?.id === team.id ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
-                      }`}
-                      onClick={() => loadDetail(team.id)}
-                    >
-                      {/* Team name */}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
-                            <Users className="w-4.5 h-4.5 text-indigo-600 dark:text-indigo-400" />
-                          </div>
-                          <div className="min-w-0">
-                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate block">{team.name}</span>
-                            {team.description && (
-                              <p className="text-xs text-gray-400 dark:text-slate-500 truncate max-w-[200px]">{team.description}</p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
+          <DataTable<Team>
+            module="teams"
+            allColumns={allColumns}
+            defaultVisibleKeys={defaultVisibleKeys}
+            data={teams}
+            loading={loading || columnsLoading}
+            meta={meta}
+            visibleColumns={tablePrefs.visibleColumns}
+            sortColumn={query.sortBy || 'name'}
+            sortOrder={query.sortOrder || 'ASC'}
+            pageSize={query.limit || 50}
+            columnWidths={tablePrefs.columnWidths}
+            onSort={(col, order) => {
+              setQuery(prev => ({ ...prev, sortBy: col, sortOrder: order, page: 1 }));
+              tablePrefs.setSortColumn(col);
+              tablePrefs.setSortOrder(order);
+            }}
+            onPageChange={(page) => setQuery(prev => ({ ...prev, page }))}
+            onPageSizeChange={(size) => {
+              setQuery(prev => ({ ...prev, limit: size, page: 1 }));
+              tablePrefs.setPageSize(size);
+            }}
+            onColumnsChange={tablePrefs.setVisibleColumns}
+            onColumnWidthsChange={tablePrefs.setColumnWidths}
+            onRowClick={(row) => loadDetail(row.id)}
+            emptyMessage="No teams found. Create your first team to get started."
+            renderCell={(col, value, row) => {
+              const team = row;
 
-                      {/* Department */}
-                      <td className="px-4 py-3">
-                        {team.departmentName ? (
-                          <span className="text-sm text-gray-700 dark:text-slate-300 flex items-center gap-1.5">
-                            <Building2 className="w-3.5 h-3.5 text-gray-400" />
-                            {team.departmentName}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-gray-400 dark:text-slate-500">—</span>
-                        )}
-                      </td>
-
-                      {/* Lead */}
-                      <td className="px-4 py-3">
-                        {team.teamLead ? (
-                          <div className="flex items-center gap-2">
-                            {team.teamLead.avatarUrl ? (
-                              <img src={team.teamLead.avatarUrl} alt="" className="w-6 h-6 rounded-full" />
-                            ) : (
-                              <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-xs font-medium text-gray-600 dark:text-slate-300">
-                                {team.teamLead.firstName?.[0]}{team.teamLead.lastName?.[0]}
-                              </div>
-                            )}
-                            <span className="text-sm text-gray-700 dark:text-slate-300">
-                              {team.teamLead.firstName} {team.teamLead.lastName}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400 dark:text-slate-500">—</span>
-                        )}
-                      </td>
-
-                      {/* Members */}
-                      <td className="px-4 py-3 text-center">
-                        <span className="text-sm font-medium text-gray-700 dark:text-slate-300">{team.memberCount}</span>
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-4 py-3 text-center">{getStatusBadge(team.isActive)}</td>
-
-                      {/* Actions */}
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => loadDetail(team.id)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                            title="View details"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          {canEdit('users') && (
-                            <button
-                              onClick={() => handleEdit(team)}
-                              className="p-1.5 text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20"
-                              title="Edit"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                          )}
-                          {canDelete('users') && (
-                            <button
-                              onClick={() => { setDeleteError(''); setShowDeleteConfirm(team.id); }}
-                              className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* Pagination */}
-              {meta.totalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 dark:border-slate-800">
-                  <span className="text-sm text-gray-500 dark:text-slate-400">
-                    Page {meta.page} of {meta.totalPages}
-                  </span>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setQuery((p) => ({ ...p, page: Math.max(1, (p.page || 1) - 1) }))}
-                      disabled={meta.page <= 1}
-                      className="px-3 py-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-300"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      onClick={() => setQuery((p) => ({ ...p, page: Math.min(meta.totalPages, (p.page || 1) + 1) }))}
-                      disabled={meta.page >= meta.totalPages}
-                      className="px-3 py-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-300"
-                    >
-                      Next
-                    </button>
+              // Name column — icon + name + description
+              if (col.key === 'name') {
+                return (
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+                      <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-medium text-sm text-gray-900 dark:text-white truncate block">{team.name}</span>
+                      {team.description && (
+                        <p className="text-xs text-gray-400 dark:text-slate-500 truncate max-w-[200px]">{team.description}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                );
+              }
+
+              // Department column — building icon
+              if (col.key === 'departmentName') {
+                if (!team.departmentName) return <span className="text-sm text-gray-400 dark:text-slate-500">—</span>;
+                return (
+                  <span className="text-sm text-gray-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                    {team.departmentName}
+                  </span>
+                );
+              }
+
+              // Team lead column — avatar + name
+              if (col.key === 'teamLeadName') {
+                if (!team.teamLead) return <span className="text-sm text-gray-400 dark:text-slate-500">—</span>;
+                return (
+                  <div className="flex items-center gap-2">
+                    {team.teamLead.avatarUrl ? (
+                      <img src={team.teamLead.avatarUrl} alt="" className="w-6 h-6 rounded-full" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-xs font-medium text-gray-600 dark:text-slate-300">
+                        {team.teamLead.firstName?.[0]}{team.teamLead.lastName?.[0]}
+                      </div>
+                    )}
+                    <span className="text-sm text-gray-700 dark:text-slate-300">
+                      {team.teamLead.firstName} {team.teamLead.lastName}
+                    </span>
+                  </div>
+                );
+              }
+
+              // Member count
+              if (col.key === 'memberCount') {
+                return (
+                  <span className="text-sm font-medium text-gray-700 dark:text-slate-300">{team.memberCount ?? 0}</span>
+                );
+              }
+
+              // Active status
+              if (col.key === 'isActive') {
+                return getStatusBadge(team.isActive);
+              }
+
+              return undefined; // default renderer
+            }}
+            renderActions={(row) => (
+              <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => loadDetail(row.id)}
+                  className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                  title="View details"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+                {canEdit('users') && (
+                  <button
+                    onClick={() => handleEdit(row)}
+                    className="p-1.5 text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                    title="Edit"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+                {canDelete('users') && (
+                  <button
+                    onClick={() => { setDeleteError(''); setShowDeleteConfirm(row.id); }}
+                    className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
+          />
         </div>
 
         {/* Right: detail panel */}

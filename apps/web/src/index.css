@@ -5,7 +5,10 @@
 
 /* Dark mode support */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
 }
 
 /* Safe area for mobile devices */
