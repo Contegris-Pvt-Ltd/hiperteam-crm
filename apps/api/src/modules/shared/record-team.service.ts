@@ -1,7 +1,7 @@
 // ============================================================
 // FILE: apps/api/src/modules/shared/record-team.service.ts
 // ============================================================
-import { Injectable, Logger, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 interface AddMemberParams {
