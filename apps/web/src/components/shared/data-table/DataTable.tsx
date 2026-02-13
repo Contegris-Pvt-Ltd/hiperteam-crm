@@ -1,7 +1,7 @@
 // ============================================================
 // FILE: apps/web/src/components/shared/data-table/DataTable.tsx
 // ============================================================
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   ChevronUp, ChevronDown, ChevronsUpDown,
   ChevronLeft, ChevronRight, Loader2,
@@ -66,6 +66,25 @@ export interface DataTableProps<T = any> {
 }
 
 // ============================================================
+// MEDIA QUERY HOOK
+// ============================================================
+function useIsMobile(breakpoint = 768): boolean {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false,
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => setIsMobile(e.matches);
+    handler(mql); // sync on mount
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
+// ============================================================
 // PAGE SIZE OPTIONS
 // ============================================================
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -74,15 +93,16 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 // COMPONENT
 // ============================================================
 export function DataTable<T>({
-  allColumns, defaultVisibleKeys, data, loading, meta,
+  module, allColumns, defaultVisibleKeys, data, loading, meta,
   visibleColumns, sortColumn, sortOrder, pageSize,
   columnWidths = {},
-  onSort, onPageChange, onPageSizeChange, onColumnsChange,
+  onSort, onPageChange, onPageSizeChange, onColumnsChange, onColumnWidthsChange,
   onRowClick, renderCell, renderActions,
   emptyMessage = 'No records found',
   searchValue, onSearchChange, onSearchSubmit,
 }: DataTableProps<T>) {
   const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const isMobile = useIsMobile();
 
   const colMap = useMemo(() => new Map(allColumns.map(c => [c.key, c])), [allColumns]);
 
@@ -92,6 +112,10 @@ export function DataTable<T>({
       .map(key => colMap.get(key))
       .filter((c): c is TableColumn => !!c);
   }, [visibleColumns, colMap]);
+
+  // Split columns into frozen (card header) vs non-frozen (card body)
+  const frozenCol = useMemo(() => columns.find(c => c.frozen), [columns]);
+  const bodyColumns = useMemo(() => columns.filter(c => !c.frozen), [columns]);
 
   // ── Drag-reorder on headers ──
   const dragCol = useRef<number | null>(null);
@@ -130,7 +154,7 @@ export function DataTable<T>({
   const startRecord = Math.min((meta.page - 1) * meta.limit + 1, meta.total);
   const endRecord = Math.min(meta.page * meta.limit, meta.total);
 
-  // ── Pagination range ──
+  // ── Pagination range (desktop) ──
   const pageRange = useMemo(() => {
     const total = meta.totalPages;
     const current = meta.page;
@@ -150,6 +174,21 @@ export function DataTable<T>({
     return range;
   }, [meta.page, meta.totalPages]);
 
+  // ── Mobile pagination (simplified: prev/current/next only) ──
+  const mobilePageRange = useMemo(() => {
+    const range: number[] = [];
+    const current = meta.page;
+    const total = meta.totalPages;
+    if (total <= 3) {
+      for (let i = 1; i <= total; i++) range.push(i);
+    } else {
+      if (current === 1) range.push(1, 2, 3);
+      else if (current === total) range.push(total - 2, total - 1, total);
+      else range.push(current - 1, current, current + 1);
+    }
+    return range;
+  }, [meta.page, meta.totalPages]);
+
   return (
     <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
       {/* ── Toolbar ── */}
@@ -164,7 +203,7 @@ export function DataTable<T>({
                 value={searchValue || ''}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder="Search..."
-                className="pl-9 pr-8 py-1.5 w-56 border border-gray-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                className="pl-9 pr-8 py-1.5 w-40 sm:w-56 border border-gray-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               />
               {searchValue && (
                 <button type="button" onClick={() => { onSearchChange(''); onSearchSubmit?.(); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded">
@@ -173,8 +212,11 @@ export function DataTable<T>({
               )}
             </form>
           )}
-          <span className="text-sm text-gray-500 dark:text-slate-400">
+          <span className="text-sm text-gray-500 dark:text-slate-400 hidden sm:inline">
             {meta.total} record{meta.total !== 1 ? 's' : ''}
+          </span>
+          <span className="text-xs text-gray-500 dark:text-slate-400 sm:hidden">
+            {meta.total}
           </span>
         </div>
 
@@ -205,74 +247,138 @@ export function DataTable<T>({
         </div>
       </div>
 
-      {/* ── Table ── */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          {/* Header */}
-          <thead>
-            <tr className="border-b border-gray-100 dark:border-slate-800">
-              {columns.map((col, index) => {
-                const sortKey = col.sortKey || col.key;
-                const isSorted = sortColumn === sortKey;
-                const isSortable = col.sortable;
-                const width = columnWidths[col.key] || col.defaultWidth || 150;
+      {/* ── Loading / Empty states ── */}
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-6 h-6 text-blue-500 animate-spin mx-auto mb-2" />
+        </div>
+      ) : data.length === 0 ? (
+        <div className="px-4 py-16 text-center">
+          <p className="text-sm text-gray-500 dark:text-slate-400">{emptyMessage}</p>
+        </div>
+      ) : isMobile ? (
+        /* ════════════════════════════════════════════════════════════
+           MOBILE: CARD VIEW
+           ════════════════════════════════════════════════════════════ */
+        <div className="divide-y divide-gray-100 dark:divide-slate-800">
+          {data.map((row, rowIndex) => {
+            const rowObj = row as Record<string, unknown>;
 
-                return (
-                  <th
-                    key={col.key}
-                    draggable={!col.frozen}
-                    onDragStart={() => handleHeaderDragStart(index)}
-                    onDragOver={(e) => handleHeaderDragOver(e, index)}
-                    onDrop={handleHeaderDrop}
-                    onClick={() => isSortable && handleSort(col)}
-                    className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider select-none whitespace-nowrap ${
-                      isSortable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50' : ''
-                    } ${col.frozen ? 'sticky left-0 z-10 bg-white dark:bg-slate-900' : ''} ${
-                      !col.frozen ? 'cursor-grab active:cursor-grabbing' : ''
-                    } ${isSorted ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400'}`}
-                    style={col.frozen ? { width, minWidth: width } : { width, minWidth: 80 }}
-                    title={isSortable ? `Sort by ${col.label}` : col.label}
-                  >
-                    <div className={`flex items-center gap-1 ${col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : ''}`}>
-                      {col.label}
-                      {isSortable && (
-                        <span className="inline-flex">
-                          {isSorted ? (
-                            sortOrder === 'ASC' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
-                          ) : (
-                            <ChevronsUpDown className="w-3 h-3 opacity-40" />
-                          )}
-                        </span>
-                      )}
+            // Frozen column value = card header
+            const headerValue = frozenCol ? getNestedValue(rowObj, frozenCol.key) : null;
+            const headerCustom = frozenCol ? renderCell?.(frozenCol, headerValue, row) : undefined;
+
+            return (
+              <div
+                key={String(rowObj.id || rowIndex)}
+                onClick={() => onRowClick?.(row)}
+                className={`px-4 py-3 ${
+                  onRowClick ? 'cursor-pointer active:bg-blue-50 dark:active:bg-slate-800' : ''
+                }`}
+              >
+                {/* Card header — frozen column (name/title) + actions */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    {headerCustom !== undefined ? (
+                      headerCustom
+                    ) : frozenCol ? (
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        {headerValue != null ? String(headerValue) : '—'}
+                      </p>
+                    ) : null}
+                  </div>
+                  {renderActions && (
+                    <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {renderActions(row)}
                     </div>
-                  </th>
-                );
-              })}
-              {renderActions && (
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 sticky right-0 bg-white dark:bg-slate-900 w-16">
-                  Actions
-                </th>
-              )}
-            </tr>
-          </thead>
+                  )}
+                </div>
 
-          {/* Body */}
-          <tbody className="divide-y divide-gray-50 dark:divide-slate-800/50">
-            {loading ? (
-              <tr>
-                <td colSpan={columns.length + (renderActions ? 1 : 0)} className="px-4 py-16 text-center">
-                  <Loader2 className="w-6 h-6 text-blue-500 animate-spin mx-auto mb-2" />
-                  <p className="text-sm text-gray-500 dark:text-slate-400">Loading...</p>
-                </td>
+                {/* Card body — remaining visible columns as label:value grid */}
+                {bodyColumns.length > 0 && (
+                  <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    {bodyColumns.map((col) => {
+                      const value = getNestedValue(rowObj, col.key);
+                      const custom = renderCell?.(col, value, row);
+
+                      return (
+                        <div key={col.key} className="min-w-0">
+                          <p className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider leading-tight">
+                            {col.label}
+                          </p>
+                          <div className="text-sm text-gray-700 dark:text-slate-300 truncate mt-0.5">
+                            {custom !== undefined ? (
+                              custom
+                            ) : (
+                              <CellRenderer column={col} value={value} />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* ════════════════════════════════════════════════════════════
+           DESKTOP: TABLE VIEW
+           ════════════════════════════════════════════════════════════ */
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            {/* Header */}
+            <thead>
+              <tr className="border-b border-gray-100 dark:border-slate-800">
+                {columns.map((col, index) => {
+                  const sortKey = col.sortKey || col.key;
+                  const isSorted = sortColumn === sortKey;
+                  const isSortable = col.sortable;
+                  const width = columnWidths[col.key] || col.defaultWidth || 150;
+
+                  return (
+                    <th
+                      key={col.key}
+                      draggable={!col.frozen}
+                      onDragStart={() => handleHeaderDragStart(index)}
+                      onDragOver={(e) => handleHeaderDragOver(e, index)}
+                      onDrop={handleHeaderDrop}
+                      onClick={() => isSortable && handleSort(col)}
+                      className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider select-none whitespace-nowrap ${
+                        isSortable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50' : ''
+                      } ${col.frozen ? 'sticky left-0 z-10 bg-white dark:bg-slate-900' : ''} ${
+                        !col.frozen ? 'cursor-grab active:cursor-grabbing' : ''
+                      } ${isSorted ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400'}`}
+                      style={col.frozen ? { width, minWidth: width } : { width, minWidth: 80 }}
+                      title={isSortable ? `Sort by ${col.label}` : col.label}
+                    >
+                      <div className={`flex items-center gap-1 ${col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : ''}`}>
+                        {col.label}
+                        {isSortable && (
+                          <span className="inline-flex">
+                            {isSorted ? (
+                              sortOrder === 'ASC' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                            ) : (
+                              <ChevronsUpDown className="w-3 h-3 opacity-40" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
+                {renderActions && (
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 sticky right-0 bg-white dark:bg-slate-900 w-16">
+                    Actions
+                  </th>
+                )}
               </tr>
-            ) : data.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length + (renderActions ? 1 : 0)} className="px-4 py-16 text-center">
-                  <p className="text-sm text-gray-500 dark:text-slate-400">{emptyMessage}</p>
-                </td>
-              </tr>
-            ) : (
-              data.map((row, rowIndex) => (
+            </thead>
+
+            {/* Body */}
+            <tbody className="divide-y divide-gray-50 dark:divide-slate-800/50">
+              {data.map((row, rowIndex) => (
                 <tr
                   key={String((row as Record<string, unknown>).id || rowIndex)}
                   onClick={() => onRowClick?.(row)}
@@ -313,17 +419,17 @@ export function DataTable<T>({
                     </td>
                   )}
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* ── Pagination ── */}
       {meta.totalPages > 0 && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 dark:border-slate-800">
           <p className="text-xs text-gray-500 dark:text-slate-400">
-            Showing {startRecord}–{endRecord} of {meta.total}
+            <span className="hidden sm:inline">Showing </span>{startRecord}–{endRecord}<span className="hidden sm:inline"> of {meta.total}</span>
           </p>
 
           <div className="flex items-center gap-1">
@@ -335,14 +441,34 @@ export function DataTable<T>({
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            {pageRange.map((p, i) =>
-              p === 'ellipsis' ? (
-                <span key={`e-${i}`} className="px-1 text-gray-400 dark:text-slate-500 text-xs">…</span>
-              ) : (
+            {/* Desktop: full page range */}
+            <div className="hidden sm:flex items-center gap-1">
+              {pageRange.map((p, i) =>
+                p === 'ellipsis' ? (
+                  <span key={`e-${i}`} className="px-1 text-gray-400 dark:text-slate-500 text-xs">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => onPageChange(p)}
+                    className={`min-w-[32px] h-8 rounded-lg text-xs font-medium transition-colors ${
+                      p === meta.page
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ),
+              )}
+            </div>
+
+            {/* Mobile: simplified page range */}
+            <div className="flex sm:hidden items-center gap-1">
+              {mobilePageRange.map((p) => (
                 <button
                   key={p}
                   onClick={() => onPageChange(p)}
-                  className={`min-w-[32px] h-8 rounded-lg text-xs font-medium transition-colors ${
+                  className={`min-w-[28px] h-7 rounded-lg text-xs font-medium transition-colors ${
                     p === meta.page
                       ? 'bg-blue-600 text-white'
                       : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800'
@@ -350,8 +476,8 @@ export function DataTable<T>({
                 >
                   {p}
                 </button>
-              ),
-            )}
+              ))}
+            </div>
 
             <button
               onClick={() => onPageChange(meta.page + 1)}
