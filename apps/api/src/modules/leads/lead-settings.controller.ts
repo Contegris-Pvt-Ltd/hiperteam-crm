@@ -146,7 +146,7 @@ export class LeadSettingsController {
     @Param('stageId') stageId: string,
     @Body() body: { fields: any[] },
   ) {
-    return this.settingsService.upsertStageFields(req.user.tenantSchema, stageId, body.fields, req.user.sub);
+    return this.settingsService.upsertStageFields(req.user.tenantSchema, stageId, body.fields);
   }
 
   // ============================================================
