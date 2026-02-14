@@ -12,7 +12,7 @@ import {
   ChevronDown, ChevronRight, Plus, X,
 } from 'lucide-react';
 import { leadsApi, leadSettingsApi } from '../../api/leads.api';
-import type { CreateLeadData, LeadStage, LeadPriority, QualificationField, DuplicateMatch } from '../../api/leads.api';
+import type { CreateLeadData, LeadStage, LeadPriority, QualificationField, DuplicateMatch, Pipeline } from '../../api/leads.api';
 import { adminApi } from '../../api/admin.api';
 import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.api';
 import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
@@ -45,6 +45,7 @@ export function LeadEditPage() {
   const [stages, setStages] = useState<LeadStage[]>([]);
   const [priorities, setPriorities] = useState<LeadPriority[]>([]);
   const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [qualificationFields, setQualificationFields] = useState<QualificationField[]>([]);
   const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
 
@@ -90,6 +91,7 @@ export function LeadEditPage() {
     country: '',
     source: '',
     stageId: '',
+    pipelineId: '',
     priorityId: '',
     qualification: {},
     tags: [],
@@ -105,6 +107,7 @@ export function LeadEditPage() {
   // ── Fetch lookups + custom fields on mount ──
   useEffect(() => {
     Promise.all([
+      leadSettingsApi.getPipelines(),
       leadSettingsApi.getStages(),
       leadSettingsApi.getPriorities(),
       leadSettingsApi.getSources(),
@@ -113,7 +116,8 @@ export function LeadEditPage() {
       adminApi.getCustomFields('leads'),
       adminApi.getTabs('leads'),
       adminApi.getGroups({ module: 'leads' }),
-    ]).then(([stagesData, prioritiesData, sourcesData, frameworks, , fieldsData, tabsData, groupsData]) => {
+    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData, frameworks, , fieldsData, tabsData, groupsData]) => {
+      setPipelines(pipelinesData);
       setStages(stagesData.filter((s: LeadStage) => s.isActive));
       setPriorities(prioritiesData.filter((p: any) => p.isActive !== false));
       setSources(sourcesData);
@@ -135,10 +139,12 @@ export function LeadEditPage() {
 
       // Set defaults for new lead
       if (isNew) {
+        const defaultPipeline = pipelinesData.find((p: Pipeline) => p.isDefault);
         const defaultStage = stagesData.find((s: LeadStage) => s.isActive && !s.isWon && !s.isLost);
         const defaultPriority = prioritiesData.find((p: any) => p.isDefault);
         setFormData(prev => ({
           ...prev,
+          pipelineId: defaultPipeline?.id || '',
           stageId: defaultStage?.id || '',
           priorityId: defaultPriority?.id || '',
           qualificationFrameworkId: activeFw?.id,
@@ -187,6 +193,7 @@ export function LeadEditPage() {
         country: data.country || '',
         source: data.source || '',
         stageId: data.stageId || '',
+        pipelineId: data.pipelineId || '',
         priorityId: data.priorityId || '',
         qualification: data.qualification || {},
         qualificationFrameworkId: data.qualificationFrameworkId || undefined,
@@ -374,6 +381,22 @@ export function LeadEditPage() {
     setStageFieldsModal(null);
   };
 
+  // ── Pipeline change: reload stages for selected pipeline ──
+  const handlePipelineChange = async (newPipelineId: string) => {
+    handleChange('pipelineId', newPipelineId);
+    handleChange('stageId', '');
+    if (!newPipelineId) return;
+    try {
+      const newStages = await leadSettingsApi.getStages(newPipelineId, 'leads');
+      setStages(newStages.filter((s: LeadStage) => s.isActive));
+      // Auto-select first non-terminal stage
+      const defaultStage = newStages.find((s: LeadStage) => s.isActive && !s.isWon && !s.isLost);
+      if (defaultStage) handleChange('stageId', defaultStage.id);
+    } catch (err) {
+      console.error('Failed to load stages for pipeline:', err);
+    }
+  };
+
   // ── Save ──
   const handleSave = async () => {
     if (!formData.lastName?.trim()) {
@@ -386,7 +409,7 @@ export function LeadEditPage() {
     try {
       // Strip empty strings from UUID fields so backend validation passes
       const dataToSave: Record<string, any> = { ...formData };
-      ['ownerId', 'stageId', 'priorityId', 'qualificationFrameworkId'].forEach(key => {
+      ['ownerId', 'stageId', 'pipelineId', 'priorityId', 'qualificationFrameworkId'].forEach(key => {
         if (!dataToSave[key]) delete dataToSave[key];
       });
 
@@ -634,15 +657,22 @@ export function LeadEditPage() {
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4">Lead Details</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Source</label>
-                <select value={formData.source || ''} onChange={(e) => handleChange('source', e.target.value)} className={inputClass}>
-                  <option value="">Select source...</option>
-                  {sources.map((s) => (
-                    <option key={s.id} value={s.name}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
+              {/* Pipeline */}
+              {pipelines.length > 0 && (
+                <div>
+                  <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Pipeline</label>
+                  <select
+                    value={formData.pipelineId || ''}
+                    onChange={(e) => handlePipelineChange(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">Select pipeline...</option>
+                    {pipelines.filter(p => p.isActive).map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}{p.isDefault ? ' (Default)' : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Stage</label>
                 <div className="relative">
@@ -673,6 +703,18 @@ export function LeadEditPage() {
                   ))}
                 </select>
               </div>
+              
+              <div>
+                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Source</label>
+                <select value={formData.source || ''} onChange={(e) => handleChange('source', e.target.value)} className={inputClass}>
+                  <option value="">Select source...</option>
+                  {sources.map((s) => (
+                    <option key={s.id} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              
               <div>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Owner</label>
                 <select value={formData.ownerId || ''} onChange={(e) => handleChange('ownerId', e.target.value)} className={inputClass}>
