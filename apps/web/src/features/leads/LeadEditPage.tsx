@@ -403,13 +403,23 @@ export function LeadEditPage() {
       setError('Last name is required');
       return;
     }
+    if (!formData.pipelineId) {
+      setError('Pipeline is required');
+      setActiveTab('lead-details');
+      return;
+    }
+    if (!formData.stageId) {
+      setError('Stage is required');
+      setActiveTab('lead-details');
+      return;
+    }
 
     setSaving(true);
     setError('');
     try {
       // Strip empty strings from UUID fields so backend validation passes
       const dataToSave: Record<string, any> = { ...formData };
-      ['ownerId', 'stageId', 'pipelineId', 'priorityId', 'qualificationFrameworkId'].forEach(key => {
+      ['ownerId', 'priorityId', 'qualificationFrameworkId'].forEach(key => {
         if (!dataToSave[key]) delete dataToSave[key];
       });
 
@@ -660,7 +670,7 @@ export function LeadEditPage() {
               {/* Pipeline */}
               {pipelines.length > 0 && (
                 <div>
-                  <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Pipeline</label>
+                  <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Pipeline <span className="text-red-500">*</span></label>
                   <select
                     value={formData.pipelineId || ''}
                     onChange={(e) => handlePipelineChange(e.target.value)}
@@ -674,7 +684,7 @@ export function LeadEditPage() {
                 </div>
               )}
               <div>
-                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Stage</label>
+                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Stage <span className="text-red-500">*</span></label>
                 <div className="relative">
                   <select
                     value={formData.stageId || ''}
@@ -703,7 +713,6 @@ export function LeadEditPage() {
                   ))}
                 </select>
               </div>
-              
               <div>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Source</label>
                 <select value={formData.source || ''} onChange={(e) => handleChange('source', e.target.value)} className={inputClass}>
@@ -713,8 +722,6 @@ export function LeadEditPage() {
                   ))}
                 </select>
               </div>
-              
-              
               <div>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Owner</label>
                 <select value={formData.ownerId || ''} onChange={(e) => handleChange('ownerId', e.target.value)} className={inputClass}>
