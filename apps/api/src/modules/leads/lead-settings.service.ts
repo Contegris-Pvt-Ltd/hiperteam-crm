@@ -393,7 +393,7 @@ export class LeadSettingsService {
     }));
   }
 
-  async upsertStageFields(schemaName: string, stageId: string, fields: any[]) {
+  async upsertStageFields(schemaName: string, stageId: string, fields: any[], _userId?: string) {
     // Validate stage exists
     const [stage] = await this.dataSource.query(
       `SELECT id FROM "${schemaName}".pipeline_stages WHERE id = $1`, [stageId],
