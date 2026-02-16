@@ -3,7 +3,7 @@
 // ============================================================
 import { useState, type DragEvent, type ReactNode } from 'react';
 import { DollarSign, Calendar, Building2, Loader2 } from 'lucide-react';
-import type { KanbanStageData, Opportunity, OpportunityPriority } from '../../../api/opportunities.api';
+import type { KanbanStageData, OpportunityPriority } from '../../../api/opportunities.api';
 
 interface OpportunityKanbanBoardProps {
   stages: KanbanStageData[];

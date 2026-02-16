@@ -4,7 +4,7 @@
 // Shared utility for client-side field validation.
 // Used by LeadEditPage, ContactEditPage, AccountEditPage, etc.
 // ============================================================
-import type { ValidationRule, FieldValidationConfig } from '../api/module-settings.api';
+import type { FieldValidationConfig } from '../api/module-settings.api';
 
 export interface ValidationError {
   rule: string;       // rule.id

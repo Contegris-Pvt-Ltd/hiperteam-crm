@@ -10,7 +10,7 @@
 //   - RBAC via ownership filtering
 //   - formatOpportunity() for consistent camelCase output
 // ============================================================
-import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
@@ -631,9 +631,10 @@ export class OpportunitiesService {
     }
 
     // Calculate time in previous stage
-    const timeInStage = opp.stageEnteredAt
+    // TODO: This is not perfectly accurate since stageEnteredAt is only updated on stage changes, but it's a reasonable approximation without needing to query the stage history table for the last entry.
+    /*const timeInStage = opp.stageEnteredAt
       ? `NOW() - '${opp.stageEnteredAt}'::timestamptz`
-      : 'NULL';
+      : 'NULL';*/
 
     // Record stage history
     await this.dataSource.query(
@@ -999,7 +1000,7 @@ export class OpportunitiesService {
       );
     }
 
-    const [result] = await this.dataSource.query(
+    await this.dataSource.query(
       `INSERT INTO "${schemaName}".opportunity_contacts
        (opportunity_id, contact_id, role, is_primary, notes)
        VALUES ($1, $2, $3, $4, $5)
@@ -1159,7 +1160,7 @@ export class OpportunitiesService {
     return this.getLineItems(schemaName, opportunityId);
   }
 
-  async updateLineItem(schemaName: string, opportunityId: string, itemId: string, data: any, userId: string) {
+  async updateLineItem(schemaName: string, opportunityId: string, itemId: string, data: any) {
     // Fetch existing item to merge values
     const [existing] = await this.dataSource.query(
       `SELECT * FROM "${schemaName}".opportunity_line_items WHERE id = $1 AND opportunity_id = $2`,

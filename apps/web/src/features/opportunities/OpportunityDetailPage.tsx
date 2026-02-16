@@ -4,13 +4,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Pencil, Trash2, DollarSign, Calendar, Building2,
-  User, Trophy, XCircle, RotateCcw, Loader2, Clock,
+  ArrowLeft, Pencil, Trash2, DollarSign, Building2,
+  Trophy, XCircle, RotateCcw, Loader2,
   Users, Package, History, BarChart3, MessageSquare, FileText, Activity,
   UserPlus, X, Search,
 } from 'lucide-react';
-import { opportunitiesApi, opportunitySettingsApi } from '../../api/opportunities.api';
-import type { Opportunity, OpportunityStage, OpportunityContact, OpportunityLineItem } from '../../api/opportunities.api';
+import { opportunitiesApi } from '../../api/opportunities.api';
+import type { Opportunity, OpportunityContact, OpportunityLineItem } from '../../api/opportunities.api';
 import { StageJourneyBar } from '../leads/components/StageJourneyBar';
 import { CloseWonModal } from './components/CloseWonModal';
 import { CloseLostModal } from './components/CloseLostModal';
@@ -20,7 +20,7 @@ import { LineItemsPanel } from './components/LineItemsPanel';
 import { StageHistoryPanel } from './components/StageHistoryPanel';
 import { ForecastView } from './components/ForecastView';
 import { usePermissions } from '../../hooks/usePermissions';
-import { AuditLogViewer } from '../../components/shared/AuditLogViewer';
+//import { AuditLogViewer } from '../../components/shared/AuditLogViewer';
 import { DocumentsPanel } from '../../components/shared/DocumentsPanel';
 
 type Tab = 'details' | 'contacts' | 'products' | 'activity' | 'notes' | 'files' | 'history' | 'forecast';

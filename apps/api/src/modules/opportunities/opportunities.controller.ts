@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { PermissionGuard, RequirePermission } from '../../common/guards/permissions.guard';
+import { RequirePermission } from '../../common/guards/permissions.guard';
 import { OpportunitiesService } from './opportunities.service';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
@@ -294,7 +294,7 @@ export class OpportunitiesController {
     },
   ) {
     return this.opportunitiesService.updateLineItem(
-      req.user.tenantSchema, id, itemId, body, req.user.sub,
+      req.user.tenantSchema, id, itemId, body,
     );
   }
 

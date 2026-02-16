@@ -1,7 +1,7 @@
 // ============================================================
 // FILE: apps/api/src/modules/leads/dto/query-leads.dto.ts
 // ============================================================
-import { IsOptional, IsString, IsInt, Min, Max, IsUUID, IsArray } from 'class-validator';
+import { IsOptional, IsString, IsInt, Min, Max, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 

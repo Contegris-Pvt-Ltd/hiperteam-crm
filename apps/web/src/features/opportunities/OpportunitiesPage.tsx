@@ -456,7 +456,7 @@ export function OpportunitiesPage() {
             onColumnWidthsChange={tablePrefs.setColumnWidths}
             onRowClick={(row) => navigate(`/opportunities/${row.id}`)}
             emptyMessage="No opportunities found. Try adjusting your search or filters."
-            renderCell={(col, value, row) => {
+            renderCell={(col, _value, row) => {
               const opp = row as unknown as Opportunity;
 
               // Name column

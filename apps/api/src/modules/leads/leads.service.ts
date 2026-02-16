@@ -1125,7 +1125,6 @@ export class LeadsService {
 
     // ── 3. Find relationships between matched contacts and accounts ──
     const contactIds = matchingContacts.map(c => c.id);
-    const accountIds = matchingAccounts.map(a => a.id);
 
     if (contactIds.length > 0) {
       // Get all account links for these contacts
@@ -2060,7 +2059,7 @@ export class LeadsService {
       [productId],
     );
 
-    const result = await this.dataSource.query(
+    await this.dataSource.query(
       `DELETE FROM "${schemaName}".lead_products WHERE lead_id = $1 AND product_id = $2`,
       [leadId, productId],
     );

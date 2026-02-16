@@ -5,8 +5,8 @@
 // custom fields, custom tabs, custom groups — matching LeadEditPage pattern.
 // ============================================================
 
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Save, Loader2, AlertTriangle,
   ChevronDown, ChevronRight, Plus, X, Search,
@@ -50,12 +50,12 @@ export function OpportunityEditPage() {
   // Account/contact search
   const [accountSearch, setAccountSearch] = useState('');
   const [accountResults, setAccountResults] = useState<any[]>([]);
-  const [accountSearchLoading, setAccountSearchLoading] = useState(false);
+  const [_accountSearchLoading, setAccountSearchLoading] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<{ id: string; name: string } | null>(null);
 
   const [contactSearch, setContactSearch] = useState('');
   const [contactResults, setContactResults] = useState<any[]>([]);
-  const [contactSearchLoading, setContactSearchLoading] = useState(false);
+  const [_contactSearchLoading, setContactSearchLoading] = useState(false);
   const [selectedContact, setSelectedContact] = useState<{ id: string; name: string } | null>(null);
 
   // Custom fields, tabs, groups

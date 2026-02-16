@@ -438,14 +438,14 @@ function StagesTab({
     }
   };
 
-  const handleToggle = async (stage: OpportunityStage) => {
+  /*const handleToggle = async (stage: OpportunityStage) => {
     try {
       await opportunitySettingsApi.updateStage(stage.id, { isActive: !(stage as any).isActive });
       onReload();
     } catch (err) {
       console.error('Failed:', err);
     }
-  };
+  };*/
 
   return (
     <div>

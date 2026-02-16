@@ -8,7 +8,7 @@ import {
 import type { Account, AccountsQuery } from '../../api/accounts.api';
 import { accountsApi } from '../../api/accounts.api';
 import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
-import { ACCOUNT_CLASSIFICATIONS } from '../../api/accounts.api';
+//import { ACCOUNT_CLASSIFICATIONS } from '../../api/accounts.api';
 
 export function AccountsPage() {
   const navigate = useNavigate();
