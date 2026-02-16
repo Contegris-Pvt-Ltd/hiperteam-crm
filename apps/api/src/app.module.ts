@@ -20,6 +20,7 @@ import { TeamsModule } from './modules/teams/teams.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ProductsModule } from './modules/products/products.module';
 import { LeadsModule } from './modules/leads/leads.module';
+import { OpportunitiesModule } from './modules/opportunities/opportunities.module';
 
 @Module({
   imports: [
@@ -56,7 +57,8 @@ import { LeadsModule } from './modules/leads/leads.module';
     TeamsModule,
     RolesModule,
     ProductsModule,
-    LeadsModule
+    LeadsModule,
+    OpportunitiesModule
   ],
   controllers: [AppController],
   providers: [AppService],

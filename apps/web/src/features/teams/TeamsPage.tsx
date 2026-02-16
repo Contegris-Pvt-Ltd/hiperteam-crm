@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, Users, Pencil, Trash2, Eye, X, UserPlus, UserMinus,
@@ -56,6 +56,10 @@ export function TeamsPage() {
   const [addMemberRole, setAddMemberRole] = useState<'member' | 'lead'>('member');
   const [addMemberLoading, setAddMemberLoading] = useState(false);
 
+  // Guards to prevent multiple fetches on mount
+  const prefsApplied = useRef(false);
+  const searchMounted = useRef(false);
+
   // ============================================================
   // DATA FETCHING
   // ============================================================
@@ -72,26 +76,29 @@ export function TeamsPage() {
     }
   }, [query]);
 
+  // ── Sync table preferences into query once loaded (runs first) ──
   useEffect(() => {
-    if (tablePrefs.loading) return;
-    fetchTeams();
-  }, [fetchTeams, tablePrefs.loading]);
-
-  useEffect(() => {
-    departmentsApi.getLookup().then(setDepartments).catch(console.error);
-  }, []);
-
-  // ── Sync table preferences into query once loaded ──
-  useEffect(() => {
-    if (!tablePrefs.loading) {
+    if (!tablePrefs.loading && !prefsApplied.current) {
       setQuery(prev => ({
         ...prev,
         limit: tablePrefs.pageSize,
         sortBy: tablePrefs.sortColumn,
         sortOrder: tablePrefs.sortOrder,
       }));
+      prefsApplied.current = true;
     }
   }, [tablePrefs.loading]);
+
+  // ── Fetch data (waits for prefs to be applied) ──
+  useEffect(() => {
+    if (!prefsApplied.current) return;
+    fetchTeams();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  useEffect(() => {
+    departmentsApi.getLookup().then(setDepartments).catch(console.error);
+  }, []);
 
   const loadDetail = async (id: string) => {
     setDetailLoading(true);
@@ -125,6 +132,11 @@ export function TeamsPage() {
   // HANDLERS
   // ============================================================
   useEffect(() => {
+    // Skip the initial mount — only fire on actual user input
+    if (!searchMounted.current) {
+      searchMounted.current = true;
+      return;
+    }
     const timer = setTimeout(() => {
       setQuery((prev) => ({ ...prev, search: searchInput || undefined, page: 1 }));
     }, 300);

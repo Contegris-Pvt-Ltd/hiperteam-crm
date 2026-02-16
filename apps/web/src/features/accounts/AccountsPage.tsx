@@ -3,11 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   Plus, Search, Filter, Download, 
   Globe, Users,
-  Eye, Pencil, Trash2,
+  Eye, Pencil, Trash2, Building2, User
 } from 'lucide-react';
 import type { Account, AccountsQuery } from '../../api/accounts.api';
 import { accountsApi } from '../../api/accounts.api';
 import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
+import { ACCOUNT_CLASSIFICATIONS } from '../../api/accounts.api';
 
 export function AccountsPage() {
   const navigate = useNavigate();
@@ -75,7 +76,7 @@ export function AccountsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Accounts</h1>
           <p className="text-gray-500 dark:text-slate-400 mt-1">
-            {meta.total} accounts total
+            {meta.total} {query.accountClassification === 'business' ? 'business' : query.accountClassification === 'individual' ? 'individual' : ''} accounts
           </p>
         </div>
         <Link
@@ -115,6 +116,39 @@ export function AccountsPage() {
             </button>
           </div>
         </form>
+        {/* Classification Filter — Add after search bar, before the existing filter/export buttons */}
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-800 rounded-xl p-1">
+          <button
+            onClick={() => setQuery({ ...query, accountClassification: undefined, page: 1 })}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              !query.accountClassification
+                ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setQuery({ ...query, accountClassification: 'business', page: 1 })}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              query.accountClassification === 'business'
+                ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
+            }`}
+          >
+            <Building2 className="w-3 h-3" /> B2B
+          </button>
+          <button
+            onClick={() => setQuery({ ...query, accountClassification: 'individual', page: 1 })}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              query.accountClassification === 'individual'
+                ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
+            }`}
+          >
+            <User className="w-3 h-3" /> B2C
+          </button>
+        </div>
       </div>
 
       {/* ── DataTable ── */}

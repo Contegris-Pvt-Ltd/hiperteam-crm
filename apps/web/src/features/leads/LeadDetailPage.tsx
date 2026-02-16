@@ -9,7 +9,7 @@ import {
   Tag, Activity, History,
   MessageSquare, FileText,
   ExternalLink, Flame, Thermometer, Snowflake, Sun, Minus,
-  AlertTriangle, ChevronDown, ChevronRight,
+  AlertTriangle, ChevronDown, ChevronRight, Package
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { leadsApi } from '../../api/leads.api';
@@ -25,8 +25,9 @@ import { DocumentsPanel } from '../../components/shared/DocumentsPanel';
 import { adminApi } from '../../api/admin.api';
 import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.api';
 import { usePermissions } from '../../hooks/usePermissions';
+import { LeadProductsTab } from './components/LeadProductsTab';
 
-type TabType = 'activity' | 'notes' | 'documents' | 'history';
+type TabType = 'products' | 'activity' | 'notes' | 'documents' | 'history';
 
 const PRIORITY_ICONS: Record<string, any> = {
   flame: Flame, thermometer: Thermometer, snowflake: Snowflake, sun: Sun, minus: Minus,
@@ -103,6 +104,7 @@ export function LeadDetailPage() {
 
   const fetchTabData = async () => {
     if (!id) return;
+    setTabData(null);   
     setTabLoading(true);
     try {
       switch (activeTab) {
@@ -450,6 +452,7 @@ export function LeadDetailPage() {
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg">
             <div className="flex border-b border-gray-200 dark:border-gray-700">
               {[
+                { key: 'products', label: 'Products', icon: Package },
                 { key: 'activity', label: 'Activity', icon: Activity },
                 { key: 'notes', label: 'Notes', icon: MessageSquare },
                 { key: 'documents', label: 'Documents', icon: FileText },
@@ -475,6 +478,8 @@ export function LeadDetailPage() {
                 <div className="flex items-center justify-center py-8">
                   <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                 </div>
+              ) : activeTab === 'products' && lead ? (
+                <LeadProductsTab leadId={lead.id} readOnly={!canEdit('leads')} />
               ) : activeTab === 'activity' ? (
                 <Timeline activities={tabData?.data || tabData || []} />
               ) : activeTab === 'notes' ? (
@@ -552,6 +557,22 @@ export function LeadDetailPage() {
               onRefresh={fetchLead}
               canEdit={canEdit('leads') && !isReadOnly}
             />
+
+            {/* Linked Products Summary */}
+            {lead.productsCount !== undefined && lead.productsCount > 0 && (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4">
+                <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                  Interested Products
+                </h4>
+                <button
+                  onClick={() => setActiveTab('products')}
+                  className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  <Package className="w-4 h-4" />
+                  {lead.productsCount} product{lead.productsCount !== 1 ? 's' : ''} linked
+                </button>
+              </div>
+            )}
 
             {/* Created by */}
             {lead.createdByUser && (

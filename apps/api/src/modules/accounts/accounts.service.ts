@@ -1,3 +1,7 @@
+// ============================================================
+// FILE: apps/api/src/modules/accounts/accounts.service.ts
+// Updated: B2B/B2C classification + individual fields
+// ============================================================
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { CreateAccountDto, UpdateAccountDto, QueryAccountsDto } from './dto';
@@ -13,6 +17,7 @@ export class AccountsService {
     'name', 'logoUrl', 'website', 'industry', 'companySize', 'annualRevenue',
     'description', 'emails', 'phones', 'addresses', 'socialProfiles',
     'parentAccountId', 'accountType', 'status', 'tags', 'customFields', 'ownerId',
+    'accountClassification', 'firstName', 'lastName', 'dateOfBirth', 'gender', 'nationalId',
   ];
 
   constructor(
@@ -25,15 +30,25 @@ export class AccountsService {
   ) {}
 
   async create(schemaName: string, userId: string, dto: CreateAccountDto) {
+    // For individual accounts, auto-generate name from first+last if name not provided
+    let accountName = dto.name;
+    if (dto.accountClassification === 'individual' && dto.firstName) {
+      if (!accountName || accountName.trim() === '') {
+        accountName = [dto.firstName, dto.lastName].filter(Boolean).join(' ');
+      }
+    }
+
     const [account] = await this.dataSource.query(
       `INSERT INTO "${schemaName}".accounts 
        (name, logo_url, website, industry, company_size, annual_revenue, description,
         emails, phones, addresses, social_profiles, parent_account_id, account_type,
-        tags, custom_fields, source, owner_id, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        tags, custom_fields, source, owner_id, created_by,
+        account_classification, first_name, last_name, date_of_birth, gender, national_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+               $19, $20, $21, $22, $23, $24)
        RETURNING *`,
       [
-        dto.name,
+        accountName,
         dto.logoUrl || null,
         dto.website || null,
         dto.industry || null,
@@ -51,6 +66,12 @@ export class AccountsService {
         dto.source || null,
         dto.ownerId || userId,
         userId,
+        dto.accountClassification || 'business',
+        dto.firstName || null,
+        dto.lastName || null,
+        dto.dateOfBirth || null,
+        dto.gender || null,
+        dto.nationalId || null,
       ],
     );
 
@@ -62,7 +83,7 @@ export class AccountsService {
       entityId: account.id,
       activityType: 'created',
       title: 'Account created',
-      description: `Account "${dto.name}" was created`,
+      description: `Account "${accountName}" was created`,
       performedBy: userId,
     });
 
@@ -81,7 +102,7 @@ export class AccountsService {
 
   async findAll(schemaName: string, query: QueryAccountsDto, userId?: string) {
     const {
-      search, status, accountType, industry, tag, ownerId, parentAccountId,
+      search, status, accountType, accountClassification, industry, tag, ownerId, parentAccountId,
       page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC'
     } = query;
     const offset = (page - 1) * limit;
@@ -106,7 +127,8 @@ export class AccountsService {
     }
 
     if (search) {
-      whereClause += ` AND (a.name ILIKE $${paramIndex} OR a.website ILIKE $${paramIndex})`;
+      // Search across name, website, and for individuals: first_name, last_name
+      whereClause += ` AND (a.name ILIKE $${paramIndex} OR a.website ILIKE $${paramIndex} OR a.first_name ILIKE $${paramIndex} OR a.last_name ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
       paramIndex++;
     }
@@ -120,6 +142,12 @@ export class AccountsService {
     if (accountType) {
       whereClause += ` AND a.account_type = $${paramIndex}`;
       params.push(accountType);
+      paramIndex++;
+    }
+
+    if (accountClassification) {
+      whereClause += ` AND a.account_classification = $${paramIndex}`;
+      params.push(accountClassification);
       paramIndex++;
     }
 
@@ -147,7 +175,7 @@ export class AccountsService {
       paramIndex++;
     }
 
-    const allowedSortFields = ['created_at', 'updated_at', 'name', 'industry', 'account_type'];
+    const allowedSortFields = ['created_at', 'updated_at', 'name', 'industry', 'account_type', 'account_classification'];
     const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
     const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
 
@@ -232,6 +260,7 @@ export class AccountsService {
         profileCompletion,
     };
     }
+
   async update(schemaName: string, id: string, userId: string, dto: UpdateAccountDto) {
     const existing = await this.findOneRaw(schemaName, id);
 
@@ -258,6 +287,13 @@ export class AccountsService {
       customFields: 'custom_fields',
       source: 'source',
       ownerId: 'owner_id',
+      // B2C fields
+      accountClassification: 'account_classification',
+      firstName: 'first_name',
+      lastName: 'last_name',
+      dateOfBirth: 'date_of_birth',
+      gender: 'gender',
+      nationalId: 'national_id',
     };
 
     for (const [key, value] of Object.entries(dto)) {
@@ -269,6 +305,20 @@ export class AccountsService {
           params.push(value);
         }
         paramIndex++;
+      }
+    }
+
+    // For individual accounts, auto-sync name from first+last if those changed
+    if (dto.accountClassification === 'individual' || (existing as any).accountClassification === 'individual') {
+      const newFirst = dto.firstName ?? (existing as any).firstName;
+      const newLast = dto.lastName ?? (existing as any).lastName;
+      if ((dto.firstName !== undefined || dto.lastName !== undefined) && !dto.name) {
+        const autoName = [newFirst, newLast].filter(Boolean).join(' ');
+        if (autoName) {
+          updates.push(`name = $${paramIndex}`);
+          params.push(autoName);
+          paramIndex++;
+        }
       }
     }
 
@@ -334,7 +384,7 @@ export class AccountsService {
       entityId: id,
       activityType: 'deleted',
       title: 'Account deleted',
-      description: `Account "${existing.name}" was deleted`,
+      description: `Account "${(existing as any).name}" was deleted`,
       performedBy: userId,
     });
 
@@ -347,14 +397,17 @@ export class AccountsService {
       performedBy: userId,
     });
 
-    return { message: 'Account deleted successfully' };
+    return { message: 'Account deleted' };
   }
+
+  // ============ CONTACTS RELATIONSHIP ============
 
   async getContacts(schemaName: string, accountId: string) {
     const contacts = await this.dataSource.query(
-      `SELECT c.*, ca.role, ca.is_primary
-       FROM "${schemaName}".contacts c
-       INNER JOIN "${schemaName}".contact_accounts ca ON c.id = ca.contact_id
+      `SELECT c.id, c.first_name, c.last_name, c.email, c.phone, c.job_title, c.avatar_url,
+              ca.role, ca.is_primary
+       FROM "${schemaName}".contact_accounts ca
+       JOIN "${schemaName}".contacts c ON ca.contact_id = c.id
        WHERE ca.account_id = $1 AND c.deleted_at IS NULL
        ORDER BY ca.is_primary DESC, c.first_name ASC`,
       [accountId],
@@ -373,14 +426,7 @@ export class AccountsService {
     }));
   }
 
-  async linkContact(
-    schemaName: string,
-    accountId: string,
-    contactId: string,
-    role: string,
-    isPrimary: boolean,
-    userId: string,
-  ) {
+  async linkContact(schemaName: string, accountId: string, contactId: string, role: string, isPrimary: boolean, userId: string) {
     await this.dataSource.query(
       `INSERT INTO "${schemaName}".contact_accounts (account_id, contact_id, role, is_primary)
        VALUES ($1, $2, $3, $4)
@@ -423,7 +469,8 @@ export class AccountsService {
 
   async getChildAccounts(schemaName: string, parentId: string) {
     const accounts = await this.dataSource.query(
-      `SELECT id, name, logo_url, website, industry, account_type, status
+      `SELECT id, name, logo_url, website, industry, account_type, account_classification, status,
+              first_name, last_name
        FROM "${schemaName}".accounts
        WHERE parent_account_id = $1 AND deleted_at IS NULL
        ORDER BY name ASC`,
@@ -437,7 +484,10 @@ export class AccountsService {
       website: a.website,
       industry: a.industry,
       accountType: a.account_type,
+      accountClassification: a.account_classification,
       status: a.status,
+      firstName: a.first_name,
+      lastName: a.last_name,
     }));
   }
 
@@ -465,6 +515,12 @@ export class AccountsService {
             }
         : null,
       accountType: account.account_type,
+      accountClassification: account.account_classification || 'business',
+      firstName: account.first_name,
+      lastName: account.last_name,
+      dateOfBirth: account.date_of_birth,
+      gender: account.gender,
+      nationalId: account.national_id,
       status: account.status,
       tags: account.tags,
       customFields: account.custom_fields,
@@ -473,9 +529,7 @@ export class AccountsService {
       owner: account.owner_first_name
         ? { id: account.owner_id, firstName: account.owner_first_name, lastName: account.owner_last_name }
         : null,
-      contactsCount: parseInt(account.contacts_count as string) || 0,
-      createdBy: account.created_by,
-      lastActivityAt: account.last_activity_at,
+      contactsCount: parseInt(String(account.contacts_count || '0')),
       createdAt: account.created_at,
       updatedAt: account.updated_at,
     };

@@ -1,121 +1,62 @@
+// ============================================================
+// FILE: apps/api/src/modules/accounts/dto/create-account.dto.ts
+// Updated: Added B2B/B2C classification + individual fields
+// ============================================================
 import {
   IsString,
-  IsEmail,
   IsOptional,
-  IsArray,
-  IsObject,
-  MaxLength,
-  IsUUID,
   IsNumber,
-  IsBoolean,
+  IsObject,
+  IsArray,
+  IsUUID,
+  IsDateString,
+  IsEnum,
   ValidateNested,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class EmailDto {
-  @ApiProperty({ example: 'work' })
-  @IsString()
-  type: string;
-
-  @ApiProperty({ example: 'contact@acme.com' })
-  @IsEmail()
-  email: string;
-
-  @ApiPropertyOptional({ example: true })
-  @IsBoolean()
-  @IsOptional()
-  primary?: boolean;
+class EmailDto {
+  @IsString() type: string;
+  @IsString() email: string;
+  @IsOptional() primary?: boolean;
 }
 
-export class PhoneDto {
-  @ApiProperty({ example: 'office' })
-  @IsString()
-  type: string;
-
-  @ApiProperty({ example: '+1 555-123-4567' })
-  @IsString()
-  number: string;
-
-  @ApiPropertyOptional({ example: true })
-  @IsBoolean()
-  @IsOptional()
-  primary?: boolean;
+class PhoneDto {
+  @IsString() type: string;
+  @IsString() number: string;
+  @IsOptional() primary?: boolean;
 }
 
-export class AddressDto {
-  @ApiProperty({ example: 'headquarters' })
-  @IsString()
-  type: string;
-
-  @ApiPropertyOptional({ example: '123 Main St' })
-  @IsString()
-  @IsOptional()
-  line1?: string;
-
-  @ApiPropertyOptional({ example: 'Suite 100' })
-  @IsString()
-  @IsOptional()
-  line2?: string;
-
-  @ApiPropertyOptional({ example: 'San Francisco' })
-  @IsString()
-  @IsOptional()
-  city?: string;
-
-  @ApiPropertyOptional({ example: 'CA' })
-  @IsString()
-  @IsOptional()
-  state?: string;
-
-  @ApiPropertyOptional({ example: '94102' })
-  @IsString()
-  @IsOptional()
-  postalCode?: string;
-
-  @ApiPropertyOptional({ example: 'USA' })
-  @IsString()
-  @IsOptional()
-  country?: string;
-
-  @ApiPropertyOptional({ example: true })
-  @IsBoolean()
-  @IsOptional()
-  primary?: boolean;
+class AddressDto {
+  @IsString() type: string;
+  @IsOptional() @IsString() line1?: string;
+  @IsOptional() @IsString() line2?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() state?: string;
+  @IsOptional() @IsString() postalCode?: string;
+  @IsOptional() @IsString() country?: string;
+  @IsOptional() primary?: boolean;
 }
 
-export class SocialProfilesDto {
-  @ApiPropertyOptional({ example: 'https://linkedin.com/company/acme' })
-  @IsString()
-  @IsOptional()
-  linkedin?: string;
+class SocialProfilesDto {
+  @IsOptional() @IsString() linkedin?: string;
+  @IsOptional() @IsString() twitter?: string;
+  @IsOptional() @IsString() facebook?: string;
+  @IsOptional() @IsString() instagram?: string;
+}
 
-  @ApiPropertyOptional({ example: 'https://twitter.com/acme' })
-  @IsString()
-  @IsOptional()
-  twitter?: string;
-
-  @ApiPropertyOptional({ example: 'https://facebook.com/acme' })
-  @IsString()
-  @IsOptional()
-  facebook?: string;
-
-  @ApiPropertyOptional({ example: 'https://instagram.com/acme' })
-  @IsString()
-  @IsOptional()
-  instagram?: string;
+export enum AccountClassification {
+  BUSINESS = 'business',
+  INDIVIDUAL = 'individual',
 }
 
 export class CreateAccountDto {
-  @ApiProperty({ example: 'Acme Corporation' })
+  @ApiProperty({ example: 'Acme Corp' })
   @IsString()
   @MaxLength(255)
   name: string;
-
-  @ApiPropertyOptional({ example: 'https://cdn.example.com/logo.png' })
-  @IsString()
-  @IsOptional()
-  logoUrl?: string;
 
   @ApiPropertyOptional({ example: 'https://acme.com' })
   @IsString()
@@ -178,6 +119,51 @@ export class CreateAccountDto {
   @IsOptional()
   accountType?: string;
 
+  // ============ B2B / B2C Classification ============
+
+  @ApiPropertyOptional({ example: 'business', enum: AccountClassification })
+  @IsEnum(AccountClassification)
+  @IsOptional()
+  accountClassification?: AccountClassification;
+
+  @ApiPropertyOptional({ example: 'John' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  firstName?: string;
+
+  @ApiPropertyOptional({ example: 'Doe' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  lastName?: string;
+
+  @ApiPropertyOptional({ example: '1990-05-15' })
+  @IsDateString()
+  @IsOptional()
+  dateOfBirth?: string;
+
+  @ApiPropertyOptional({ example: 'male' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  gender?: string;
+
+  @ApiPropertyOptional({ example: '42101-1234567-1' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  nationalId?: string;
+
+  // ============ Logo / Avatar ============
+
+  @ApiPropertyOptional({ example: 'https://cdn.example.com/logo.png' })
+  @IsString()
+  @IsOptional()
+  logoUrl?: string;
+
+  // ============ Tags, Custom, Source ============
+
   @ApiPropertyOptional({ example: ['enterprise', 'priority'] })
   @IsArray()
   @IsString({ each: true })
@@ -198,4 +184,50 @@ export class CreateAccountDto {
   @IsUUID()
   @IsOptional()
   ownerId?: string;
+}
+
+// Update DTO inherits all fields as optional
+export class UpdateAccountDto {
+  @IsOptional() @IsString() @MaxLength(255) name?: string;
+  @IsOptional() @IsString() website?: string;
+  @IsOptional() @IsString() industry?: string;
+  @IsOptional() @IsString() companySize?: string;
+  @IsOptional() @IsNumber() annualRevenue?: number;
+  @IsOptional() @IsString() description?: string;
+
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => EmailDto) emails?: EmailDto[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => PhoneDto) phones?: PhoneDto[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => AddressDto) addresses?: AddressDto[];
+  @IsOptional() @IsObject() socialProfiles?: SocialProfilesDto;
+  @IsOptional() @IsUUID() parentAccountId?: string;
+  @IsOptional() @IsString() accountType?: string;
+  @IsOptional() @IsString() logoUrl?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
+  @IsOptional() @IsObject() customFields?: Record<string, unknown>;
+  @IsOptional() @IsString() source?: string;
+  @IsOptional() @IsUUID() ownerId?: string;
+
+  // B2B/B2C fields
+  @IsOptional() @IsEnum(AccountClassification) accountClassification?: AccountClassification;
+  @IsOptional() @IsString() @MaxLength(100) firstName?: string;
+  @IsOptional() @IsString() @MaxLength(100) lastName?: string;
+  @IsOptional() @IsDateString() dateOfBirth?: string;
+  @IsOptional() @IsString() @MaxLength(20) gender?: string;
+  @IsOptional() @IsString() @MaxLength(100) nationalId?: string;
+}
+
+export class QueryAccountsDto {
+  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsString() accountType?: string;
+  @IsOptional() @IsString() accountClassification?: string;
+  @IsOptional() @IsString() industry?: string;
+  @IsOptional() @IsString() tag?: string;
+  @IsOptional() @IsUUID() ownerId?: string;
+  @IsOptional() @IsUUID() parentAccountId?: string;
+
+  @IsOptional() @Type(() => Number) page?: number = 1;
+  @IsOptional() @Type(() => Number) limit?: number = 20;
+  @IsOptional() @IsString() sortBy?: string = 'created_at';
+  @IsOptional() @IsString() sortOrder?: 'ASC' | 'DESC' = 'DESC';
 }

@@ -314,7 +314,13 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- Timestamps
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  deleted_at TIMESTAMPTZ
+  deleted_at TIMESTAMPTZ,
+  account_classification VARCHAR(20) DEFAULT 'business',
+  first_name VARCHAR(100),
+  last_name VARCHAR(100),
+  date_of_birth DATE,
+  gender VARCHAR(20),
+  national_id VARCHAR(100),
 );
 
 CREATE INDEX IF NOT EXISTS idx_accounts_name ON accounts(name);
@@ -324,6 +330,7 @@ CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts(status);
 CREATE INDEX IF NOT EXISTS idx_accounts_owner ON accounts(owner_id);
 CREATE INDEX IF NOT EXISTS idx_accounts_parent ON accounts(parent_account_id);
 CREATE INDEX IF NOT EXISTS idx_accounts_deleted ON accounts(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_accounts_classification ON accounts(account_classification);
 
 -- Add foreign key from contacts to accounts
 ALTER TABLE contacts 
@@ -564,6 +571,28 @@ CREATE TABLE IF NOT EXISTS module_layout_settings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_module_layout_settings_module ON module_layout_settings(module);
+
+-- ============================================================
+-- MODULE SETTINGS TABLE (shared across modules)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS module_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  module VARCHAR(50) NOT NULL,
+  setting_key VARCHAR(100) NOT NULL,
+  setting_value JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(module, setting_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_module_settings_module ON module_settings(module);
+
+-- Seed default field validation rules
+INSERT INTO module_settings (module, setting_key, setting_value) VALUES
+  ('leads', 'fieldValidation', '{"rules":[{"id":"default-leads-1","fields":["lastName"],"type":"required","label":"Last Name","message":"Last name is required","isActive":true},{"id":"default-leads-2","fields":["email","phone","mobile"],"type":"any_one","label":"Contact Info","message":"At least one of email, phone, or mobile is required","isActive":true}]}'),
+  ('contacts', 'fieldValidation', '{"rules":[{"id":"default-contacts-1","fields":["lastName"],"type":"required","label":"Last Name","message":"Last name is required","isActive":true}]}'),
+  ('accounts', 'fieldValidation', '{"rules":[{"id":"default-accounts-1","fields":["name"],"type":"required","label":"Account Name","message":"Account name is required","isActive":true}]}'),
+  ('opportunities', 'fieldValidation', '{"rules":[{"id":"default-opps-1","fields":["name"],"type":"required","label":"Opportunity Name","message":"Opportunity name is required","isActive":true}]}')
+ON CONFLICT (module, setting_key) DO NOTHING;
 
 
 -- should always be at the bottom of the script to ensure all tables are created before granting privileges

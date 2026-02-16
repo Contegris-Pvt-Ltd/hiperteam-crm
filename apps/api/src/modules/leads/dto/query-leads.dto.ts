@@ -1,7 +1,7 @@
 // ============================================================
 // FILE: apps/api/src/modules/leads/dto/query-leads.dto.ts
 // ============================================================
-import { IsOptional, IsString, IsInt, Min, Max, IsUUID } from 'class-validator';
+import { IsOptional, IsString, IsInt, Min, Max, IsUUID, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -51,6 +51,11 @@ export class QueryLeadsDto {
   @IsOptional()
   company?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by product IDs (comma-separated UUIDs)', example: 'uuid1,uuid2' })
+  @IsString()
+  @IsOptional()
+  productIds?: string;
+  
   @ApiPropertyOptional({ description: 'Min score filter' })
   @Type(() => Number)
   @IsInt()

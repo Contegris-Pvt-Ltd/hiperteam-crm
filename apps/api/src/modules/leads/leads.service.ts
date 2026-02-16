@@ -8,6 +8,7 @@ import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
 import { LeadScoringService } from './lead-scoring.service';
 import { RecordTeamService } from '../shared/record-team.service';
+import { FieldValidationService } from '../shared/field-validation.service';
 
 @Injectable()
 export class LeadsService {
@@ -16,7 +17,7 @@ export class LeadsService {
   // Fields tracked for audit
   private readonly trackedFields = [
     'firstName', 'lastName', 'email', 'phone', 'mobile', 'company', 'jobTitle',
-    'website', 'source', 'pipelineId', 'stageId', 'priorityId', 'score', 'qualification',
+    'website', 'source', 'stageId', 'priorityId', 'score', 'qualification',
     'ownerId', 'tags', 'doNotContact', 'doNotEmail', 'doNotCall',
   ];
 
@@ -26,33 +27,36 @@ export class LeadsService {
     private activityService: ActivityService,
     private scoringService: LeadScoringService,
     private recordTeamService: RecordTeamService,
+    private fieldValidationService: FieldValidationService,
   ) {}
 
   // ============================================================
   // CREATE
   // ============================================================
   async create(schemaName: string, userId: string, dto: CreateLeadDto) {
+    // ── Field validation (tenant-configurable rules) ──
+    await this.fieldValidationService.validate(schemaName, 'leads', {
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      email: dto.email,
+      phone: dto.phone,
+      mobile: dto.mobile,
+      company: dto.company,
+      jobTitle: dto.jobTitle,
+      website: dto.website,
+      source: dto.source,
+    }, dto.customFields as Record<string, any>);
+
     // 1. Duplicate detection
     await this.checkDuplicates(schemaName, dto.email, dto.phone, null);
 
     // 2. Get default stage if not provided
-    let pipelineId = dto.pipelineId;
-    if (!pipelineId) {
-      const [defaultPipeline] = await this.dataSource.query(
-        `SELECT id FROM "${schemaName}".pipelines WHERE is_default = true AND is_active = true LIMIT 1`,
-      );
-      pipelineId = defaultPipeline?.id;
-    }
-
-    // 2b. Get default stage if not provided
     let stageId = dto.stageId;
-    if (!stageId && pipelineId) {
+    if (!stageId) {
       const [defaultStage] = await this.dataSource.query(
         `SELECT id FROM "${schemaName}".pipeline_stages 
-         WHERE pipeline_id = $1 AND module = 'leads'
-           AND is_active = true AND is_won = false AND is_lost = false
+         WHERE is_active = true AND is_won = false AND is_lost = false
          ORDER BY sort_order ASC LIMIT 1`,
-        [pipelineId],
       );
       stageId = defaultStage?.id;
     }
@@ -115,8 +119,8 @@ export class LeadsService {
         $24, $25,
         $26, $27, $28,
         $29, $30,
-        $31, $32, $33,
-        NOW(), $34
+        $31, $32, $32,
+        NOW(), $33
       ) RETURNING *`,
       [
         dto.firstName || null,
@@ -139,7 +143,7 @@ export class LeadsService {
         JSON.stringify(dto.socialProfiles || {}),
         dto.source || null,
         JSON.stringify(dto.sourceDetails || {}),
-        pipelineId || null,
+        dto.pipelineId || null,
         stageId || null,
         priorityId || null,
         JSON.stringify(dto.qualification || {}),
@@ -163,7 +167,7 @@ export class LeadsService {
     // 8. Re-fetch after scoring to get updated score
     const scored = await this.findOneRaw(schemaName, lead.id);
 
-    // 9. Auto-set priority from score if enabled
+    // 9. Auto-set priority from score if enabled (only if user did NOT explicitly pick one)
     if (!dto.priorityId) {
       await this.autoSetPriority(schemaName, lead.id, scored.score);
     }
@@ -187,6 +191,17 @@ export class LeadsService {
       performedBy: userId,
     });
 
+    if (dto.productIds?.length) {
+      for (const productId of dto.productIds) {
+        await this.dataSource.query(
+          `INSERT INTO "${schemaName}".lead_products (lead_id, product_id, created_by)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (lead_id, product_id) DO NOTHING`,
+          [lead.id, productId, userId],
+        );
+      }
+    }
+
     // 11. Return final formatted lead
     return this.findOne(schemaName, lead.id);
   }
@@ -196,8 +211,8 @@ export class LeadsService {
   // ============================================================
   async findAll(schemaName: string, query: QueryLeadsDto, userId?: string) {
     const {
-      search, pipelineId, stageId, stageSlug, priorityId, source, ownerId, tag, company,
-      scoreMin, scoreMax, convertedStatus, ownership, view,
+      search, stageId, stageSlug, priorityId, source, ownerId, tag, company,
+      productIds, scoreMin, scoreMax, convertedStatus, ownership, view,
       page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC',
     } = query;
 
@@ -214,12 +229,6 @@ export class LeadsService {
         OR CONCAT(l.first_name, ' ', l.last_name) ILIKE $${paramIndex}
       )`);
       params.push(`%${search}%`);
-      paramIndex++;
-    }
-
-    if (pipelineId) {
-      conditions.push(`l.pipeline_id = $${paramIndex}`);
-      params.push(pipelineId);
       paramIndex++;
     }
 
@@ -263,6 +272,19 @@ export class LeadsService {
       conditions.push(`l.company ILIKE $${paramIndex}`);
       params.push(`%${company}%`);
       paramIndex++;
+    }
+
+    if (productIds) {
+      const productIdList = productIds.split(',').map(id => id.trim()).filter(Boolean);
+      if (productIdList.length > 0) {
+        const placeholders = productIdList.map((_, i) => `$${paramIndex + i}`).join(',');
+        conditions.push(`l.id IN (
+          SELECT lp.lead_id FROM "${schemaName}".lead_products lp 
+          WHERE lp.product_id IN (${placeholders})
+        )`);
+        params.push(...productIdList);
+        paramIndex += productIdList.length;
+      }
     }
 
     if (scoreMin !== undefined) {
@@ -343,11 +365,12 @@ export class LeadsService {
     // Query
     const leads = await this.dataSource.query(
       `SELECT l.*,
-              u.first_name as owner_first_name, u.last_name as owner_last_name,
-              ls.name as stage_name, ls.slug as stage_slug, ls.color as stage_color,
-              ls.sort_order as stage_sort_order, ls.is_won as stage_is_won, ls.is_lost as stage_is_lost,
-              lp.name as priority_name, lp.color as priority_color, lp.icon as priority_icon,
-              cu.first_name as created_by_first_name, cu.last_name as created_by_last_name
+        u.first_name as owner_first_name, u.last_name as owner_last_name,
+        ls.name as stage_name, ls.slug as stage_slug, ls.color as stage_color,
+        ls.sort_order as stage_sort_order, ls.is_won as stage_is_won, ls.is_lost as stage_is_lost,
+        lp.name as priority_name, lp.color as priority_color, lp.icon as priority_icon,
+        cu.first_name as created_by_first_name, cu.last_name as created_by_last_name,
+        (SELECT COUNT(*) FROM "${schemaName}".lead_products lprod WHERE lprod.lead_id = l.id) as products_count
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
        LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
@@ -376,11 +399,10 @@ export class LeadsService {
   private async findAllKanban(schemaName: string, whereClause: string, params: unknown[]) {
     // Get all active stages
     const stages = await this.dataSource.query(
-      `SELECT ps.id, ps.name, ps.slug, ps.color, ps.sort_order, ps.is_won, ps.is_lost
-       FROM "${schemaName}".pipeline_stages ps
-       JOIN "${schemaName}".pipelines p ON p.id = ps.pipeline_id
-       WHERE ps.is_active = true AND ps.module = 'leads' AND p.is_default = true
-       ORDER BY ps.sort_order ASC`,
+      `SELECT id, name, slug, color, sort_order, is_won, is_lost
+       FROM "${schemaName}".pipeline_stages
+       WHERE is_active = true
+       ORDER BY sort_order ASC`,
     );
 
     // Get leads grouped by stage (limited per column)
@@ -473,12 +495,11 @@ export class LeadsService {
     // Get all stages for journey bar
     const pipelineIdForStages = formatted.pipelineId;
     const allStages = await this.dataSource.query(
-      `SELECT ps.id, ps.name, ps.slug, ps.color, ps.sort_order, ps.is_won, ps.is_lost,
-              ps.required_fields, ps.exit_criteria, ps.lock_previous_fields
-       FROM "${schemaName}".pipeline_stages ps
-       WHERE ps.is_active = true AND ps.module = 'leads'
-         AND ps.pipeline_id = COALESCE($1, (SELECT id FROM "${schemaName}".pipelines WHERE is_default = true LIMIT 1))
-       ORDER BY ps.sort_order ASC`,
+      `SELECT id, name, slug, color, sort_order, is_won, is_lost, required_fields, lock_previous_fields
+       FROM "${schemaName}".pipeline_stages
+       WHERE is_active = true AND module = 'leads'
+         AND pipeline_id = COALESCE($1, (SELECT id FROM "${schemaName}".pipelines WHERE is_default = true LIMIT 1))
+       ORDER BY sort_order ASC`,
       [pipelineIdForStages || null],
     );
 
@@ -535,16 +556,16 @@ export class LeadsService {
               ls.name as stage_name, ls.slug as stage_slug, ls.color as stage_color,
               ls.sort_order as stage_sort_order, ls.is_won as stage_is_won, ls.is_lost as stage_is_lost,
               ls.lock_previous_fields as stage_lock_previous,
-              pl.id as pipeline_id_joined, pl.name as pipeline_name,
               lp.name as priority_name, lp.color as priority_color, lp.icon as priority_icon,
+              pl.name as pipeline_name,
               cu.first_name as created_by_first_name, cu.last_name as created_by_last_name,
               lqf.name as framework_name, lqf.slug as framework_slug,
               dr.name as disqualification_reason_name
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
        LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
-       LEFT JOIN "${schemaName}".pipelines pl ON l.pipeline_id = pl.id
        LEFT JOIN "${schemaName}".lead_priorities lp ON l.priority_id = lp.id
+       LEFT JOIN "${schemaName}".pipelines pl ON l.pipeline_id = pl.id
        LEFT JOIN "${schemaName}".users cu ON l.created_by = cu.id
        LEFT JOIN "${schemaName}".lead_qualification_frameworks lqf ON l.qualification_framework_id = lqf.id
        LEFT JOIN "${schemaName}".lead_disqualification_reasons dr ON l.disqualification_reason_id = dr.id
@@ -604,6 +625,7 @@ export class LeadsService {
       postalCode: 'postal_code',
       country: 'country',
       source: 'source',
+      pipelineId: 'pipeline_id',
       stageId: 'stage_id',
       priorityId: 'priority_id',
       qualificationFrameworkId: 'qualification_framework_id',
@@ -690,12 +712,13 @@ export class LeadsService {
       params,
     );
 
-    // Re-score if relevant fields changed
+    // Re-score only if relevant fields actually CHANGED (not just present in dto)
     const scoringFields = ['email', 'phone', 'company', 'jobTitle', 'qualification', 'customFields', 'source'];
     const scoringFieldsChanged = scoringFields.some(f => {
       const newVal = (dto as any)[f];
       if (newVal === undefined) return false;
       const oldVal = (existing as any)[f];
+      // Deep compare for objects (qualification, customFields, sourceDetails)
       if (typeof newVal === 'object' && typeof oldVal === 'object') {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
@@ -704,6 +727,7 @@ export class LeadsService {
 
     if (scoringFieldsChanged) {
       await this.scoringService.scoreLead(schemaName, id);
+      // Only auto-set priority if user did NOT explicitly change it
       if (dto.priorityId === undefined) {
         const rescored = await this.findOneRaw(schemaName, id);
         await this.autoSetPriority(schemaName, id, rescored.score);
@@ -776,7 +800,7 @@ export class LeadsService {
       }
     }
 
-    // Validate required fields for target stage (query lead_stage_fields table)
+    // Validate required fields for target stage (query pipeline_stage_fields table)
     const stageFieldRows = await this.dataSource.query(
       `SELECT field_key, field_label, is_required
        FROM "${schemaName}".pipeline_stage_fields
@@ -915,7 +939,7 @@ export class LeadsService {
 
     // Get disqualified stage
     const [disqStage] = await this.dataSource.query(
-      `SELECT id FROM "${schemaName}".lead_stages WHERE is_lost = true AND is_active = true LIMIT 1`,
+      `SELECT id FROM "${schemaName}".pipeline_stages WHERE is_lost = true AND is_active = true LIMIT 1`,
     );
 
     const stageHistory = lead.stageHistory || [];
@@ -961,6 +985,185 @@ export class LeadsService {
     });
 
     return this.findOne(schemaName, id);
+  }
+
+  // ============================================================
+  // CONVERSION DUPLICATE CHECK
+  // ============================================================
+  async checkConversionDuplicates(schemaName: string, id: string) {
+    const lead = await this.findOneRaw(schemaName, id);
+
+    const matchingContacts: any[] = [];
+    const matchingAccounts: any[] = [];
+    const relationships: Record<string, string[]> = {}; // contactId -> accountId[]
+
+    // ── 1. Find matching contacts by email, phone, mobile ──
+    if (lead.email) {
+      const emailLower = lead.email.toLowerCase().trim();
+      const rows = await this.dataSource.query(
+        `SELECT id, first_name, last_name, email, phone, mobile, company, job_title, avatar_url
+         FROM "${schemaName}".contacts
+         WHERE lower(email) = $1 AND deleted_at IS NULL LIMIT 10`,
+        [emailLower],
+      );
+      for (const c of rows) {
+        if (!matchingContacts.find(mc => mc.id === c.id)) {
+          matchingContacts.push({
+            id: c.id, firstName: c.first_name, lastName: c.last_name,
+            email: c.email, phone: c.phone, mobile: c.mobile,
+            company: c.company, jobTitle: c.job_title, avatarUrl: c.avatar_url,
+            matchType: 'email',
+          });
+        }
+      }
+    }
+
+    if (lead.phone) {
+      const rows = await this.dataSource.query(
+        `SELECT id, first_name, last_name, email, phone, mobile, company, job_title, avatar_url
+         FROM "${schemaName}".contacts
+         WHERE (phone = $1 OR mobile = $1) AND deleted_at IS NULL LIMIT 10`,
+        [lead.phone],
+      );
+      for (const c of rows) {
+        const existing = matchingContacts.find(mc => mc.id === c.id);
+        if (existing) { if (!existing.matchType.includes('phone')) existing.matchType += ',phone'; }
+        else {
+          matchingContacts.push({
+            id: c.id, firstName: c.first_name, lastName: c.last_name,
+            email: c.email, phone: c.phone, mobile: c.mobile,
+            company: c.company, jobTitle: c.job_title, avatarUrl: c.avatar_url,
+            matchType: 'phone',
+          });
+        }
+      }
+    }
+
+    if (lead.mobile && lead.mobile !== lead.phone) {
+      const rows = await this.dataSource.query(
+        `SELECT id, first_name, last_name, email, phone, mobile, company, job_title, avatar_url
+         FROM "${schemaName}".contacts
+         WHERE (phone = $1 OR mobile = $1) AND deleted_at IS NULL LIMIT 10`,
+        [lead.mobile],
+      );
+      for (const c of rows) {
+        const existing = matchingContacts.find(mc => mc.id === c.id);
+        if (existing) { if (!existing.matchType.includes('mobile')) existing.matchType += ',mobile'; }
+        else {
+          matchingContacts.push({
+            id: c.id, firstName: c.first_name, lastName: c.last_name,
+            email: c.email, phone: c.phone, mobile: c.mobile,
+            company: c.company, jobTitle: c.job_title, avatarUrl: c.avatar_url,
+            matchType: 'mobile',
+          });
+        }
+      }
+    }
+
+    // ── 2. Find matching accounts by company name, website, email domain ──
+    if (lead.company) {
+      const rows = await this.dataSource.query(
+        `SELECT id, name, website, industry, logo_url, account_type
+         FROM "${schemaName}".accounts
+         WHERE lower(name) = lower($1) AND deleted_at IS NULL LIMIT 10`,
+        [lead.company],
+      );
+      for (const a of rows) {
+        if (!matchingAccounts.find(ma => ma.id === a.id)) {
+          matchingAccounts.push({
+            id: a.id, name: a.name, website: a.website,
+            industry: a.industry, logoUrl: a.logo_url, accountType: a.account_type,
+            matchType: 'name',
+          });
+        }
+      }
+    }
+
+    if (lead.website) {
+      const rows = await this.dataSource.query(
+        `SELECT id, name, website, industry, logo_url, account_type
+         FROM "${schemaName}".accounts
+         WHERE lower(website) = lower($1) AND deleted_at IS NULL LIMIT 10`,
+        [lead.website],
+      );
+      for (const a of rows) {
+        const existing = matchingAccounts.find(ma => ma.id === a.id);
+        if (existing) { if (!existing.matchType.includes('website')) existing.matchType += ',website'; }
+        else {
+          matchingAccounts.push({
+            id: a.id, name: a.name, website: a.website,
+            industry: a.industry, logoUrl: a.logo_url, accountType: a.account_type,
+            matchType: 'website',
+          });
+        }
+      }
+    }
+
+    if (lead.email) {
+      const domain = lead.email.split('@')[1];
+      const freeProviders = ['gmail.com','yahoo.com','hotmail.com','outlook.com','live.com','aol.com','icloud.com','mail.com'];
+      if (domain && !freeProviders.includes(domain.toLowerCase())) {
+        const rows = await this.dataSource.query(
+          `SELECT id, name, website, industry, logo_url, account_type
+           FROM "${schemaName}".accounts
+           WHERE website ILIKE $1 AND deleted_at IS NULL LIMIT 5`,
+          [`%${domain}%`],
+        );
+        for (const a of rows) {
+          const existing = matchingAccounts.find(ma => ma.id === a.id);
+          if (existing) { if (!existing.matchType.includes('domain')) existing.matchType += ',domain'; }
+          else {
+            matchingAccounts.push({
+              id: a.id, name: a.name, website: a.website,
+              industry: a.industry, logoUrl: a.logo_url, accountType: a.account_type,
+              matchType: 'domain',
+            });
+          }
+        }
+      }
+    }
+
+    // ── 3. Find relationships between matched contacts and accounts ──
+    const contactIds = matchingContacts.map(c => c.id);
+    const accountIds = matchingAccounts.map(a => a.id);
+
+    if (contactIds.length > 0) {
+      // Get all account links for these contacts
+      const rels = await this.dataSource.query(
+        `SELECT ca.contact_id, ca.account_id, ca.role, ca.is_primary,
+                a.name as account_name, a.website as account_website, a.industry as account_industry,
+                a.logo_url as account_logo_url, a.account_type
+         FROM "${schemaName}".contact_accounts ca
+         JOIN "${schemaName}".accounts a ON a.id = ca.account_id AND a.deleted_at IS NULL
+         WHERE ca.contact_id = ANY($1)`,
+        [contactIds],
+      );
+      for (const r of rels) {
+        if (!relationships[r.contact_id]) relationships[r.contact_id] = [];
+        relationships[r.contact_id].push(r.account_id);
+
+        // Add linked account to matchingAccounts if not already there
+        if (!matchingAccounts.find(ma => ma.id === r.account_id)) {
+          matchingAccounts.push({
+            id: r.account_id, name: r.account_name, website: r.account_website,
+            industry: r.account_industry, logoUrl: r.account_logo_url,
+            accountType: r.account_type, matchType: 'linked',
+          });
+        }
+      }
+    }
+
+    return {
+      lead: {
+        firstName: lead.firstName, lastName: lead.lastName,
+        email: lead.email, phone: lead.phone, mobile: lead.mobile,
+        company: lead.company, website: lead.website,
+      },
+      matchingContacts,
+      matchingAccounts,
+      relationships,
+      hasMatches: matchingContacts.length > 0 || matchingAccounts.length > 0,
+    };
   }
 
   // ============================================================
@@ -1035,8 +1238,8 @@ export class LeadsService {
     }
 
     // ── 3. Create Opportunity (placeholder — will integrate when opportunities module is built) ──
+    // ── 3. Create Opportunity ──
     if (dto.createOpportunity) {
-      // Check if opportunities table exists
       const [tableExists] = await this.dataSource.query(
         `SELECT EXISTS (
           SELECT 1 FROM information_schema.tables 
@@ -1046,11 +1249,45 @@ export class LeadsService {
       );
 
       if (tableExists?.exists) {
+        // Resolve pipeline: use provided, or find default
+        let oppPipelineId = dto.pipelineId || null;
+        let oppStageId = dto.opportunityStageId || null;
+
+        if (!oppPipelineId) {
+          const [defaultPipeline] = await this.dataSource.query(
+            `SELECT id FROM "${schemaName}".pipelines WHERE is_default = true AND is_active = true LIMIT 1`,
+          );
+          oppPipelineId = defaultPipeline?.id || null;
+        }
+
+        // Resolve stage: use provided, or get first opportunity stage in the pipeline
+        if (!oppStageId && oppPipelineId) {
+          const [firstStage] = await this.dataSource.query(
+            `SELECT id, probability FROM "${schemaName}".pipeline_stages 
+             WHERE pipeline_id = $1 AND module = 'opportunities' 
+               AND is_won = false AND is_lost = false AND is_active = true
+             ORDER BY sort_order ASC LIMIT 1`,
+            [oppPipelineId],
+          );
+          oppStageId = firstStage?.id || null;
+        }
+
+        // Get stage probability for the resolved stage
+        let stageProbability = null;
+        if (oppStageId) {
+          const [stageInfo] = await this.dataSource.query(
+            `SELECT probability FROM "${schemaName}".pipeline_stages WHERE id = $1`,
+            [oppStageId],
+          );
+          stageProbability = stageInfo?.probability ?? null;
+        }
+
         const [opp] = await this.dataSource.query(
           `INSERT INTO "${schemaName}".opportunities (
             name, account_id, primary_contact_id, owner_id, amount, close_date,
-            pipeline_id, stage_id, lead_source, created_by
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            pipeline_id, stage_id, probability, forecast_category,
+            type, source, lead_id, created_by, stage_entered_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
           RETURNING id`,
           [
             dto.opportunityName || `${lead.company || lead.lastName} - Opportunity`,
@@ -1059,13 +1296,76 @@ export class LeadsService {
             ownerId,
             dto.amount || null,
             dto.closeDate || null,
-            dto.pipelineId || null,
-            dto.opportunityStageId || null,
-            lead.source || null,
+            oppPipelineId,
+            oppStageId,
+            stageProbability,
+            'Pipeline',                       // default forecast category
+            'New Business',                   // default type for converted leads
+            lead.source || null,              // carry over lead source
+            id,                               // lead_id — links back to original lead
             userId,
           ],
         );
         opportunityId = opp?.id || null;
+
+        // Copy lead products → opportunity line items
+        if (opportunityId) {
+          const leadProducts = await this.dataSource.query(
+            `SELECT lp.product_id, lp.notes,
+                    p.name, p.base_price, p.currency, p.short_description
+             FROM "${schemaName}".lead_products lp
+             JOIN "${schemaName}".products p ON lp.product_id = p.id AND p.deleted_at IS NULL
+             WHERE lp.lead_id = $1
+             ORDER BY lp.created_at ASC`,
+            [id],
+          );
+
+          for (let i = 0; i < leadProducts.length; i++) {
+            const lp = leadProducts[i];
+            const unitPrice = parseFloat(lp.base_price) || 0;
+            await this.dataSource.query(
+              `INSERT INTO "${schemaName}".opportunity_line_items (
+                opportunity_id, product_id, description, quantity,
+                unit_price, total_price, sort_order, created_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+              [
+                opportunityId,
+                lp.product_id,
+                lp.notes || lp.short_description || null,
+                1,           // default quantity = 1
+                unitPrice,
+                unitPrice,   // total = unit_price × 1
+                i + 1,       // sort_order
+              ],
+            );
+          }
+
+          // Update opportunity amount to sum of line items if not explicitly set
+          if (!dto.amount && leadProducts.length > 0) {
+            await this.dataSource.query(
+              `UPDATE "${schemaName}".opportunities
+               SET amount = (
+                 SELECT COALESCE(SUM(total_price), 0)
+                 FROM "${schemaName}".opportunity_line_items
+                 WHERE opportunity_id = $1
+               )
+               WHERE id = $1`,
+              [opportunityId],
+            );
+          }
+        }
+        
+        // Log activity on the new opportunity
+        if (opportunityId) {
+          await this.activityService.create(schemaName, {
+            entityType: 'opportunities',
+            entityId: opportunityId,
+            activityType: 'created',
+            title: 'Opportunity created from lead conversion',
+            metadata: { leadId: id, leadName: `${lead.firstName} ${lead.lastName}` },
+            performedBy: userId,
+          });
+        }
       } else {
         this.logger.warn('Opportunities table does not exist yet — skipping opportunity creation');
       }
@@ -1073,7 +1373,7 @@ export class LeadsService {
 
     // ── 4. Get converted stage ──
     const [convStage] = await this.dataSource.query(
-      `SELECT id FROM "${schemaName}".lead_stages WHERE is_won = true AND is_active = true LIMIT 1`,
+      `SELECT id FROM "${schemaName}".pipeline_stages WHERE is_won = true AND is_active = true LIMIT 1`,
     );
 
     // ── 5. Update lead as converted ──
@@ -1207,6 +1507,7 @@ export class LeadsService {
     phone: string | null | undefined,
     excludeId: string | null,
   ) {
+    const safeExcludeId = excludeId && excludeId.trim() ? excludeId : null;
     // Get duplicate detection settings
     const [dupSettings] = await this.dataSource.query(
       `SELECT setting_value FROM "${schemaName}".lead_settings WHERE setting_key = 'duplicateDetection'`,
@@ -1221,9 +1522,9 @@ export class LeadsService {
       if (config.checkLeads) {
         const [dup] = await this.dataSource.query(
           `SELECT id, first_name, last_name FROM "${schemaName}".leads 
-           WHERE lower(email) = $1 AND deleted_at IS NULL ${excludeId ? 'AND id != $2' : ''}
+           WHERE lower(email) = $1 AND deleted_at IS NULL ${safeExcludeId ? 'AND id != $2' : ''}
            LIMIT 1`,
-          excludeId ? [emailLower, excludeId] : [emailLower],
+          safeExcludeId ? [emailLower, safeExcludeId] : [emailLower],
         );
         if (dup && config.exactEmailMatch === 'block') {
           throw new ConflictException({
@@ -1256,9 +1557,9 @@ export class LeadsService {
       if (config.checkLeads) {
         const [dup] = await this.dataSource.query(
           `SELECT id, first_name, last_name FROM "${schemaName}".leads 
-           WHERE phone = $1 AND deleted_at IS NULL ${excludeId ? 'AND id != $2' : ''}
+           WHERE phone = $1 AND deleted_at IS NULL ${safeExcludeId ? 'AND id != $2' : ''}
            LIMIT 1`,
-          excludeId ? [phone, excludeId] : [phone],
+          safeExcludeId ? [phone, safeExcludeId] : [phone],
         );
         if (dup && config.exactPhoneMatch === 'block') {
           throw new ConflictException({
@@ -1288,7 +1589,8 @@ export class LeadsService {
   }
 
   // Find duplicates for sidebar display
-  async findDuplicates(schemaName: string, email: string | null, phone: string | null, excludeId?: string) {
+  async findDuplicates(schemaName: string, email: string | null, phone: string | null, excludeId: string | null) {
+    const safeExcludeId = excludeId && excludeId.trim() ? excludeId : null;
     const duplicates: any[] = [];
 
     if (email) {
@@ -1296,10 +1598,10 @@ export class LeadsService {
 
       // Leads
       const leadDups = await this.dataSource.query(
-        `SELECT id, first_name, last_name, email, company, 'lead' as entity_type
+        `SELECT id, first_name, last_name, email, phone, company, 'lead' as entity_type
          FROM "${schemaName}".leads
-         WHERE lower(email) = $1 AND deleted_at IS NULL AND id != $2 LIMIT 5`,
-        [emailLower, excludeId],
+         WHERE phone = $1 AND deleted_at IS NULL ${safeExcludeId ? 'AND id != $2' : ''} LIMIT 5`,
+        safeExcludeId ? [phone, safeExcludeId] : [phone],
       );
       duplicates.push(...leadDups.map((d: any) => ({
         id: d.id, firstName: d.first_name, lastName: d.last_name,
@@ -1659,6 +1961,136 @@ export class LeadsService {
       lastActivityAt: lead.last_activity_at,
       createdAt: lead.created_at,
       updatedAt: lead.updated_at,
+      productsCount: parseInt(String(lead.products_count || '0')),
     };
+  }
+
+  // ============================================================
+  // LEAD PRODUCTS
+  // ============================================================
+
+  async getLeadProducts(schemaName: string, leadId: string) {
+    // Verify lead exists
+    await this.findOneRaw(schemaName, leadId);
+
+    const products = await this.dataSource.query(
+      `SELECT lp.id as link_id, lp.notes, lp.created_at as linked_at,
+              p.id, p.name, p.code, p.short_description, p.type, p.base_price, 
+              p.currency, p.status, p.image_url,
+              pc.name as category_name,
+              u.first_name as linked_by_first, u.last_name as linked_by_last
+       FROM "${schemaName}".lead_products lp
+       JOIN "${schemaName}".products p ON lp.product_id = p.id
+       LEFT JOIN "${schemaName}".product_categories pc ON p.category_id = pc.id
+       LEFT JOIN "${schemaName}".users u ON lp.created_by = u.id
+       WHERE lp.lead_id = $1 AND p.deleted_at IS NULL
+       ORDER BY lp.created_at DESC`,
+      [leadId],
+    );
+
+    return products.map((row: Record<string, unknown>) => ({
+      linkId: row.link_id,
+      notes: row.notes,
+      linkedAt: row.linked_at,
+      linkedBy: row.linked_by_first ? `${row.linked_by_first} ${row.linked_by_last}` : null,
+      product: {
+        id: row.id,
+        name: row.name,
+        code: row.code,
+        shortDescription: row.short_description,
+        type: row.type,
+        basePrice: parseFloat(String(row.base_price || '0')),
+        currency: row.currency,
+        status: row.status,
+        imageUrl: row.image_url,
+        categoryName: row.category_name,
+      },
+    }));
+  }
+
+  async linkProduct(
+    schemaName: string,
+    leadId: string,
+    productId: string,
+    userId: string,
+    notes?: string,
+  ) {
+    // Verify lead and product exist
+    await this.findOneRaw(schemaName, leadId);
+
+    const [existing] = await this.dataSource.query(
+      `SELECT id FROM "${schemaName}".products WHERE id = $1 AND deleted_at IS NULL`,
+      [productId],
+    );
+    if (!existing) {
+      throw new NotFoundException('Product not found');
+    }
+
+    await this.dataSource.query(
+      `INSERT INTO "${schemaName}".lead_products (lead_id, product_id, notes, created_by)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (lead_id, product_id) DO UPDATE SET notes = $3`,
+      [leadId, productId, notes || null, userId],
+    );
+
+    // Get product name for activity log
+    const [product] = await this.dataSource.query(
+      `SELECT name FROM "${schemaName}".products WHERE id = $1`,
+      [productId],
+    );
+
+    await this.activityService.create(schemaName, {
+      entityType: 'leads',
+      entityId: leadId,
+      activityType: 'product_linked',
+      title: 'Product linked',
+      description: `Product "${product?.name}" was linked to this lead`,
+      relatedType: 'products',
+      relatedId: productId,
+      performedBy: userId,
+    });
+
+    return { message: 'Product linked successfully' };
+  }
+
+  async unlinkProduct(schemaName: string, leadId: string, productId: string, userId: string) {
+    // Get product name before unlinking
+    const [product] = await this.dataSource.query(
+      `SELECT name FROM "${schemaName}".products WHERE id = $1`,
+      [productId],
+    );
+
+    const result = await this.dataSource.query(
+      `DELETE FROM "${schemaName}".lead_products WHERE lead_id = $1 AND product_id = $2`,
+      [leadId, productId],
+    );
+
+    await this.activityService.create(schemaName, {
+      entityType: 'leads',
+      entityId: leadId,
+      activityType: 'product_unlinked',
+      title: 'Product unlinked',
+      description: `Product "${product?.name}" was removed from this lead`,
+      relatedType: 'products',
+      relatedId: productId,
+      performedBy: userId,
+    });
+
+    return { message: 'Product unlinked successfully' };
+  }
+
+  async updateProductNotes(
+    schemaName: string,
+    leadId: string,
+    productId: string,
+    notes: string,
+  ) {
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".lead_products SET notes = $3
+       WHERE lead_id = $1 AND product_id = $2`,
+      [leadId, productId, notes],
+    );
+
+    return { message: 'Notes updated successfully' };
   }
 }

@@ -18,7 +18,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, X, Plus, Trash2, ChevronDown, ChevronRight, Building2 } from 'lucide-react';
+import { ArrowLeft, Save, X, Plus, Trash2, ChevronDown, ChevronRight, Building2, User } from 'lucide-react';
 import { accountsApi } from '../../api/accounts.api';
 import type { CreateAccountData } from '../../api/accounts.api';
 import type { EmailEntry, PhoneEntry, AddressEntry, SocialProfiles } from '../../api/contacts.api';
@@ -31,10 +31,18 @@ import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.a
 import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
 import { QuickCreateContactModal } from '../../components/shared/QuickCreateContactModal';
 import type { QuickCreateContactResult } from '../../components/shared/QuickCreateContactModal';
+import { 
+  type AccountClassification, 
+  getAccountTypesForClassification,
+  ACCOUNT_CLASSIFICATIONS,
+} from '../../api/accounts.api';
 // ============ PAGE DESIGNER IMPORTS ============
 import { useModuleLayout } from '../../hooks/useModuleLayout';
 // Note: DynamicFormRenderer for edit pages is a future enhancement
 // ===============================================
+import { moduleSettingsApi } from '../../api/module-settings.api';
+import type { FieldValidationConfig } from '../../api/module-settings.api';
+import { validateFields } from '../../utils/field-validation';
 
 type TabType = 'basic' | 'contact' | 'address' | 'social' | 'other' | string;
 
@@ -60,6 +68,8 @@ const companySizes = [
   '1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5000+'
 ];
 
+const genderOptions = ['male', 'female', 'non-binary', 'prefer-not-to-say', 'other'];
+
 export function AccountEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -82,6 +92,8 @@ export function AccountEditPage() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [showQuickCreateContact, setShowQuickCreateContact] = useState(false);
 
+  const [fieldValidationConfig, setFieldValidationConfig] = useState<FieldValidationConfig>({ rules: [] });
+  
   // Validation
   const [validationErrors, setValidationErrors] = useState<{
     name?: string;
@@ -108,6 +120,12 @@ export function AccountEditPage() {
     socialProfiles: {},
     accountType: 'prospect',
     tags: [],
+    accountClassification: 'business' as AccountClassification,
+    firstName: '',
+    lastName: '',
+    dateOfBirth: '',
+    gender: '',
+    nationalId: '',
   });
 
   const [tagInput, setTagInput] = useState('');
@@ -125,6 +143,11 @@ export function AccountEditPage() {
         setCustomTabs(tabsData.filter(t => t.isActive));
         setCustomGroups(groupsData.filter(g => g.isActive));
         
+        moduleSettingsApi.getFieldValidation('contacts')
+          .then(setFieldValidationConfig)
+          .catch(err => console.error('Failed to load validation rules:', err));
+          
+              
         // Initialize collapsed state for groups that are collapsed by default
         const defaultCollapsed = new Set(
           groupsData.filter(g => g.collapsedByDefault).map(g => g.id)
@@ -195,6 +218,12 @@ export function AccountEditPage() {
         accountType: account.accountType || 'prospect',
         source: account.source || '',
         tags: account.tags || [],
+        accountClassification: (account.accountClassification || 'business') as AccountClassification,
+        firstName: account.firstName || '',
+        lastName: account.lastName || '',
+        dateOfBirth: account.dateOfBirth || '',
+        gender: account.gender || '',
+        nationalId: account.nationalId || '',
       });
 
       setLogoUrl(account.logoUrl || null);
@@ -314,8 +343,28 @@ export function AccountEditPage() {
     e.preventDefault();
     setError('');
 
+    const fieldErrors = validateFields(fieldValidationConfig, formData as Record<string, any>, formData.customFields as Record<string, any>);
+    if (fieldErrors.length > 0) {
+      setError(fieldErrors.map(e => e.message).join('. '));
+      return;
+    }
+
+    // ── PATCH 11: Classification-aware validation ──
+    if (formData.accountClassification === 'individual') {
+      if (!formData.firstName?.trim()) {
+        setValidationErrors({ name: 'First name is required' });
+        setActiveTab('basic');
+        return;
+      }
+    } else {
+      if (!formData.name.trim()) {
+        setValidationErrors({ name: 'Account name is required' });
+        setActiveTab('basic');
+        return;
+      }
+    }
+    
     if (!validateForm()) {
-      // Switch to relevant tab if validation fails
       if (validationErrors.name) {
         setActiveTab('basic');
       } else if (validationErrors.emails || validationErrors.phones) {
@@ -327,10 +376,25 @@ export function AccountEditPage() {
     setSaving(true);
 
     try {
+      // ── PATCH 7: Auto-generate name for individual accounts ──
+      const effectiveName = formData.accountClassification === 'individual' && formData.firstName
+        ? [formData.firstName, formData.lastName].filter(Boolean).join(' ')
+        : formData.name;
+
       // Clean the data - remove empty strings and empty arrays
       const dataToSave: Partial<CreateAccountData> = {
-        name: formData.name,
+        name: effectiveName,
+        accountClassification: formData.accountClassification || 'business',
       };
+
+      // B2C individual fields
+      if (formData.accountClassification === 'individual') {
+        if (formData.firstName?.trim()) dataToSave.firstName = formData.firstName.trim();
+        if (formData.lastName?.trim()) dataToSave.lastName = formData.lastName.trim();
+        if (formData.dateOfBirth) dataToSave.dateOfBirth = formData.dateOfBirth;
+        if (formData.gender) dataToSave.gender = formData.gender;
+        if (formData.nationalId?.trim()) dataToSave.nationalId = formData.nationalId.trim();
+      }
 
       // Only include fields that have values
       if (formData.website?.trim()) dataToSave.website = formData.website.trim();
@@ -364,8 +428,8 @@ export function AccountEditPage() {
         dataToSave.logoUrl = logoUrl;
       }
 
-      // Parent account
-      if (selectedParentAccount) {
+      // Parent account (B2B only)
+      if (selectedParentAccount && formData.accountClassification !== 'individual') {
         dataToSave.parentAccountId = selectedParentAccount.id;
       }
 
@@ -395,6 +459,34 @@ export function AccountEditPage() {
     // Clear validation errors when user types
     if (field === 'name' && validationErrors.name) {
       setValidationErrors(prev => ({ ...prev, name: undefined }));
+    }
+  };
+
+  const handleClassificationChange = (classification: AccountClassification) => {
+    setFormData(prev => ({
+      ...prev,
+      accountClassification: classification,
+      // Reset account type to 'prospect' when switching classification
+      accountType: 'prospect',
+      // Clear B2C fields if switching to business
+      ...(classification === 'business' ? {
+        firstName: '',
+        lastName: '',
+        dateOfBirth: '',
+        gender: '',
+        nationalId: '',
+      } : {}),
+      // Clear B2B-only fields if switching to individual
+      ...(classification === 'individual' ? {
+        industry: '',
+        companySize: '',
+        annualRevenue: undefined,
+        parentAccountId: undefined,
+      } : {}),
+    }));
+    // Clear parent account selection if switching to individual
+    if (classification === 'individual') {
+      setSelectedParentAccount(null);
     }
   };
 
@@ -748,6 +840,34 @@ export function AccountEditPage() {
             {/* Basic Info Tab */}
             {activeTab === 'basic' && (
               <div className="space-y-6">
+                {/* Account Classification Toggle */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                    Account Classification
+                  </label>
+                  <div className="flex gap-3">
+                    {ACCOUNT_CLASSIFICATIONS.map(c => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => handleClassificationChange(c.value)}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-medium ${
+                          formData.accountClassification === c.value
+                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                            : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:border-gray-300 dark:hover:border-slate-600'
+                        }`}
+                      >
+                        {c.value === 'business' ? <Building2 className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-xs text-gray-500 dark:text-slate-400">
+                    {formData.accountClassification === 'business'
+                      ? 'Company or organization account with business-specific fields'
+                      : 'Individual person account with personal information fields'}
+                  </p>
+                </div>
                 {/* Logo & Name */}
                 <div className="flex items-start gap-6">
                   <AvatarUpload
@@ -759,7 +879,56 @@ export function AccountEditPage() {
                   />
                   <div className="flex-1">
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      Account Name <span className="text-red-500">*</span>
+                      {formData.accountClassification === 'individual' ? (
+                      // Individual: First Name + Last Name
+                      <div className="flex-1 grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                            First Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.firstName || ''}
+                            onChange={(e) => handleChange('firstName', e.target.value)}
+                            className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                            placeholder="First name"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                            Last Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.lastName || ''}
+                            onChange={(e) => handleChange('lastName', e.target.value)}
+                            className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                            placeholder="Last name"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      // Business: Company Name (original)
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                          Account Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.name}
+                          onChange={(e) => handleChange('name', e.target.value)}
+                          className={`w-full px-4 py-2.5 border rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent ${
+                            validationErrors.name 
+                              ? 'border-red-300 dark:border-red-700' 
+                              : 'border-gray-200 dark:border-slate-700'
+                          }`}
+                          placeholder="Enter company name"
+                        />
+                        {validationErrors.name && (
+                          <p className="mt-1 text-sm text-red-500">{validationErrors.name}</p>
+                        )}
+                      </div>
+                    )}
                     </label>
                     <input
                       type="text"
@@ -779,19 +948,7 @@ export function AccountEditPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Industry</label>
-                    <select
-                      value={formData.industry}
-                      onChange={(e) => handleChange('industry', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                    >
-                      <option value="">Select industry...</option>
-                      {industries.map(ind => (
-                        <option key={ind} value={ind}>{ind}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* Account Type — always shown, options change by classification */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Account Type</label>
                     <select
@@ -799,48 +956,102 @@ export function AccountEditPage() {
                       onChange={(e) => handleChange('accountType', e.target.value)}
                       className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                     >
-                      <option value="prospect">Prospect</option>
-                      <option value="customer">Customer</option>
-                      <option value="partner">Partner</option>
-                      <option value="vendor">Vendor</option>
-                      <option value="competitor">Competitor</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Company Size</label>
-                    <select
-                      value={formData.companySize}
-                      onChange={(e) => handleChange('companySize', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                    >
-                      <option value="">Select size...</option>
-                      {companySizes.map(size => (
-                        <option key={size} value={size}>{size}</option>
+                      {getAccountTypesForClassification(formData.accountClassification || 'business').map(t => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Annual Revenue</label>
-                    <input
-                      type="number"
-                      value={formData.annualRevenue || ''}
-                      onChange={(e) => handleChange('annualRevenue', e.target.value ? Number(e.target.value) : undefined)}
-                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                      placeholder="e.g., 1000000"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Website</label>
-                    <input
-                      type="url"
-                      value={formData.website}
-                      onChange={(e) => handleChange('website', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                      placeholder="https://example.com"
-                    />
-                  </div>
+
+                  {/* B2B-only fields */}
+                  {formData.accountClassification !== 'individual' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Industry</label>
+                        <select
+                          value={formData.industry}
+                          onChange={(e) => handleChange('industry', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                        >
+                          <option value="">Select industry...</option>
+                          {industries.map(ind => (
+                            <option key={ind} value={ind}>{ind}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Company Size</label>
+                        <select
+                          value={formData.companySize}
+                          onChange={(e) => handleChange('companySize', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                        >
+                          <option value="">Select size...</option>
+                          {companySizes.map(size => (
+                            <option key={size} value={size}>{size}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Annual Revenue</label>
+                        <input
+                          type="number"
+                          value={formData.annualRevenue || ''}
+                          onChange={(e) => handleChange('annualRevenue', e.target.value ? parseFloat(e.target.value) : undefined)}
+                          className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                          placeholder="Annual revenue"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* B2C-only fields */}
+                  {formData.accountClassification === 'individual' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Date of Birth</label>
+                        <input
+                          type="date"
+                          value={formData.dateOfBirth || ''}
+                          onChange={(e) => handleChange('dateOfBirth', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Gender</label>
+                        <select
+                          value={formData.gender || ''}
+                          onChange={(e) => handleChange('gender', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                        >
+                          <option value="">Select...</option>
+                          {genderOptions.map(g => (
+                            <option key={g} value={g}>{g.charAt(0).toUpperCase() + g.slice(1).replace(/-/g, ' ')}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">National ID / Personal ID</label>
+                        <input
+                          type="text"
+                          value={formData.nationalId || ''}
+                          onChange={(e) => handleChange('nationalId', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                          placeholder="e.g., 42101-1234567-1"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
+
+                {/* Parent Account — B2B only */}
+                {formData.accountClassification !== 'individual' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                      Parent Account
+                    </label>
+                    {/* ... existing parent account SearchableSelect code ... */}
+                  </div>
+                )}
 
                 {/* Parent Account */}
                 <div>

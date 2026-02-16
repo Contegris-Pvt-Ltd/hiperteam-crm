@@ -19,12 +19,17 @@ import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer
 // ============ PAGE DESIGNER IMPORTS ============
 import { useModuleLayout } from '../../hooks/useModuleLayout';
 // ===============================================
+import { moduleSettingsApi } from '../../api/module-settings.api';
+import type { FieldValidationConfig } from '../../api/module-settings.api';
+import { validateFields } from '../../utils/field-validation';
+import { LeadProductsTab } from './components/LeadProductsTab';
 
-type TabType = 'basic' | 'lead-details' | 'qualification' | 'address' | 'communication' | 'other' | string;
+type TabType = 'basic' | 'lead-details' | 'products' | 'qualification' | 'address' | 'communication' | 'other' | string;
 
 const STANDARD_TABS: { id: TabType; label: string }[] = [
   { id: 'basic', label: 'Basic Info' },
   { id: 'lead-details', label: 'Lead Details' },
+  { id: 'products', label: 'Products' },
   { id: 'qualification', label: 'Qualification' },
   { id: 'address', label: 'Address' },
   { id: 'communication', label: 'Communication' },
@@ -59,6 +64,8 @@ export function LeadEditPage() {
   // Duplicate detection
   const [duplicates, setDuplicates] = useState<DuplicateMatch[]>([]);
   const [_checkingDuplicates, setCheckingDuplicates] = useState(false);
+  
+  const [fieldValidationConfig, setFieldValidationConfig] = useState<FieldValidationConfig>({ rules: [] });
 
   // Stage change — required fields modal
   const [stageFieldsModal, setStageFieldsModal] = useState<{
@@ -96,6 +103,7 @@ export function LeadEditPage() {
     qualification: {},
     tags: [],
     customFields: {},
+    productIds: [],
     doNotContact: false,
     doNotEmail: false,
     doNotCall: false,
@@ -116,7 +124,9 @@ export function LeadEditPage() {
       adminApi.getCustomFields('leads'),
       adminApi.getTabs('leads'),
       adminApi.getGroups({ module: 'leads' }),
-    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData, frameworks, , fieldsData, tabsData, groupsData]) => {
+      // Load field validation rules
+      moduleSettingsApi.getFieldValidation('leads'),
+    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData, frameworks, , fieldsData, tabsData, groupsData, validationConfig]) => {
       setPipelines(pipelinesData);
       setStages(stagesData.filter((s: LeadStage) => s.isActive));
       setPriorities(prioritiesData.filter((p: any) => p.isActive !== false));
@@ -124,7 +134,7 @@ export function LeadEditPage() {
       setCustomFields(fieldsData.filter((f: CustomField) => f.isActive));
       setCustomTabs(tabsData.filter((t: CustomTab) => t.isActive));
       setCustomGroups(groupsData.filter((g: CustomFieldGroup) => g.isActive));
-
+      setFieldValidationConfig(validationConfig);
       // Initialize collapsed groups
       const defaultCollapsed = new Set(
         groupsData.filter((g: CustomFieldGroup) => g.collapsedByDefault).map((g: CustomFieldGroup) => g.id)
@@ -399,6 +409,13 @@ export function LeadEditPage() {
 
   // ── Save ──
   const handleSave = async () => {
+    // ── Configurable field validation ──
+    const validationErrors = validateFields(fieldValidationConfig, formData as Record<string, any>, formData.customFields as Record<string, any>);
+    if (validationErrors.length > 0) {
+      setError(validationErrors.map(e => e.message).join('. '));
+      return;
+    }
+    
     if (!formData.lastName?.trim()) {
       setError('Last name is required');
       return;
@@ -423,6 +440,8 @@ export function LeadEditPage() {
         if (!dataToSave[key]) delete dataToSave[key];
       });
 
+      if (!dataToSave.productIds?.length) delete dataToSave.productIds;
+      
       if (isNew) {
         const created = await leadsApi.create(dataToSave as any);
         navigate(`/leads/${created.id}`);
@@ -766,6 +785,20 @@ export function LeadEditPage() {
           </div>
         )}
 
+        {/* ── PRODUCTS TAB ── */}
+        {activeTab === 'products' && (
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-5">
+            {isNew ? (
+              <LeadProductsTab
+                selectedProductIds={formData.productIds || []}
+                onProductIdsChange={(ids) => handleChange('productIds', ids)}
+              />
+            ) : (
+              <LeadProductsTab leadId={id} />
+            )}
+          </div>
+        )}
+
         {/* ── QUALIFICATION TAB ── */}
         {activeTab === 'qualification' && qualificationFields.length > 0 && (
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-5">
@@ -870,7 +903,7 @@ export function LeadEditPage() {
             {renderCustomFieldsForSection('contact')}
           </div>
         )}
-
+        
         {/* ── OTHER / CUSTOM FIELDS TAB ── */}
         {activeTab === 'other' && (
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-5">
@@ -967,6 +1000,63 @@ export function LeadEditPage() {
                         />
                         <span className="text-sm text-gray-700 dark:text-slate-300">{field.fieldLabel}</span>
                       </label>
+                    ) : field.fieldType === 'file' ? (
+                      <div>
+                        <label
+                          className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+                            stageFieldErrors[field.fieldKey]
+                              ? 'border-red-400 bg-red-50 dark:bg-red-900/10'
+                              : 'border-gray-300 dark:border-slate-600 hover:border-blue-400 bg-gray-50 dark:bg-slate-800'
+                          }`}
+                        >
+                          {stageFieldValues[field.fieldKey] ? (
+                            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                              <span className="truncate max-w-[200px]">
+                                {typeof stageFieldValues[field.fieldKey] === 'string'
+                                  ? stageFieldValues[field.fieldKey].split('/').pop()
+                                  : stageFieldValues[field.fieldKey]?.name || 'File selected'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setStageFieldValues(prev => ({ ...prev, [field.fieldKey]: '' }));
+                                }}
+                                className="ml-1 text-red-500 hover:text-red-700"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <Plus className="w-6 h-6 text-gray-400 mx-auto mb-1" />
+                              <span className="text-xs text-gray-500 dark:text-slate-400">Click to upload</span>
+                            </div>
+                          )}
+                          <input
+                            type="file"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const formDataUpload = new FormData();
+                                formDataUpload.append('file', file);
+                                const { data: uploadResult } = await (await import('../../api/contacts.api')).api.post('/uploads', formDataUpload, {
+                                  headers: { 'Content-Type': 'multipart/form-data' },
+                                });
+                                const fileUrl = uploadResult.url || uploadResult.path || uploadResult.fileUrl;
+                                setStageFieldValues(prev => ({ ...prev, [field.fieldKey]: fileUrl }));
+                                setStageFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; });
+                              } catch (err) {
+                                console.error('File upload failed:', err);
+                                setStageFieldErrors(prev => ({ ...prev, [field.fieldKey]: 'Upload failed' }));
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
                     ) : (
                       <input
                         type={

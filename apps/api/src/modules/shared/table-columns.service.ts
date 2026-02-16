@@ -162,6 +162,16 @@ const SYSTEM_FIELDS: Record<string, SystemFieldDef[]> = {
     { key: 'isSystem', label: 'System', fieldType: 'checkbox', defaultVisible: true, sortKey: 'is_system' },
     { key: 'isCustom', label: 'Custom', fieldType: 'checkbox' },
   ],
+  opportunities: [
+    { key: 'name', label: 'Name', fieldType: 'text', defaultVisible: true },
+    { key: 'type', label: 'Type', fieldType: 'select' },
+    { key: 'source', label: 'Source', fieldType: 'select' },
+    { key: 'currency', label: 'Currency', fieldType: 'text' },
+    { key: 'competitor', label: 'Competitor', fieldType: 'text' },
+    { key: 'nextStep', label: 'Next Step', fieldType: 'text', sortKey: 'next_step' },
+    { key: 'description', label: 'Description', fieldType: 'textarea' },
+    { key: 'tags', label: 'Tags', fieldType: 'multi_select' },
+  ],
 };
 
 // ============================================================
@@ -214,6 +224,19 @@ const COMPUTED_COLUMNS: Record<string, TableColumn[]> = {
   ],
   roles: [
     { key: 'usersCount', label: 'Users', type: 'number', sortable: false, defaultVisible: true, defaultWidth: 90, align: 'center', isCustomField: false, source: 'computed' },
+  ],
+  opportunities: [
+    { key: 'name', label: 'Name', type: 'text', sortKey: 'name', sortable: true, defaultVisible: true, defaultWidth: 280, frozen: true, isCustomField: false, source: 'computed' },
+    { key: 'accountName', label: 'Account', type: 'text', sortable: false, defaultVisible: true, defaultWidth: 180, isCustomField: false, source: 'computed' },
+    { key: 'stageName', label: 'Stage', type: 'badge', sortKey: 'stage', sortable: true, defaultVisible: true, defaultWidth: 130, isCustomField: false, source: 'computed' },
+    { key: 'amount', label: 'Amount', type: 'currency', sortKey: 'amount', sortable: true, defaultVisible: true, defaultWidth: 120, align: 'right', isCustomField: false, source: 'computed' },
+    { key: 'probability', label: 'Probability', type: 'number', sortKey: 'probability', sortable: true, defaultVisible: true, defaultWidth: 100, align: 'center', isCustomField: false, source: 'computed' },
+    { key: 'closeDate', label: 'Close Date', type: 'date', sortKey: 'close_date', sortable: true, defaultVisible: true, defaultWidth: 120, isCustomField: false, source: 'computed' },
+    { key: 'forecastCategory', label: 'Forecast', type: 'badge', sortKey: 'forecast_category', sortable: true, defaultVisible: true, defaultWidth: 110, isCustomField: false, source: 'computed' },
+    { key: 'weightedAmount', label: 'Weighted', type: 'currency', sortKey: 'weighted_amount', sortable: true, defaultVisible: false, defaultWidth: 120, align: 'right', isCustomField: false, source: 'computed' },
+    { key: 'priorityName', label: 'Priority', type: 'badge', sortKey: 'priority', sortable: true, defaultVisible: false, defaultWidth: 110, isCustomField: false, source: 'computed' },
+    { key: 'ownerName', label: 'Owner', type: 'text', sortKey: 'owner', sortable: true, defaultVisible: true, defaultWidth: 150, isCustomField: false, source: 'computed' },
+    { key: 'lastActivityAt', label: 'Last Activity', type: 'datetime', sortKey: 'last_activity_at', sortable: true, defaultVisible: false, defaultWidth: 160, isCustomField: false, source: 'computed' },
   ],
 };
 

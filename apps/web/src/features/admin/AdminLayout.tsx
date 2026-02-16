@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Settings, ListPlus, BarChart3, Users, Building2, 
+import { Settings, ListPlus, BarChart3, Users, Building2, Shield,
   Target, Briefcase, LayoutGrid, ArrowLeft, LayoutTemplate, ClipboardList
 } from 'lucide-react';
 
@@ -49,7 +49,7 @@ const adminNavItems = [
   {
     label: 'Org Chart',
     path: '/org-chart',
-    icon: Building2,        // or use GitBranch / Network from lucide-react
+    icon: Building2,
     description: ''
   },
   {
@@ -59,10 +59,22 @@ const adminNavItems = [
     description: 'View system audit trail'
   },
   {
+     label: 'Field Validation',
+     path: '/admin/field-validation',
+     icon: Shield,
+     description: 'Required fields for each module'
+   },
+  {
     label: 'Lead Settings',
     path: '/admin/lead-settings',
     icon: Target,
     description: 'Stages, scoring, routing & more'
+  },
+  { 
+    path: '/admin/opportunity-settings', 
+    label: 'Opportunity Settings', 
+    icon: Briefcase, 
+    description: 'Stages, scoring, routing & more' 
   },
 ];
 
@@ -79,7 +91,7 @@ export function AdminLayout() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800">
+      <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-16 gap-4">
             {/* Back Button */}
@@ -110,44 +122,46 @@ export function AdminLayout() {
         <div className="flex gap-8">
           {/* Sidebar Navigation */}
           <div className="w-64 flex-shrink-0">
-            <nav className="space-y-1">
-              {adminNavItems.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-                      isActive
-                        ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
-                        : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800'
-                    }`
-                  }
-                >
-                  <item.icon className="w-5 h-5" />
-                  <div>
-                    <div className="font-medium">{item.label}</div>
-                    <div className="text-xs opacity-70">{item.description}</div>
-                  </div>
-                </NavLink>
-              ))}
-            </nav>
-
-            {/* Module Quick Links */}
-            <div className="mt-8">
-              <h3 className="px-4 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">
-                Modules
-              </h3>
-              <div className="space-y-1">
-                {Object.entries(moduleIcons).map(([module, Icon]) => (
+            <div className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto">
+              <nav className="space-y-1">
+                {adminNavItems.map((item) => (
                   <NavLink
-                    key={module}
-                    to={`/admin/custom-fields?module=${module}`}
-                    className="flex items-center gap-3 px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                    key={item.path}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                        isActive
+                          ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
+                          : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800'
+                      }`
+                    }
                   >
-                    <Icon className="w-4 h-4" />
-                    <span className="capitalize">{module}</span>
+                    <item.icon className="w-5 h-5" />
+                    <div>
+                      <div className="font-medium">{item.label}</div>
+                      <div className="text-xs opacity-70">{item.description}</div>
+                    </div>
                   </NavLink>
                 ))}
+              </nav>
+
+              {/* Module Quick Links */}
+              <div className="mt-8">
+                <h3 className="px-4 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                  Modules
+                </h3>
+                <div className="space-y-1">
+                  {Object.entries(moduleIcons).map(([module, Icon]) => (
+                    <NavLink
+                      key={module}
+                      to={`/admin/custom-fields?module=${module}`}
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="capitalize">{module}</span>
+                    </NavLink>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

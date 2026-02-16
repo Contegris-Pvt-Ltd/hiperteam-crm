@@ -18,7 +18,8 @@ interface NotesPanelProps {
   onTogglePin?: (id: string) => Promise<void>;
 }
 
-export function NotesPanel({ notes, loading, onAddNote, onDeleteNote, onTogglePin }: NotesPanelProps) {
+export function NotesPanel({ notes: rawNotes, loading, onAddNote, onDeleteNote, onTogglePin }: NotesPanelProps) {
+  const notes = Array.isArray(rawNotes) ? rawNotes : [];
   const [newNote, setNewNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 

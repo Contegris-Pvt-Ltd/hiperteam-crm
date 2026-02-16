@@ -13,7 +13,7 @@ import {
   Pencil, X, Check, AlertTriangle,
   Zap, Target, Route, Award, Ban, Globe, Settings,
   RefreshCw, ToggleLeft, ToggleRight, Flame, Thermometer,
-  Sun, Snowflake, Minus,
+  Sun, Snowflake, Minus 
 } from 'lucide-react';
 import { leadSettingsApi } from '../../api/leads.api';
 import type { LeadStage, LeadPriority, Pipeline } from '../../api/leads.api';

@@ -6,7 +6,7 @@ import {
   Calendar, User, Tag, Linkedin, Twitter, 
   Facebook, Instagram, Users, DollarSign,
   History, MessageSquare, FileText, Activity, Network,
-  ChevronDown, ChevronRight
+  ChevronDown, ChevronRight, Cake, CreditCard, Building2
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { accountsApi } from '../../api/accounts.api';
@@ -123,8 +123,8 @@ export function AccountDetailPage() {
     try {
       switch (activeTab) {
         case 'activity':
-          const activityData = await accountsApi.getActivities(id);
-          setActivities(activityData.data);
+          const response = await accountsApi.getActivities(id!);
+          setActivities(Array.isArray(response) ? response : (response as any).data || []);
           break;
         case 'history':
           const historyData = await accountsApi.getHistory(id);
@@ -143,7 +143,7 @@ export function AccountDetailPage() {
           setLinkedContacts(contactsData);
           break;
         case 'children':
-          const childrenData = await accountsApi.getChildren(id);
+          const childrenData = await accountsApi.getChildAccounts(id);
           setChildAccounts(childrenData);
           break;
       }
@@ -175,7 +175,7 @@ export function AccountDetailPage() {
 
   const handleAddNote = async (content: string) => {
     if (!id) return;
-    const note = await accountsApi.addNote(id, content);
+    const note = await accountsApi.createNote(id, content);
     setNotes(prev => [note, ...prev]);
   };
 
@@ -357,7 +357,21 @@ export function AccountDetailPage() {
                 size="lg"
               />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{account.name}</h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {account.accountClassification === 'individual' && account.firstName
+                    ? `${account.firstName} ${account.lastName || ''}`
+                    : account.name}
+                </h1>
+                {/* Show subtitle based on classification */}
+                {account.accountClassification === 'individual' ? (
+                  account.accountType && (
+                    <p className="text-lg text-gray-600 dark:text-slate-400 capitalize">{account.accountType}</p>
+                  )
+                ) : (
+                  account.industry && (
+                    <p className="text-lg text-gray-600 dark:text-slate-400">{account.industry}</p>
+                  )
+                )}
                 {account.industry && <p className="text-lg text-gray-600 dark:text-slate-400">{account.industry}</p>}
                 {account.website && (
                   <a href={account.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 mt-1">
@@ -536,6 +550,17 @@ export function AccountDetailPage() {
                 }`}>
                   {account.accountType}
                 </span>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium ${
+                  account.accountClassification === 'individual'
+                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                }`}>
+                  {account.accountClassification === 'individual' ? (
+                    <><User className="w-3 h-3" /> Individual</>
+                  ) : (
+                    <><Building2 className="w-3 h-3" /> Business</>
+                  )}
+                </span>
                 <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${
                   account.status === 'active'
                     ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
@@ -581,9 +606,10 @@ export function AccountDetailPage() {
           {/* Company Info Card */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-6">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider mb-4">
-              Company Details
+              {account.accountClassification === 'individual' ? 'Personal Details' : 'Company Details'}
             </h3>
             <div className="space-y-3 text-sm">
+              {/* Email — both */}
               {primaryEmail && (
                 <div className="flex items-center gap-3">
                   <Mail className="w-4 h-4 text-gray-400 shrink-0" />
@@ -592,6 +618,7 @@ export function AccountDetailPage() {
                   </a>
                 </div>
               )}
+              {/* Phone — both */}
               {primaryPhone && (
                 <div className="flex items-center gap-3">
                   <Phone className="w-4 h-4 text-gray-400 shrink-0" />
@@ -600,6 +627,7 @@ export function AccountDetailPage() {
                   </a>
                 </div>
               )}
+              {/* Website — both */}
               {account.website && (
                 <div className="flex items-center gap-3">
                   <Globe className="w-4 h-4 text-gray-400 shrink-0" />
@@ -608,6 +636,7 @@ export function AccountDetailPage() {
                   </a>
                 </div>
               )}
+              {/* Address — both */}
               {primaryAddress && (
                 <div className="flex items-start gap-3">
                   <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
@@ -616,14 +645,42 @@ export function AccountDetailPage() {
                   </span>
                 </div>
               )}
+
+              {/* B2C Individual-specific fields */}
+              {account.accountClassification === 'individual' && (
+                <>
+                  {account.dateOfBirth && (
+                    <div className="flex items-center gap-3">
+                      <Cake className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span className="text-gray-900 dark:text-white">
+                        {new Date(account.dateOfBirth).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
+                  {account.gender && (
+                    <div className="flex items-center gap-3">
+                      <User className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span className="text-gray-900 dark:text-white capitalize">
+                        {account.gender.replace(/-/g, ' ')}
+                      </span>
+                    </div>
+                  )}
+                  {account.nationalId && (
+                    <div className="flex items-center gap-3">
+                      <CreditCard className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span className="text-gray-900 dark:text-white">{account.nationalId}</span>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
           {/* Financial Info */}
-          {(account.annualRevenue || account.companySize) && (
+          {account.accountClassification !== 'individual' && (account.annualRevenue || account.companySize) && (
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-6">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider mb-4">
-                Financial
+                Financial Info
               </h3>
               <div className="space-y-3 text-sm">
                 {account.annualRevenue && (
@@ -725,7 +782,7 @@ export function AccountDetailPage() {
           ))}
 
           {/* Parent Account */}
-          {account.parentAccount && (
+          {account.accountClassification !== 'individual' && account.parentAccount && (
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-6">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider mb-4">
                 Parent Account

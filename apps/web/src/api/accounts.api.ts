@@ -1,5 +1,42 @@
+// ============================================================
+// FILE: apps/web/src/api/accounts.api.ts
+// Updated: B2B/B2C classification support
+// ============================================================
 import { api } from './contacts.api';
 import type { Activity, AuditLog, Note, Document, EmailEntry, PhoneEntry, AddressEntry, SocialProfiles } from './contacts.api';
+
+// ============ Classification Constants ============
+
+export type AccountClassification = 'business' | 'individual';
+
+export const ACCOUNT_CLASSIFICATIONS: { value: AccountClassification; label: string }[] = [
+  { value: 'business', label: 'Business (B2B)' },
+  { value: 'individual', label: 'Individual (B2C)' },
+];
+
+// Account types per classification
+export const BUSINESS_ACCOUNT_TYPES = [
+  { value: 'prospect', label: 'Prospect' },
+  { value: 'customer', label: 'Customer' },
+  { value: 'partner', label: 'Partner' },
+  { value: 'vendor', label: 'Vendor' },
+  { value: 'competitor', label: 'Competitor' },
+  { value: 'other', label: 'Other' },
+];
+
+export const INDIVIDUAL_ACCOUNT_TYPES = [
+  { value: 'prospect', label: 'Prospect' },
+  { value: 'customer', label: 'Customer' },
+  { value: 'individual', label: 'Individual' },
+  { value: 'referral', label: 'Referral' },
+  { value: 'other', label: 'Other' },
+];
+
+export function getAccountTypesForClassification(classification: AccountClassification) {
+  return classification === 'individual' ? INDIVIDUAL_ACCOUNT_TYPES : BUSINESS_ACCOUNT_TYPES;
+}
+
+// ============ Interfaces ============
 
 export interface Account {
   id: string;
@@ -22,6 +59,12 @@ export interface Account {
     industry?: string;
   };
   accountType?: string;
+  accountClassification: AccountClassification;
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  nationalId?: string;
   status: string;
   tags?: string[];
   customFields?: Record<string, unknown>;
@@ -58,6 +101,7 @@ export interface AccountsQuery {
   search?: string;
   status?: string;
   accountType?: string;
+  accountClassification?: string;
   industry?: string;
   tag?: string;
   ownerId?: string;
@@ -82,6 +126,12 @@ export interface CreateAccountData {
   socialProfiles?: SocialProfiles;
   parentAccountId?: string;
   accountType?: string;
+  accountClassification?: AccountClassification;
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  nationalId?: string;
   tags?: string[];
   customFields?: Record<string, unknown>;
   source?: string;
@@ -99,6 +149,8 @@ export interface LinkedContact {
   role: string;
   isPrimary: boolean;
 }
+
+// ============ API Methods ============
 
 export const accountsApi = {
   getAll: async (query: AccountsQuery = {}): Promise<AccountsResponse> => {
@@ -145,19 +197,19 @@ export const accountsApi = {
     await api.delete(`/accounts/${id}/contacts/${contactId}`);
   },
 
-  // Children
-  getChildren: async (id: string): Promise<Account[]> => {
+  // Child accounts
+  getChildAccounts: async (id: string): Promise<Account[]> => {
     const { data } = await api.get(`/accounts/${id}/children`);
     return data;
   },
 
   // Activities
-  getActivities: async (id: string, page = 1, limit = 20): Promise<{ data: Activity[]; total: number }> => {
-    const { data } = await api.get(`/accounts/${id}/activities?page=${page}&limit=${limit}`);
-    return data;
+  getActivities: async (id: string): Promise<Activity[]> => {
+    const { data } = await api.get(`/accounts/${id}/activities`);
+    return Array.isArray(data) ? data : data.data || [];
   },
 
-  // History
+  // Audit history
   getHistory: async (id: string): Promise<AuditLog[]> => {
     const { data } = await api.get(`/accounts/${id}/history`);
     return data;
@@ -169,9 +221,13 @@ export const accountsApi = {
     return data;
   },
 
-  addNote: async (id: string, content: string): Promise<Note> => {
+  createNote: async (id: string, content: string): Promise<Note> => {
     const { data } = await api.post(`/accounts/${id}/notes`, { content });
     return data;
+  },
+
+  deleteNote: async (id: string, noteId: string): Promise<void> => {
+    await api.delete(`/accounts/${id}/notes/${noteId}`);
   },
 
   // Documents

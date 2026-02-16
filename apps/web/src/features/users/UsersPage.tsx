@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Plus, Search, Filter, Mail,
@@ -48,22 +48,26 @@ export function UsersPage() {
   const [filterDept, setFilterDept] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
+  const prefsApplied = useRef(false);
+
   useEffect(() => {
     fetchLookups();
   }, []);
 
   useEffect(() => {
     if (activeTab === 'users') {
-      if (tablePrefs.loading) return;
+      if (!prefsApplied.current) return;
       fetchUsers();
     } else {
       fetchInvitations();
     }
-  }, [query, activeTab, tablePrefs.loading]);
+  }, [query, activeTab]);
 
   // ── Sync table preferences into query once loaded ──
   useEffect(() => {
-    if (!tablePrefs.loading && activeTab === 'users') {
+    if (!tablePrefs.loading && activeTab === 'users' && !prefsApplied.current) {
+      // (keep existing setQuery block)
+      prefsApplied.current = true;
       setQuery(prev => ({
         ...prev,
         limit: tablePrefs.pageSize,

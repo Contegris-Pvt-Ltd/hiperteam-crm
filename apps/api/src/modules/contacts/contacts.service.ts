@@ -7,6 +7,7 @@ import { ActivityService } from '../shared/activity.service';
 import { DataAccessService } from '../shared/data-access.service';
 import { ProfileCompletionService } from '../admin/profile-completion.service';
 import { CustomFieldsService } from '../admin/custom-fields.service';
+import { FieldValidationService } from '../shared/field-validation.service';
 
 @Injectable()
 export class ContactsService {
@@ -24,9 +25,22 @@ export class ContactsService {
     private dataAccessService: DataAccessService,
     private profileCompletionService: ProfileCompletionService,
     private customFieldsService: CustomFieldsService,
+    private fieldValidationService: FieldValidationService,
   ) {}
 
   async create(schemaName: string, userId: string, dto: CreateContactDto) {
+    // ── Field validation (tenant-configurable rules) ──
+    await this.fieldValidationService.validate(schemaName, 'contacts', {
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      email: dto.email,
+      phone: dto.phone,
+      mobile: dto.mobile,
+      company: dto.company,
+      jobTitle: dto.jobTitle,
+      website: dto.website,
+    }, dto.customFields as Record<string, any>);
+
     const country = dto.country || 'PK';
 
     // Format phones in the phones array

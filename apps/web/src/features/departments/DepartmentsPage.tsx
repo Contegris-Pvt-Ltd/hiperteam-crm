@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, Building2, Users, Layers, ChevronRight, ChevronDown,
@@ -45,6 +45,10 @@ export function DepartmentsPage() {
   // Expanded nodes for hierarchy view
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
 
+  // Guards to prevent multiple fetches on mount
+  const prefsApplied = useRef(false);
+  const searchMounted = useRef(false);
+
   // ============================================================
   // DATA FETCHING
   // ============================================================
@@ -75,26 +79,29 @@ export function DepartmentsPage() {
     }
   }, []);
 
+  // ── Sync table preferences into query once loaded (runs first) ──
   useEffect(() => {
-    if (viewMode === 'list') {
-      if (tablePrefs.loading) return;
-      fetchDepartments();
-    } else {
-      fetchHierarchy();
-    }
-  }, [viewMode, fetchDepartments, fetchHierarchy, tablePrefs.loading]);
-
-  // ── Sync table preferences into query once loaded ──
-  useEffect(() => {
-    if (!tablePrefs.loading && viewMode === 'list') {
+    if (!tablePrefs.loading && viewMode === 'list' && !prefsApplied.current) {
       setQuery(prev => ({
         ...prev,
         limit: tablePrefs.pageSize,
         sortBy: tablePrefs.sortColumn,
         sortOrder: tablePrefs.sortOrder,
       }));
+      prefsApplied.current = true;
     }
-  }, [tablePrefs.loading]);
+  }, [tablePrefs.loading, viewMode]);
+
+  // ── Fetch data (waits for prefs to be applied) ──
+  useEffect(() => {
+    if (viewMode === 'list') {
+      if (!prefsApplied.current) return;
+      fetchDepartments();
+    } else {
+      fetchHierarchy();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, query]);
 
   const loadDetail = async (id: string) => {
     setDetailLoading(true);
@@ -112,6 +119,11 @@ export function DepartmentsPage() {
   // HANDLERS
   // ============================================================
   useEffect(() => {
+    // Skip the initial mount — only fire on actual user input
+    if (!searchMounted.current) {
+      searchMounted.current = true;
+      return;
+    }
     const timer = setTimeout(() => {
       setQuery((prev) => ({ ...prev, search: searchInput || undefined, page: 1 }));
     }, 300);

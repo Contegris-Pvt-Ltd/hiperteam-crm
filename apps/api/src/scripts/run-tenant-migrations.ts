@@ -113,6 +113,23 @@ async function runTenantMigrations() {
             sql: buildRbacMigration(schema),
           },
           {
+            name: '012_lead_products',
+            sql: `
+              CREATE TABLE IF NOT EXISTS "${schema}".lead_products (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                lead_id UUID NOT NULL REFERENCES "${schema}".leads(id) ON DELETE CASCADE,
+                product_id UUID NOT NULL REFERENCES "${schema}".products(id) ON DELETE CASCADE,
+                notes TEXT,
+                created_by UUID REFERENCES "${schema}".users(id),
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(lead_id, product_id)
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_lead_products_lead ON "${schema}".lead_products(lead_id);
+              CREATE INDEX IF NOT EXISTS idx_lead_products_product ON "${schema}".lead_products(product_id);
+            `
+          },
+          {
             name: '004_password_reset_tokens',
             sql: `
             CREATE TABLE IF NOT EXISTS "${schema}".password_reset_tokens (
@@ -459,6 +476,75 @@ async function runTenantMigrations() {
               WHERE module = 'opportunities' AND slug = 'closed_lost'
               AND pipeline_id = (SELECT id FROM "${schema}".pipelines WHERE is_default = true LIMIT 1);
             `
+          },
+          {
+            name: '009_add_opportunities',
+            sql: buildOpportunitiesMigration(schema),
+          },
+          {
+            name: '010_opportunity_settings',
+            sql: buildOpportunitySettingsMigration(schema),
+          },
+          {
+            name: '010_opportunity_settings',
+            sql: buildOpportunitySettingsMigration(schema),
+          },
+          {
+            name: "011_build_line_item_bundle_support",
+            sql: buildLineItemBundleSupportMigration(schema),
+          },
+          {
+            name: "011_add_opportunities_to_roles",
+            sql: buildOpportunitiesRolesMigration(schema),
+          },
+          {
+            name: '011_accounts_b2b_b2c',
+            sql: `
+              -- B2B/B2C Account Classification
+              ALTER TABLE "${schema}".accounts
+                ADD COLUMN IF NOT EXISTS account_classification VARCHAR(20) DEFAULT 'business';
+              ALTER TABLE "${schema}".accounts
+                ADD COLUMN IF NOT EXISTS first_name VARCHAR(100);
+              ALTER TABLE "${schema}".accounts
+                ADD COLUMN IF NOT EXISTS last_name VARCHAR(100);
+              ALTER TABLE "${schema}".accounts
+                ADD COLUMN IF NOT EXISTS date_of_birth DATE;
+              ALTER TABLE "${schema}".accounts
+                ADD COLUMN IF NOT EXISTS gender VARCHAR(20);
+              ALTER TABLE "${schema}".accounts
+                ADD COLUMN IF NOT EXISTS national_id VARCHAR(100);
+
+              CREATE INDEX IF NOT EXISTS idx_accounts_classification
+                ON "${schema}".accounts(account_classification);
+
+              -- Set existing accounts to 'business'
+              UPDATE "${schema}".accounts
+                SET account_classification = 'business'
+                WHERE account_classification IS NULL;
+            `
+          },
+          // ▼ ADD THIS NEW ENTRY ▼
+          {
+            name: '0021_module_settings',
+            sql: `
+              CREATE TABLE IF NOT EXISTS "${schema}".module_settings (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                module VARCHAR(50) NOT NULL,
+                setting_key VARCHAR(100) NOT NULL,
+                setting_value JSONB NOT NULL DEFAULT '{}',
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(module, setting_key)
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_module_settings_module ON "${schema}".module_settings(module);
+
+              INSERT INTO "${schema}".module_settings (module, setting_key, setting_value) VALUES
+                ('leads', 'fieldValidation', '{"rules":[{"id":"default-leads-1","fields":["lastName"],"type":"required","label":"Last Name","message":"Last name is required","isActive":true},{"id":"default-leads-2","fields":["email","phone","mobile"],"type":"any_one","label":"Contact Info","message":"At least one of email, phone, or mobile is required","isActive":true}]}'),
+                ('contacts', 'fieldValidation', '{"rules":[{"id":"default-contacts-1","fields":["lastName"],"type":"required","label":"Last Name","message":"Last name is required","isActive":true}]}'),
+                ('accounts', 'fieldValidation', '{"rules":[{"id":"default-accounts-1","fields":["name"],"type":"required","label":"Account Name","message":"Account name is required","isActive":true}]}'),
+                ('opportunities', 'fieldValidation', '{"rules":[{"id":"default-opps-1","fields":["name"],"type":"required","label":"Opportunity Name","message":"Opportunity name is required","isActive":true}]}')
+              ON CONFLICT (module, setting_key) DO NOTHING;
+            `,
           }
         ];
 
@@ -1148,6 +1234,337 @@ function buildLeadsMigration(schema: string): string {
     CREATE INDEX IF NOT EXISTS idx_leads_owner ON "${schema}".leads(owner_id);
     CREATE INDEX IF NOT EXISTS idx_leads_created_by ON "${schema}".leads(created_by);
     CREATE INDEX IF NOT EXISTS idx_leads_deleted ON "${schema}".leads(deleted_at);
+  `;
+}
+
+function buildOpportunitiesMigration(schema: string): string {
+  return `
+    -- ============================================================
+    -- OPPORTUNITY PRIORITIES
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".opportunity_priorities (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(100) NOT NULL,
+      color VARCHAR(20) DEFAULT '#9CA3AF',
+      icon VARCHAR(50),
+      sort_order INT DEFAULT 0,
+      is_default BOOLEAN DEFAULT false,
+      is_system BOOLEAN DEFAULT false,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    INSERT INTO "${schema}".opportunity_priorities (name, color, icon, sort_order, is_default, is_system) VALUES
+      ('Critical',  '#EF4444', 'flame',       1, false, true),
+      ('High',      '#F97316', 'thermometer', 2, false, true),
+      ('Medium',    '#F59E0B', 'sun',         3, true,  true),
+      ('Low',       '#3B82F6', 'snowflake',   4, false, true)
+    ON CONFLICT DO NOTHING;
+
+    -- ============================================================
+    -- OPPORTUNITY CLOSE REASONS (admin-configurable)
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".opportunity_close_reasons (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      type VARCHAR(10) NOT NULL,
+      name VARCHAR(200) NOT NULL,
+      description TEXT,
+      sort_order INT DEFAULT 0,
+      is_active BOOLEAN DEFAULT true,
+      is_system BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(type, name)
+    );
+
+    INSERT INTO "${schema}".opportunity_close_reasons (type, name, sort_order, is_system) VALUES
+      ('won', 'Product Fit',             1, true),
+      ('won', 'Price Competitive',       2, true),
+      ('won', 'Relationship/Trust',      3, true),
+      ('won', 'Implementation Timeline', 4, true),
+      ('won', 'Customer References',     5, true),
+      ('won', 'Superior Support',        6, true),
+      ('won', 'Other',                   99, true)
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO "${schema}".opportunity_close_reasons (type, name, sort_order, is_system) VALUES
+      ('lost', 'Price Too High',         1, true),
+      ('lost', 'Feature Gap',            2, true),
+      ('lost', 'Lost to Competitor',     3, true),
+      ('lost', 'No Decision / Stalled',  4, true),
+      ('lost', 'Budget Cut',             5, true),
+      ('lost', 'Timeline Mismatch',      6, true),
+      ('lost', 'Went Dark',              7, true),
+      ('lost', 'Internal Solution',      8, true),
+      ('lost', 'Other',                  99, true)
+    ON CONFLICT DO NOTHING;
+
+    -- ============================================================
+    -- OPPORTUNITIES TABLE
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".opportunities (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(500) NOT NULL,
+      pipeline_id UUID REFERENCES "${schema}".pipelines(id) ON DELETE SET NULL,
+      stage_id UUID REFERENCES "${schema}".pipeline_stages(id) ON DELETE SET NULL,
+      amount DECIMAL(15,2),
+      currency VARCHAR(3) DEFAULT 'USD',
+      close_date DATE,
+      probability INT,
+      weighted_amount DECIMAL(15,2) GENERATED ALWAYS AS (amount * probability / 100) STORED,
+      forecast_category VARCHAR(50),
+      owner_id UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+      account_id UUID,
+      primary_contact_id UUID,
+      priority_id UUID REFERENCES "${schema}".opportunity_priorities(id) ON DELETE SET NULL,
+      type VARCHAR(50),
+      source VARCHAR(100),
+      lead_id UUID,
+      close_reason_id UUID REFERENCES "${schema}".opportunity_close_reasons(id) ON DELETE SET NULL,
+      close_notes TEXT,
+      competitor VARCHAR(255),
+      next_step TEXT,
+      description TEXT,
+      tags TEXT[] DEFAULT '{}',
+      custom_fields JSONB DEFAULT '{}',
+      stage_entered_at TIMESTAMPTZ DEFAULT NOW(),
+      last_activity_at TIMESTAMPTZ,
+      won_at TIMESTAMPTZ,
+      lost_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      deleted_at TIMESTAMPTZ,
+      created_by UUID REFERENCES "${schema}".users(id),
+      updated_by UUID REFERENCES "${schema}".users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_opportunities_pipeline ON "${schema}".opportunities(pipeline_id) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_opportunities_stage ON "${schema}".opportunities(stage_id) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_opportunities_owner ON "${schema}".opportunities(owner_id) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_opportunities_account ON "${schema}".opportunities(account_id) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_opportunities_priority ON "${schema}".opportunities(priority_id) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_opportunities_close_date ON "${schema}".opportunities(close_date) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_opportunities_created ON "${schema}".opportunities(created_at DESC) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_opportunities_amount ON "${schema}".opportunities(amount) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_opportunities_deleted ON "${schema}".opportunities(deleted_at);
+    CREATE INDEX IF NOT EXISTS idx_opportunities_search ON "${schema}".opportunities USING gin(to_tsvector('english', name));
+
+    -- ============================================================
+    -- OPPORTUNITY STAGE HISTORY
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".opportunity_stage_history (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      opportunity_id UUID NOT NULL REFERENCES "${schema}".opportunities(id) ON DELETE CASCADE,
+      from_stage_id UUID REFERENCES "${schema}".pipeline_stages(id),
+      to_stage_id UUID NOT NULL REFERENCES "${schema}".pipeline_stages(id),
+      changed_by UUID REFERENCES "${schema}".users(id),
+      time_in_stage INTERVAL,
+      note TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_opp_stage_history_opp ON "${schema}".opportunity_stage_history(opportunity_id);
+    CREATE INDEX IF NOT EXISTS idx_opp_stage_history_date ON "${schema}".opportunity_stage_history(created_at DESC);
+
+    -- ============================================================
+    -- OPPORTUNITY CONTACTS (Contact Roles)
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS "${schema}".opportunity_contacts (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      opportunity_id UUID NOT NULL REFERENCES "${schema}".opportunities(id) ON DELETE CASCADE,
+      contact_id UUID NOT NULL,
+      role VARCHAR(100) NOT NULL,
+      is_primary BOOLEAN DEFAULT false,
+      notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(opportunity_id, contact_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_opp_contacts_opp ON "${schema}".opportunity_contacts(opportunity_id);
+    CREATE INDEX IF NOT EXISTS idx_opp_contacts_contact ON "${schema}".opportunity_contacts(contact_id);
+
+    -- ============================================================
+    -- ADD FKs
+    -- ============================================================
+    DO $do$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_opp_account' AND table_schema = '${schema}'
+      ) THEN
+        ALTER TABLE "${schema}".opportunities
+          ADD CONSTRAINT fk_opp_account
+          FOREIGN KEY (account_id) REFERENCES "${schema}".accounts(id) ON DELETE SET NULL;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_opp_contact' AND table_schema = '${schema}'
+      ) THEN
+        ALTER TABLE "${schema}".opportunities
+          ADD CONSTRAINT fk_opp_contact
+          FOREIGN KEY (primary_contact_id) REFERENCES "${schema}".contacts(id) ON DELETE SET NULL;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_opp_lead' AND table_schema = '${schema}'
+      ) THEN
+        ALTER TABLE "${schema}".opportunities
+          ADD CONSTRAINT fk_opp_lead
+          FOREIGN KEY (lead_id) REFERENCES "${schema}".leads(id) ON DELETE SET NULL;
+      END IF;
+
+      -- FK on existing opportunity_line_items
+      IF EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_schema = '${schema}' AND table_name = 'opportunity_line_items'
+      ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_oli_opportunity' AND table_schema = '${schema}'
+      ) THEN
+        ALTER TABLE "${schema}".opportunity_line_items
+          ADD CONSTRAINT fk_oli_opportunity
+          FOREIGN KEY (opportunity_id) REFERENCES "${schema}".opportunities(id) ON DELETE CASCADE;
+      END IF;
+    END $do$;
+
+    -- ============================================================
+    -- PROFILE COMPLETION CONFIG
+    -- ============================================================
+    INSERT INTO "${schema}".profile_completion_config (module, field_weights)
+    SELECT 'opportunities', '{
+      "name": {"weight": 10, "label": "Opportunity Name", "category": "basic"},
+      "account_id": {"weight": 15, "label": "Account", "category": "basic"},
+      "primary_contact_id": {"weight": 10, "label": "Primary Contact", "category": "basic"},
+      "amount": {"weight": 15, "label": "Amount", "category": "basic"},
+      "close_date": {"weight": 15, "label": "Close Date", "category": "basic"},
+      "type": {"weight": 8, "label": "Type", "category": "basic"},
+      "source": {"weight": 8, "label": "Source", "category": "basic"},
+      "description": {"weight": 10, "label": "Description", "category": "other"},
+      "next_step": {"weight": 9, "label": "Next Step", "category": "other"}
+    }'::jsonb
+    WHERE NOT EXISTS (
+      SELECT 1 FROM "${schema}".profile_completion_config WHERE module = 'opportunities'
+    );
+
+    -- Grant privileges
+    GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+  `;
+}
+
+function buildOpportunitySettingsMigration(schema: string): string {
+  return `
+    -- opportunity_types
+    CREATE TABLE IF NOT EXISTS "${schema}".opportunity_types (
+      id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name        VARCHAR(100) NOT NULL,
+      slug        VARCHAR(100) NOT NULL,
+      description TEXT,
+      color       VARCHAR(20) DEFAULT '#6B7280',
+      sort_order  INT DEFAULT 0,
+      is_default  BOOLEAN DEFAULT false,
+      is_system   BOOLEAN DEFAULT false,
+      is_active   BOOLEAN DEFAULT true,
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      updated_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    INSERT INTO "${schema}".opportunity_types (name, slug, color, sort_order, is_system) VALUES
+      ('New Business', 'new_business', '#3B82F6', 1, true),
+      ('Renewal',      'renewal',      '#10B981', 2, true),
+      ('Upsell',       'upsell',       '#F59E0B', 3, true),
+      ('Cross Sell',   'cross_sell',   '#8B5CF6', 4, true)
+    ON CONFLICT DO NOTHING;
+
+    -- opportunity_forecast_categories
+    CREATE TABLE IF NOT EXISTS "${schema}".opportunity_forecast_categories (
+      id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name              VARCHAR(100) NOT NULL,
+      slug              VARCHAR(100) NOT NULL,
+      description       TEXT,
+      color             VARCHAR(20) DEFAULT '#6B7280',
+      probability_min   INT DEFAULT 0,
+      probability_max   INT DEFAULT 100,
+      sort_order        INT DEFAULT 0,
+      is_system         BOOLEAN DEFAULT false,
+      is_active         BOOLEAN DEFAULT true,
+      created_at        TIMESTAMPTZ DEFAULT NOW(),
+      updated_at        TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    INSERT INTO "${schema}".opportunity_forecast_categories (name, slug, color, probability_min, probability_max, sort_order, is_system) VALUES
+      ('Pipeline',   'pipeline',   '#6B7280', 0,  25,  1, true),
+      ('Best Case',  'best_case',  '#F59E0B', 26, 50,  2, true),
+      ('Commit',     'commit',     '#3B82F6', 51, 80,  3, true),
+      ('Closed',     'closed',     '#10B981', 81, 100, 4, true),
+      ('Omitted',    'omitted',    '#EF4444', 0,  0,   5, true)
+    ON CONFLICT DO NOTHING;
+
+    -- Add competitor column if missing
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = '${schema}' AND table_name = 'opportunities' AND column_name = 'competitor'
+      ) THEN
+        ALTER TABLE "${schema}".opportunities ADD COLUMN competitor VARCHAR(255);
+      END IF;
+    END $$;
+
+    -- Grant privileges
+    GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+  `;
+}
+
+function buildLineItemBundleSupportMigration(schema: string): string {
+  return `
+    -- Add bundle tracking columns to opportunity_line_items
+    ALTER TABLE "${schema}".opportunity_line_items
+      ADD COLUMN IF NOT EXISTS parent_line_item_id UUID
+        REFERENCES "${schema}".opportunity_line_items(id) ON DELETE CASCADE,
+      ADD COLUMN IF NOT EXISTS line_item_type VARCHAR(20) DEFAULT 'standard',
+      ADD COLUMN IF NOT EXISTS is_optional BOOLEAN DEFAULT false;
+
+    CREATE INDEX IF NOT EXISTS idx_oli_parent
+      ON "${schema}".opportunity_line_items(parent_line_item_id)
+      WHERE parent_line_item_id IS NOT NULL;
+
+    CREATE INDEX IF NOT EXISTS idx_oli_type
+      ON "${schema}".opportunity_line_items(line_item_type);
+
+    -- Grant privileges
+    GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+  `;
+}
+
+function buildOpportunitiesRolesMigration(schema: string): string {
+  return `
+    -- Add opportunities permissions to existing system roles
+    -- Uses jsonb_set to inject into existing permissions without overwriting other modules
+
+    -- Admin: full access, record_access = all
+    UPDATE "${schema}".roles SET
+      permissions = permissions || '{"opportunities": {"view": true, "create": true, "edit": true, "delete": true, "export": true, "import": true}}'::jsonb,
+      record_access = record_access || '{"opportunities": "all"}'::jsonb,
+      updated_at = NOW()
+    WHERE name = 'admin' AND is_system = true
+      AND NOT (permissions ? 'opportunities');
+
+    -- Manager: team access
+    UPDATE "${schema}".roles SET
+      permissions = permissions || '{"opportunities": {"view": true, "create": true, "edit": true, "delete": true, "export": true, "import": false}}'::jsonb,
+      record_access = record_access || '{"opportunities": "team"}'::jsonb,
+      updated_at = NOW()
+    WHERE name = 'manager' AND is_system = true
+      AND NOT (permissions ? 'opportunities');
+
+    -- User: own access
+    UPDATE "${schema}".roles SET
+      permissions = permissions || '{"opportunities": {"view": true, "create": true, "edit": true, "delete": false, "export": false, "import": false}}'::jsonb,
+      record_access = record_access || '{"opportunities": "own"}'::jsonb,
+      updated_at = NOW()
+    WHERE name = 'user' AND is_system = true
+      AND NOT (permissions ? 'opportunities');
   `;
 }
 

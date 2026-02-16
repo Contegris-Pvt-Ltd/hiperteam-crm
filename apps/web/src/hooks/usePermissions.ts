@@ -30,7 +30,7 @@ export type FieldPermissionsMap = Record<string, Record<string, FieldAccess>>;
  * CRM Modules
  */
 export const CRM_MODULES = [
-  'contacts', 'accounts', 'leads', 'deals', 'tasks',
+  'contacts', 'accounts', 'leads', 'opportunities', 'deals', 'tasks',
   'reports', 'users', 'roles', 'settings', 'admin',
 ] as const;
 

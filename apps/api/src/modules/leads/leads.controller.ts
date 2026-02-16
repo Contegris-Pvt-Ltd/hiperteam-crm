@@ -70,7 +70,7 @@ export class LeadsController {
     @Query('excludeId') excludeId?: string,
   ) {
     return this.leadsService.findDuplicates(
-      req.user.tenantSchema, email || null, phone || null, excludeId,
+      req.user.tenantSchema, email || null, phone || null, excludeId && excludeId.trim() ? excludeId : null,
     );
   }
 
@@ -135,6 +135,16 @@ export class LeadsController {
   // CONVERSION
   // ============================================================
 
+  @Get(':id/conversion-check')
+  @RequirePermission('leads', 'view')
+  @ApiOperation({ summary: 'Check for duplicate contacts/accounts before lead conversion' })
+  async checkConversionDuplicates(
+    @Request() req: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.leadsService.checkConversionDuplicates(req.user.tenantSchema, id);
+  }
+  
   @Post(':id/convert')
   @RequirePermission('leads', 'edit')
   @ApiOperation({ summary: 'Convert lead to contact + account + opportunity' })
@@ -190,6 +200,71 @@ export class LeadsController {
     return this.recordTeamService.removeMember(req.user.tenantSchema, 'leads', id, userId);
   }
 
+  // ============================================================
+  // LEAD PRODUCTS
+  // ============================================================
+
+  @Get(':id/products')
+  @RequirePermission('leads', 'view')
+  @ApiOperation({ summary: 'Get products linked to a lead' })
+  async getLeadProducts(
+    @Request() req: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.leadsService.getLeadProducts(req.user.tenantSchema, id);
+  }
+
+  @Post(':id/products/:productId')
+  @RequirePermission('leads', 'edit')
+  @ApiOperation({ summary: 'Link a product to a lead' })
+  async linkProduct(
+    @Request() req: { user: JwtPayload },
+    @Param('id') id: string,
+    @Param('productId') productId: string,
+    @Body() body: { notes?: string },
+  ) {
+    return this.leadsService.linkProduct(
+      req.user.tenantSchema,
+      id,
+      productId,
+      req.user.sub,
+      body.notes,
+    );
+  }
+
+  @Delete(':id/products/:productId')
+  @RequirePermission('leads', 'edit')
+  @ApiOperation({ summary: 'Unlink a product from a lead' })
+  async unlinkProduct(
+    @Request() req: { user: JwtPayload },
+    @Param('id') id: string,
+    @Param('productId') productId: string,
+  ) {
+    return this.leadsService.unlinkProduct(
+      req.user.tenantSchema,
+      id,
+      productId,
+      req.user.sub,
+    );
+  }
+
+  @Put(':id/products/:productId/notes')
+  @RequirePermission('leads', 'edit')
+  @ApiOperation({ summary: 'Update notes on a lead-product link' })
+  async updateProductNotes(
+    @Request() req: { user: JwtPayload },
+    @Param('id') id: string,
+    @Param('productId') productId: string,
+    @Body() body: { notes: string },
+  ) {
+    return this.leadsService.updateProductNotes(
+      req.user.tenantSchema,
+      id,
+      productId,
+      body.notes,
+    );
+  }
+  
   // ============================================================
   // ACTIVITIES / NOTES / DOCUMENTS / HISTORY (shared pattern)
   // ============================================================

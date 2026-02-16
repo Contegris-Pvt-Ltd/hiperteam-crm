@@ -18,6 +18,7 @@ export const MODULE_DEFINITIONS: Record<string, { label: string; actions: string
   accounts: { label: 'Accounts', actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
   products: { label: 'Products', actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
   leads:    { label: 'Leads',    actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
+  opportunities: { label: 'Opportunities', actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
   deals:    { label: 'Deals',    actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
   tasks:    { label: 'Tasks',    actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
   reports:  { label: 'Reports',  actions: ['view', 'create', 'edit', 'delete', 'export', 'import'] },
@@ -27,7 +28,7 @@ export const MODULE_DEFINITIONS: Record<string, { label: string; actions: string
   admin:    { label: 'Admin',    actions: ['view', 'edit'] },
 };
 
-export const RECORD_ACCESS_MODULES = ['contacts', 'accounts', 'products', 'leads', 'deals', 'tasks', 'reports'];
+export const RECORD_ACCESS_MODULES = ['contacts', 'accounts', 'products', 'leads', 'opportunities', 'deals', 'tasks', 'reports'];
 export const RECORD_ACCESS_LEVELS = ['own', 'team', 'department', 'reporting_line', 'all'];
 
 export interface FormattedRole {

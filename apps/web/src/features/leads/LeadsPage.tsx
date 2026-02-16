@@ -7,7 +7,7 @@ import {
   Plus, Search,
   Eye, Pencil, Trash2, LayoutList, LayoutGrid,
   Flame, Thermometer, Snowflake, Sun, Minus,
-  Filter, X, Building2,
+  Filter, X, Building2, Package,
   Loader2, AlertTriangle,
 } from 'lucide-react';
 import type { Lead, LeadsQuery, LeadStage, LeadPriority, KanbanStageData, Pipeline } from '../../api/leads.api';
@@ -15,6 +15,7 @@ import { leadsApi, leadSettingsApi } from '../../api/leads.api';
 import { KanbanBoard } from './components/KanbanBoard';
 import { usePermissions } from '../../hooks/usePermissions';
 import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
+import { api } from '../../api/contacts.api';
 
 // Priority icon map
 const PRIORITY_ICONS: Record<string, any> = {
@@ -45,6 +46,10 @@ export function LeadsPage() {
   const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
+
+  const [productOptions, setProductOptions] = useState<{ id: string; name: string; code: string | null }[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [showProductFilter, setShowProductFilter] = useState(false);
 
   // Query state
   const [query, setQuery] = useState<LeadsQuery>({ page: 1, limit: 20, view: 'list' });
@@ -95,6 +100,18 @@ export function LeadsPage() {
       const defaultPl = pipelinesData.find((p: Pipeline) => p.isDefault);
       if (defaultPl) setSelectedPipelineId(defaultPl.id);
     }).catch(console.error);
+
+    // Load product options for filter
+    api.get('/products?limit=100&status=active').then(({ data }) => {
+      const products = data.data || data;
+      setProductOptions(
+        (Array.isArray(products) ? products : []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          code: p.code,
+        }))
+      );
+    }).catch(() => {});
   }, []);
 
   // ── Fetch leads when query changes ──
@@ -103,6 +120,15 @@ export function LeadsPage() {
     fetchLeads();
   }, [query, tablePrefs.loading]);
 
+  // Sync product filter into query
+  useEffect(() => {
+    setQuery(prev => ({
+      ...prev,
+      productIds: selectedProductIds.length > 0 ? selectedProductIds.join(',') : undefined,
+      page: 1,
+    }));
+  }, [selectedProductIds]);
+  
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
@@ -230,6 +256,7 @@ export function LeadsPage() {
 
   const clearFilters = () => {
     setSearchInput('');
+    setSelectedProductIds([]);
     setQuery({ page: 1, limit: 20, view: viewMode });
   };
 
@@ -248,6 +275,7 @@ export function LeadsPage() {
   const activeFilterCount = [
     query.stageId, query.priorityId, query.source, query.ownerId,
     query.tag, query.scoreMin, query.scoreMax, query.convertedStatus,
+    selectedProductIds.length > 0 ? true : undefined,
   ].filter(Boolean).length;
 
   // ── Score bar helper ──
@@ -418,7 +446,95 @@ export function LeadsPage() {
               <option value="converted">Converted</option>
               <option value="disqualified">Disqualified</option>
             </select>
+
+            {/* Product filter */}
+            {productOptions.length > 0 && (
+              <div className="relative col-span-2 md:col-span-4">
+                <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Products</label>
+                <div
+                  onClick={() => setShowProductFilter(!showProductFilter)}
+                  className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm cursor-pointer ${
+                    selectedProductIds.length > 0
+                      ? 'border-blue-300 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Package className="w-4 h-4" />
+                  {selectedProductIds.length > 0
+                    ? `${selectedProductIds.length} product${selectedProductIds.length !== 1 ? 's' : ''} selected`
+                    : 'All Products'
+                  }
+                </div>
+
+                {showProductFilter && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowProductFilter(false)} />
+                    <div className="absolute top-full left-0 mt-1 w-80 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-lg z-20 max-h-64 flex flex-col">
+                      <div className="px-3 py-2 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase">Select Products</span>
+                        {selectedProductIds.length > 0 && (
+                          <button onClick={() => setSelectedProductIds([])} className="text-xs text-blue-600 hover:underline">
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      <div className="overflow-y-auto p-2 space-y-0.5">
+                        {productOptions.map(product => {
+                          const isSelected = selectedProductIds.includes(product.id);
+                          return (
+                            <button
+                              key={product.id}
+                              onClick={() => {
+                                setSelectedProductIds(prev =>
+                                  isSelected ? prev.filter(pid => pid !== product.id) : [...prev, product.id]
+                                );
+                              }}
+                              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-sm transition-colors ${
+                                isSelected
+                                  ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                                  : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                                isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300 dark:border-slate-600'
+                              }`}>
+                                {isSelected && (
+                                  <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                )}
+                              </div>
+                              <span className="truncate">{product.name}</span>
+                              {product.code && <span className="text-xs text-gray-400 font-mono ml-auto">{product.code}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
+
+          {/* Selected product chips */}
+          {selectedProductIds.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {selectedProductIds.map(pid => {
+                const product = productOptions.find(p => p.id === pid);
+                if (!product) return null;
+                return (
+                  <span key={pid} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg text-xs font-medium">
+                    <Package className="w-3 h-3" />
+                    {product.name}
+                    <button onClick={() => setSelectedProductIds(prev => prev.filter(id => id !== pid))} className="ml-0.5 hover:text-blue-900">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -657,6 +773,63 @@ export function LeadsPage() {
                         />
                         <span className="text-sm text-gray-700 dark:text-slate-300">{field.fieldLabel}</span>
                       </label>
+                    ) : field.fieldType === 'file' ? (
+                      <div>
+                        <label
+                          className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+                            kanbanFieldErrors[field.fieldKey]
+                              ? 'border-red-400 bg-red-50 dark:bg-red-900/10'
+                              : 'border-gray-300 dark:border-slate-600 hover:border-blue-400 bg-gray-50 dark:bg-slate-800'
+                          }`}
+                        >
+                          {kanbanFieldValues[field.fieldKey] ? (
+                            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                              <span className="truncate max-w-[200px]">
+                                {typeof kanbanFieldValues[field.fieldKey] === 'string'
+                                  ? kanbanFieldValues[field.fieldKey].split('/').pop()
+                                  : kanbanFieldValues[field.fieldKey]?.name || 'File selected'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setKanbanFieldValues(prev => ({ ...prev, [field.fieldKey]: '' }));
+                                }}
+                                className="ml-1 text-red-500 hover:text-red-700"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <Plus className="w-6 h-6 text-gray-400 mx-auto mb-1" />
+                              <span className="text-xs text-gray-500 dark:text-slate-400">Click to upload</span>
+                            </div>
+                          )}
+                          <input
+                            type="file"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const formDataUpload = new FormData();
+                                formDataUpload.append('file', file);
+                                const { data: uploadResult } = await (await import('../../api/contacts.api')).api.post('/uploads', formDataUpload, {
+                                  headers: { 'Content-Type': 'multipart/form-data' },
+                                });
+                                const fileUrl = uploadResult.url || uploadResult.path || uploadResult.fileUrl;
+                                setKanbanFieldValues(prev => ({ ...prev, [field.fieldKey]: fileUrl }));
+                                setKanbanFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; });
+                              } catch (err) {
+                                console.error('File upload failed:', err);
+                                setKanbanFieldErrors(prev => ({ ...prev, [field.fieldKey]: 'Upload failed' }));
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
                     ) : (
                       <input
                         type={

@@ -4,7 +4,7 @@ import { DataSource } from 'typeorm';
 export interface ProfileCompletionConfig {
   id: string;
   module: string;
-  fieldWeights: Record<string, { weight: number; label: string; category?: string }>;
+  fieldWeights: Record<string, { weight: number; label: string; category?: string; classificationFilter?: string }>;
   isEnabled: boolean;
   minPercentage: number;
 }
@@ -18,7 +18,7 @@ export interface ProfileCompletionResult {
 }
 
 // Standard fields for each module with default weights
-const STANDARD_FIELDS: Record<string, Record<string, { weight: number; label: string; category: string }>> = {
+const STANDARD_FIELDS: Record<string, Record<string, { weight: number; label: string; category: string; classificationFilter?: string }>> = {
   contacts: {
     firstName: { weight: 10, label: 'First Name', category: 'basic' },
     lastName: { weight: 10, label: 'Last Name', category: 'basic' },
@@ -36,19 +36,27 @@ const STANDARD_FIELDS: Record<string, Record<string, { weight: number; label: st
     source: { weight: 2, label: 'Source', category: 'other' },
   },
   accounts: {
-    name: { weight: 15, label: 'Company Name', category: 'basic' },
-    website: { weight: 10, label: 'Website', category: 'basic' },
-    industry: { weight: 10, label: 'Industry', category: 'basic' },
-    companySize: { weight: 8, label: 'Company Size', category: 'basic' },
-    annualRevenue: { weight: 5, label: 'Annual Revenue', category: 'basic' },
+    // Common fields (both B2B and B2C)
+    name: { weight: 15, label: 'Account Name', category: 'basic' },
+    website: { weight: 5, label: 'Website', category: 'basic' },
     description: { weight: 5, label: 'Description', category: 'basic' },
     emails: { weight: 8, label: 'Email Addresses', category: 'contact' },
     phones: { weight: 8, label: 'Phone Numbers', category: 'contact' },
     addresses: { weight: 10, label: 'Address', category: 'location' },
     socialProfiles: { weight: 5, label: 'Social Profiles', category: 'social' },
-    logoUrl: { weight: 5, label: 'Company Logo', category: 'basic' },
+    logoUrl: { weight: 5, label: 'Logo / Photo', category: 'basic' },
     accountType: { weight: 6, label: 'Account Type', category: 'other' },
     source: { weight: 5, label: 'Source', category: 'other' },
+    // B2B fields — only counted when accountClassification = 'business'
+    industry: { weight: 10, label: 'Industry', category: 'basic', classificationFilter: 'business' },
+    companySize: { weight: 8, label: 'Company Size', category: 'basic', classificationFilter: 'business' },
+    annualRevenue: { weight: 5, label: 'Annual Revenue', category: 'basic', classificationFilter: 'business' },
+    // B2C fields — only counted when accountClassification = 'individual'
+    firstName: { weight: 12, label: 'First Name', category: 'basic', classificationFilter: 'individual' },
+    lastName: { weight: 10, label: 'Last Name', category: 'basic', classificationFilter: 'individual' },
+    dateOfBirth: { weight: 6, label: 'Date of Birth', category: 'basic', classificationFilter: 'individual' },
+    gender: { weight: 4, label: 'Gender', category: 'basic', classificationFilter: 'individual' },
+    nationalId: { weight: 5, label: 'National ID', category: 'basic', classificationFilter: 'individual' },
   },
 };
 
@@ -131,55 +139,52 @@ export class ProfileCompletionService {
   }
 
   calculateCompletion(
-    entity: Record<string, unknown>,
-    fieldWeights: Record<string, { weight: number; label: string }>,
-    customFields?: { fieldKey: string; completionWeight: number; fieldLabel: string }[],
-  ): ProfileCompletionResult {
-    const filledFields: string[] = [];
-    const missingFields: { key: string; label: string; weight: number }[] = [];
+    record: Record<string, unknown>,
+    fieldWeights: Record<string, { weight: number; label: string; category?: string; classificationFilter?: string }>,
+    customFieldConfigs: { fieldKey: string; completionWeight: number; fieldLabel: string }[] = [],
+  ) {
     let totalWeight = 0;
     let earnedWeight = 0;
+    const filledFields: string[] = [];
+    const missingFields: { key: string; label: string; weight: number }[] = [];
 
-    // Check standard fields
+    // Get account classification for filtering (only relevant for accounts module)
+    const classification = record.accountClassification as string | undefined;
+
     for (const [key, config] of Object.entries(fieldWeights)) {
-      totalWeight += config.weight;
+      // Skip fields that don't match the current classification
+      if (config.classificationFilter) {
+        if (classification && config.classificationFilter !== classification) {
+          continue; // Skip this field — doesn't apply to current classification
+        }
+      }
 
-      if (this.isFieldFilled(entity[key])) {
-        filledFields.push(key);
+      totalWeight += config.weight;
+      const value = record[key];
+      const isFilled = this.isFieldFilled(value);
+      if (isFilled) {
         earnedWeight += config.weight;
+        filledFields.push(key);
       } else {
         missingFields.push({ key, label: config.label, weight: config.weight });
       }
     }
 
-    // Check custom fields
-    if (customFields && entity.customFields) {
-      const customFieldValues = entity.customFields as Record<string, unknown>;
-      for (const field of customFields) {
-        if (field.completionWeight > 0) {
-          totalWeight += field.completionWeight;
-
-          if (this.isFieldFilled(customFieldValues[field.fieldKey])) {
-            filledFields.push(field.fieldKey);
-            earnedWeight += field.completionWeight;
-          } else {
-            missingFields.push({
-              key: field.fieldKey,
-              label: field.fieldLabel,
-              weight: field.completionWeight,
-            });
-          }
-        }
+    // Custom fields (same as before — no classification filter)
+    for (const cf of customFieldConfigs) {
+      totalWeight += cf.completionWeight;
+      const customValues = (record.customFields || {}) as Record<string, unknown>;
+      const isFilled = this.isFieldFilled(customValues[cf.fieldKey]);
+      if (isFilled) {
+        earnedWeight += cf.completionWeight;
+        filledFields.push(cf.fieldKey);
+      } else {
+        missingFields.push({ key: cf.fieldKey, label: cf.fieldLabel, weight: cf.completionWeight });
       }
     }
 
-    const percentage = totalWeight > 0 ? Math.round((earnedWeight / totalWeight) * 100) : 0;
-
-    // Sort missing fields by weight (highest priority first)
-    missingFields.sort((a, b) => b.weight - a.weight);
-
     return {
-      percentage,
+      percentage: totalWeight > 0 ? Math.round((earnedWeight / totalWeight) * 100) : 0,
       filledFields,
       missingFields,
       totalWeight,

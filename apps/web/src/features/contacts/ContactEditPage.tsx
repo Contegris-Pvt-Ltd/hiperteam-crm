@@ -29,6 +29,9 @@ import { useModuleLayout } from '../../hooks/useModuleLayout';
 // ===============================================
 import { QuickCreateAccountModal } from '../../components/shared/QuickCreateAccountModal';
 import type { QuickCreateAccountResult } from '../../components/shared/QuickCreateAccountModal';
+import { moduleSettingsApi } from '../../api/module-settings.api';
+import type { FieldValidationConfig } from '../../api/module-settings.api';
+import { validateFields } from '../../utils/field-validation';
 
 type TabType = 'basic' | 'contact' | 'address' | 'social' | 'other' | string;
 
@@ -65,6 +68,9 @@ export function ContactEditPage() {
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [showQuickCreateAccount, setShowQuickCreateAccount] = useState(false);
+
+  const [fieldValidationConfig, setFieldValidationConfig] = useState<FieldValidationConfig>({ rules: [] });
+
   const [validationErrors, setValidationErrors] = useState<{
     contactInfo?: string;
     emails?: string;
@@ -123,6 +129,10 @@ export function ContactEditPage() {
         setCustomFields(fieldsData.filter(f => f.isActive));
         setCustomTabs(tabsData.filter(t => t.isActive));
         setCustomGroups(groupsData.filter(g => g.isActive));
+        // Load field validation rules
+        moduleSettingsApi.getFieldValidation('contacts')
+        .then(setFieldValidationConfig)
+        .catch(err => console.error('Failed to load validation rules:', err));
         
         // Initialize collapsed state for groups that are collapsed by default
         const defaultCollapsed = new Set(
@@ -412,6 +422,12 @@ export function ContactEditPage() {
     setError('');
     
     const newErrors: typeof validationErrors = {};
+    
+    const fieldErrors = validateFields(fieldValidationConfig, formData as Record<string, any>, formData.customFields as Record<string, any>);
+    if (fieldErrors.length > 0) {
+      setError(fieldErrors.map(e => e.message).join('. '));
+      return;
+    }
     
     // Validate first name
     if (!formData.firstName.trim()) {

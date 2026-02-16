@@ -27,6 +27,11 @@ import { AuditLogViewer } from './components/shared/AuditLogViewer';
 import { OrgChartPage } from './features/users/OrgChartPage';
 import { LeadsPage, LeadDetailPage, LeadEditPage } from './features/leads';
 import { LeadSettingsPage } from './features/admin/LeadSettingsPage';
+import { OpportunitiesPage } from './features/opportunities/OpportunitiesPage';
+import { OpportunityDetailPage } from './features/opportunities/OpportunityDetailPage';
+import { OpportunityEditPage } from './features/opportunities/OpportunityEditPage';
+import { OpportunitySettingsPage } from './features/admin/OpportunitySettingsPage';
+import { FieldValidationPage } from './features/admin/FieldValidationPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -79,6 +84,12 @@ function App() {
           <Route path="/leads/:id" element={<LeadDetailPage />} />
           <Route path="/leads/:id/edit" element={<LeadEditPage />} />
 
+          {/* Opportunities */}
+          <Route path="/opportunities" element={<OpportunitiesPage />} />
+          <Route path="/opportunities/new" element={<OpportunityEditPage />} />
+          <Route path="/opportunities/:id" element={<OpportunityDetailPage />} />
+          <Route path="/opportunities/:id/edit" element={<OpportunityEditPage />} />
+
           {/* Products */}
           <Route path="products" element={<ProductsPage />} />
           <Route path="products/new" element={<ProductEditPage />} />
@@ -87,8 +98,6 @@ function App() {
           <Route path="products/:id/edit" element={<ProductEditPage />} />
           
           {/* Placeholder routes */}
-          <Route path="leads" element={<PlaceholderPage title="Leads" />} />
-          <Route path="opportunities" element={<PlaceholderPage title="Opportunities" />} />
           <Route path="tasks" element={<PlaceholderPage title="Tasks" />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:id" element={<UserDetailPage />} />
@@ -111,6 +120,8 @@ function App() {
           <Route path="module-layout-settings" element={<ModuleLayoutSettingsPage />} />
           <Route path="audit-logs" element={<AuditLogViewer />} />
           <Route path="lead-settings" element={<LeadSettingsPage />} />
+          <Route path="opportunity-settings" element={<OpportunitySettingsPage />} />
+          <Route path="field-validation" element={<FieldValidationPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

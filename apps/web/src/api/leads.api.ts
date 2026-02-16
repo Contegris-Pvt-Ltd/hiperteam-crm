@@ -88,6 +88,25 @@ export interface DuplicateMatch {
   matchType: 'email' | 'phone' | 'domain';
 }
 
+export interface LeadProduct {
+  linkId: string;
+  notes: string | null;
+  linkedAt: string;
+  linkedBy: string | null;
+  product: {
+    id: string;
+    name: string;
+    code: string | null;
+    shortDescription: string | null;
+    type: string;
+    basePrice: number;
+    currency: string;
+    status: string;
+    imageUrl: string | null;
+    categoryName: string | null;
+  };
+}
+
 export interface QualificationField {
   fieldKey: string;
   fieldLabel: string;
@@ -158,6 +177,7 @@ export interface Lead {
   allStages?: LeadStage[];
   stageSettings?: Record<string, any>;
   duplicates?: DuplicateMatch[];
+  productsCount?: number;
 }
 
 export interface LeadsQuery {
@@ -179,6 +199,8 @@ export interface LeadsQuery {
   limit?: number;
   sortBy?: string;
   sortOrder?: 'ASC' | 'DESC';
+  productIds?: string;  // comma-separated product UUIDs
+  productsCount?: number;
 }
 
 export interface KanbanStageData {
@@ -225,6 +247,7 @@ export interface CreateLeadData {
   tags?: string[];
   customFields?: Record<string, any>;
   ownerId?: string;
+  productIds?: string[];
 }
 
 export interface ConvertLeadData {
@@ -291,6 +314,11 @@ export const leadsApi = {
     return data;
   },
 
+  checkConversionDuplicates: async (id: string) => {
+    const { data } = await api.get(`/leads/${id}/conversion-check`);
+    return data;
+  },
+  
   convert: async (id: string, conversionData: ConvertLeadData) => {
     const { data } = await api.post(`/leads/${id}/convert`, conversionData);
     return data;
@@ -346,6 +374,24 @@ export const leadsApi = {
   getDocuments: async (id: string) => {
     const { data } = await api.get(`/leads/${id}/documents`);
     return data;
+  },
+
+  // Lead products
+  getProducts: async (leadId: string): Promise<LeadProduct[]> => {
+    const { data } = await api.get(`/leads/${leadId}/products`);
+    return data;
+  },
+
+  linkProduct: async (leadId: string, productId: string, notes?: string): Promise<void> => {
+    await api.post(`/leads/${leadId}/products/${productId}`, { notes });
+  },
+
+  unlinkProduct: async (leadId: string, productId: string): Promise<void> => {
+    await api.delete(`/leads/${leadId}/products/${productId}`);
+  },
+
+  updateProductNotes: async (leadId: string, productId: string, notes: string): Promise<void> => {
+    await api.put(`/leads/${leadId}/products/${productId}/notes`, { notes });
   },
 };
 

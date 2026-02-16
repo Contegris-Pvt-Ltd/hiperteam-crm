@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, Shield, Pencil, Trash2, Eye, X, Copy, Users,
@@ -48,6 +48,10 @@ export function RolesPage() {
   // Grid collapse state
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
 
+  // Guard to prevent multiple fetches on mount
+  const prefsApplied = useRef(false);
+  const searchMounted = useRef(false);
+
   // ============================================================
   // DATA FETCHING
   // ============================================================
@@ -65,9 +69,14 @@ export function RolesPage() {
   }, [query]);
 
   useEffect(() => {
-    if (tablePrefs.loading) return;
+    if (!prefsApplied.current) return;
     fetchRoles();
-  }, [fetchRoles, tablePrefs.loading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  useEffect(() => {
+    rolesApi.getModuleDefinitions().then(setModuleDefs).catch(console.error);
+  }, []);
 
   useEffect(() => {
     rolesApi.getModuleDefinitions().then(setModuleDefs).catch(console.error);
@@ -75,16 +84,28 @@ export function RolesPage() {
 
   // ── Sync table preferences into query once loaded ──
   useEffect(() => {
-    if (!tablePrefs.loading) {
+    if (!tablePrefs.loading && !prefsApplied.current) {
       setQuery(prev => ({
         ...prev,
         limit: tablePrefs.pageSize,
         sortBy: tablePrefs.sortColumn || prev.sortBy,
         sortOrder: tablePrefs.sortOrder || prev.sortOrder,
       }));
+      prefsApplied.current = true;
     }
   }, [tablePrefs.loading]);
 
+  useEffect(() => {
+    if (!searchMounted.current) {
+      searchMounted.current = true;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setQuery((prev) => ({ ...prev, search: searchInput || undefined, page: 1 }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+  
   const loadDetail = async (id: string) => {
     setDetailLoading(true);
     try {

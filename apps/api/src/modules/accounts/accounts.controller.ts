@@ -102,7 +102,7 @@ export class AccountsController {
       id,
       contactId,
       body.role || '',
-      body.isPrimary || false,
+      body.isPrimary ?? false,
       req.user.sub,
     );
   }

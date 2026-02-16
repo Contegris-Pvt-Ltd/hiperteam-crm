@@ -7,7 +7,7 @@ import { uploadApi } from '../../api/upload.api';
 interface DocumentsPanelProps {
   documents: Document[];
   loading?: boolean;
-  entityType: "contacts" | "accounts" | "leads";
+  entityType: "contacts" | "accounts" | "leads" | "opportunities" | "products";
   entityId: string;
   onDocumentUploaded?: (doc: Document) => void;
   onDocumentDeleted?: (docId: string) => void;
@@ -30,13 +30,14 @@ const formatFileSize = (bytes: number) => {
 };
 
 export function DocumentsPanel({ 
-  documents, 
+  documents: rawDocuments, 
   loading, 
   entityType, 
   entityId,
   onDocumentUploaded,
   onDocumentDeleted 
 }: DocumentsPanelProps) {
+  const documents = Array.isArray(rawDocuments) ? rawDocuments : [];
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState('');

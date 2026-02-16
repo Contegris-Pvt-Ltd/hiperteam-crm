@@ -262,7 +262,7 @@ export class CreateLeadDto {
   @IsOptional()
   sourceDetails?: SourceDetailsDto;
 
-  @ApiPropertyOptional({ description: 'Pipeline ID (defaults to tenant default pipeline)' })
+  @ApiPropertyOptional({ description: 'Pipeline ID (defaults to default pipeline)' })
   @IsUUID()
   @IsOptional()
   pipelineId?: string;
@@ -321,4 +321,10 @@ export class CreateLeadDto {
   @IsUUID()
   @IsOptional()
   ownerId?: string;
+
+  @ApiPropertyOptional({ description: 'Product IDs to link to this lead' })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  productIds?: string[];
 }

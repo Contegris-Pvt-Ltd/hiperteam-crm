@@ -22,8 +22,8 @@ const navigation = [
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Accounts', href: '/accounts', icon: Building2 },
   { name: 'Leads', href: '/leads', icon: UserPlus },
-  { name: 'Products', href: '/products', icon: Package },
   { name: 'Opportunities', href: '/opportunities', icon: TrendingUp },
+  { name: 'Products', href: '/products', icon: Package },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
 ];
 

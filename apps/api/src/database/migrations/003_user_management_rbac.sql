@@ -192,6 +192,7 @@ UPDATE "TENANT_SCHEMA".roles SET
     "contacts": { "view": true, "create": true, "edit": true, "delete": true, "export": true, "import": true },
     "accounts": { "view": true, "create": true, "edit": true, "delete": true, "export": true, "import": true },
     "leads":    { "view": true, "create": true, "edit": true, "delete": true, "export": true, "import": true },
+    "opportunities": { "view": true, "create": true, "edit": true, "delete": true, "export": true, "import": true },
     "deals":    { "view": true, "create": true, "edit": true, "delete": true, "export": true, "import": true },
     "tasks":    { "view": true, "create": true, "edit": true, "delete": true, "export": true, "import": true },
     "reports":  { "view": true, "create": true, "edit": true, "delete": true, "export": true, "import": true },
@@ -204,6 +205,7 @@ UPDATE "TENANT_SCHEMA".roles SET
     "contacts": "all",
     "accounts": "all",
     "leads":    "all",
+    "opportunities": "all",
     "deals":    "all",
     "tasks":    "all",
     "reports":  "all"
@@ -219,6 +221,7 @@ UPDATE "TENANT_SCHEMA".roles SET
     "contacts": { "view": true, "create": true, "edit": true, "delete": true, "export": true, "import": false },
     "accounts": { "view": true, "create": true, "edit": true, "delete": true, "export": true, "import": false },
     "leads":    { "view": true, "create": true, "edit": true, "delete": true, "export": true, "import": false },
+    "opportunities": { "view": true, "create": true, "edit": true, "delete": true, "export": true, "import": false },
     "deals":    { "view": true, "create": true, "edit": true, "delete": true, "export": true, "import": false },
     "tasks":    { "view": true, "create": true, "edit": true, "delete": true, "export": false, "import": false },
     "reports":  { "view": true, "create": true, "edit": false, "delete": false, "export": true, "import": false },
@@ -231,6 +234,7 @@ UPDATE "TENANT_SCHEMA".roles SET
     "contacts": "team",
     "accounts": "team",
     "leads":    "team",
+    "opportunities": "team",
     "deals":    "team",
     "tasks":    "team",
     "reports":  "team"
@@ -246,6 +250,7 @@ UPDATE "TENANT_SCHEMA".roles SET
     "contacts": { "view": true, "create": true, "edit": true, "delete": false, "export": false, "import": false },
     "accounts": { "view": true, "create": true, "edit": true, "delete": false, "export": false, "import": false },
     "leads":    { "view": true, "create": true, "edit": true, "delete": false, "export": false, "import": false },
+    "opportunities": { "view": true, "create": true, "edit": true, "delete": false, "export": false, "import": false },
     "deals":    { "view": true, "create": true, "edit": true, "delete": false, "export": false, "import": false },
     "tasks":    { "view": true, "create": true, "edit": true, "delete": true, "export": false, "import": false },
     "reports":  { "view": true, "create": false, "edit": false, "delete": false, "export": false, "import": false },
@@ -258,6 +263,7 @@ UPDATE "TENANT_SCHEMA".roles SET
     "contacts": "own",
     "accounts": "own",
     "leads":    "own",
+    "opportunities": "own",
     "deals":    "own",
     "tasks":    "own",
     "reports":  "own"
