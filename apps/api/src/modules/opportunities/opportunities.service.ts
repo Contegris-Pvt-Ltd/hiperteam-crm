@@ -1471,8 +1471,9 @@ export class OpportunitiesService {
     let sortOrder = (maxOrder.max_order || 0) + 1;
     if (bundleItems.length === 0) {
       // No children configured — fall back to adding the bundle product itself
-      const unitPrice = parseFloat(product.base_price) || 0;
-      const [maxOrder] = await this.dataSource.query(
+      //const unitPrice = parseFloat(product.base_price) || 0;
+      //const [maxOrder] = 
+      await this.dataSource.query(
         `SELECT COALESCE(MAX(sort_order), 0) + 1 as next FROM "${schemaName}".opportunity_line_items WHERE opportunity_id = $1`,
         [opportunityId],
       );
@@ -1602,7 +1603,7 @@ export class OpportunitiesService {
       // This catches "Acme Corp - Renewal" matching "Acme Corp - Upsell"
       const nameWords = name.trim().split(/\s+/).filter(w => w.length >= 3).slice(0, 3);
       if (nameWords.length > 0) {
-        const nameLikeClauses = nameWords.map(word => {
+        nameWords.map(word => {
           orClauses.push(`o.name ILIKE $${paramIdx}`);
           params.push(`%${word}%`);
           paramIdx++;
