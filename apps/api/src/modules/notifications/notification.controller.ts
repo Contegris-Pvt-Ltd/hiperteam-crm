@@ -5,7 +5,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
-import { PermissionGuard } from '../../common/guards/permissions.guard';
+import { PermissionGuard, RequirePermission } from '../../common/guards/permissions.guard';
 import { NotificationService } from './notification.service';
 import { NotificationPreferencesService } from './notification-preferences.service';
 import { NotificationTemplateService } from './notification-template.service';
@@ -32,6 +32,7 @@ export class NotificationController {
   // ============================================================
 
   @Get()
+  @RequirePermission('notifications', 'view')
   @ApiOperation({ summary: 'Get my notifications' })
   async getNotifications(
     @Request() req: { user: JwtPayload },
@@ -49,6 +50,7 @@ export class NotificationController {
   }
 
   @Get('unread-count')
+  @RequirePermission('notifications', 'view')
   @ApiOperation({ summary: 'Get unread notification count' })
   async getUnreadCount(@Request() req: { user: JwtPayload }) {
     const count = await this.notificationService.getUnreadCount(req.user.tenantSchema, req.user.sub);
@@ -56,6 +58,7 @@ export class NotificationController {
   }
 
   @Put(':id/read')
+  @RequirePermission('notifications', 'view')
   @HttpCode(204)
   @ApiOperation({ summary: 'Mark notification as read' })
   async markRead(
@@ -66,6 +69,7 @@ export class NotificationController {
   }
 
   @Put('read-all')
+  @RequirePermission('notifications', 'view')
   @ApiOperation({ summary: 'Mark all notifications as read' })
   async markAllRead(@Request() req: { user: JwtPayload }) {
     const count = await this.notificationService.markAllRead(req.user.tenantSchema, req.user.sub);
@@ -73,6 +77,7 @@ export class NotificationController {
   }
 
   @Put(':id/dismiss')
+  @RequirePermission('notifications', 'view')
   @HttpCode(204)
   @ApiOperation({ summary: 'Dismiss a notification' })
   async dismiss(
@@ -87,12 +92,14 @@ export class NotificationController {
   // ============================================================
 
   @Get('preferences')
+  @RequirePermission('notifications', 'view')
   @ApiOperation({ summary: 'Get my notification preferences' })
   async getPreferences(@Request() req: { user: JwtPayload }) {
     return this.preferencesService.getUserPreferences(req.user.tenantSchema, req.user.sub);
   }
 
   @Put('preferences/:eventType')
+  @RequirePermission('notifications', 'edit')
   @ApiOperation({ summary: 'Update preference for an event type' })
   async updatePreference(
     @Request() req: { user: JwtPayload },
@@ -111,6 +118,7 @@ export class NotificationController {
   }
 
   @Put('preferences')
+  @RequirePermission('notifications', 'edit')
   @ApiOperation({ summary: 'Bulk update notification preferences' })
   async bulkUpdatePreferences(
     @Request() req: { user: JwtPayload },
@@ -135,6 +143,7 @@ export class NotificationController {
   // ============================================================
 
   @Get('push/public-key')
+  @RequirePermission('notifications', 'view')
   @ApiOperation({ summary: 'Get VAPID public key for push subscription' })
   async getVapidPublicKey(@Request() req: { user: JwtPayload }) {
     const key = await this.browserPushChannel.getPublicKey(req.user.tenantSchema);
@@ -142,6 +151,7 @@ export class NotificationController {
   }
 
   @Post('push/subscribe')
+  @RequirePermission('notifications', 'view')
   @ApiOperation({ summary: 'Register push subscription' })
   async subscribePush(
     @Request() req: { user: JwtPayload },
@@ -157,6 +167,7 @@ export class NotificationController {
   }
 
   @Delete('push/unsubscribe')
+  @RequirePermission('notifications', 'view')
   @ApiOperation({ summary: 'Remove push subscription' })
   async unsubscribePush(
     @Request() req: { user: JwtPayload },
@@ -173,12 +184,14 @@ export class NotificationController {
   // ============================================================
 
   @Get('templates')
+  @RequirePermission('notifications', 'edit')
   @ApiOperation({ summary: 'Get all notification templates' })
   async getTemplates(@Request() req: { user: JwtPayload }) {
     return this.templateService.findAll(req.user.tenantSchema);
   }
 
   @Put('templates/:id')
+  @RequirePermission('notifications', 'edit')
   @ApiOperation({ summary: 'Update a notification template' })
   async updateTemplate(
     @Request() req: { user: JwtPayload },
@@ -200,12 +213,14 @@ export class NotificationController {
   // ============================================================
 
   @Get('settings')
+  @RequirePermission('notifications', 'edit')
   @ApiOperation({ summary: 'Get notification settings' })
   async getSettings(@Request() req: { user: JwtPayload }) {
     return this.notificationService.getSettings(req.user.tenantSchema);
   }
 
   @Put('settings/:key')
+  @RequirePermission('notifications', 'edit')
   @ApiOperation({ summary: 'Update a notification setting' })
   async updateSetting(
     @Request() req: { user: JwtPayload },
@@ -221,6 +236,7 @@ export class NotificationController {
   // ============================================================
 
   @Post('verify/smtp')
+  @RequirePermission('notifications', 'edit')
   @ApiOperation({ summary: 'Test SMTP connection' })
   async verifySmtp(@Request() req: { user: JwtPayload }) {
     try {
@@ -231,12 +247,14 @@ export class NotificationController {
   }
 
   @Post('verify/twilio')
+  @RequirePermission('notifications', 'edit')
   @ApiOperation({ summary: 'Test Twilio connection' })
   async verifyTwilio(@Request() req: { user: JwtPayload }) {
     return this.smsWhatsAppChannel.verify(req.user.tenantSchema);
   }
 
   @Post('push/generate-vapid')
+  @RequirePermission('notifications', 'edit')
   @ApiOperation({ summary: 'Generate VAPID keys for push notifications' })
   async generateVapidKeys(@Request() req: { user: JwtPayload }) {
     return this.browserPushChannel.generateVapidKeys(req.user.tenantSchema);
@@ -247,6 +265,7 @@ export class NotificationController {
   // ============================================================
 
   @Post('test')
+  @RequirePermission('notifications', 'edit')
   @ApiOperation({ summary: 'Send a test notification' })
   async sendTest(
     @Request() req: { user: JwtPayload },

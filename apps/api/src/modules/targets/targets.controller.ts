@@ -9,7 +9,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
-import { RequirePermission, AdminOnly } from '../../common/guards/permissions.guard';
+import { RequirePermission } from '../../common/guards/permissions.guard';
 import { TargetsService } from './targets.service';
 
 @ApiTags('Targets')
@@ -24,7 +24,7 @@ export class TargetsController {
   // ============================================================
 
   @Get('metrics')
-  @RequirePermission('settings', 'view')
+  @RequirePermission('targets', 'view')
   @ApiOperation({ summary: 'Get all available metrics from registry' })
   getAvailableMetrics(@Query('module') module?: string) {
     return this.targetsService.getAvailableMetrics(module);
@@ -35,7 +35,7 @@ export class TargetsController {
   // ============================================================
 
   @Get()
-  @RequirePermission('settings', 'view')
+  @RequirePermission('targets', 'view')
   @ApiOperation({ summary: 'List all configured targets' })
   findAll(
     @Request() req: { user: JwtPayload },
@@ -49,28 +49,28 @@ export class TargetsController {
   }
 
   @Get(':id')
-  @RequirePermission('settings', 'view')
+  @RequirePermission('targets', 'view')
   @ApiOperation({ summary: 'Get a single target' })
   findOne(@Request() req: { user: JwtPayload }, @Param('id') id: string) {
     return this.targetsService.findOne(req.user.tenantSchema, id);
   }
 
   @Post()
-  @AdminOnly()
+  @RequirePermission('targets', 'create')
   @ApiOperation({ summary: 'Create a new target' })
   create(@Request() req: { user: JwtPayload }, @Body() dto: any) {
     return this.targetsService.create(req.user.tenantSchema, dto, req.user.sub);
   }
 
   @Put(':id')
-  @AdminOnly()
+  @RequirePermission('targets', 'edit')
   @ApiOperation({ summary: 'Update a target' })
   update(@Request() req: { user: JwtPayload }, @Param('id') id: string, @Body() dto: any) {
     return this.targetsService.update(req.user.tenantSchema, id, dto);
   }
 
   @Delete(':id')
-  @AdminOnly()
+  @RequirePermission('targets', 'delete')
   @ApiOperation({ summary: 'Delete a target' })
   delete(@Request() req: { user: JwtPayload }, @Param('id') id: string) {
     return this.targetsService.delete(req.user.tenantSchema, id);
@@ -81,7 +81,7 @@ export class TargetsController {
   // ============================================================
 
   @Get(':id/assignments')
-  @RequirePermission('settings', 'view')
+  @RequirePermission('targets', 'view')
   @ApiOperation({ summary: 'List assignments for a target' })
   getAssignments(
     @Request() req: { user: JwtPayload },
@@ -92,7 +92,7 @@ export class TargetsController {
   }
 
   @Post(':id/assignments')
-  @AdminOnly()
+  @RequirePermission('targets', 'create')
   @ApiOperation({ summary: 'Create an assignment' })
   createAssignment(
     @Request() req: { user: JwtPayload },
@@ -103,7 +103,7 @@ export class TargetsController {
   }
 
   @Put('assignments/:assignmentId')
-  @AdminOnly()
+  @RequirePermission('targets', 'edit')
   @ApiOperation({ summary: 'Update an assignment (override)' })
   updateAssignment(
     @Request() req: { user: JwtPayload },
@@ -114,7 +114,7 @@ export class TargetsController {
   }
 
   @Delete('assignments/:assignmentId')
-  @AdminOnly()
+  @RequirePermission('targets', 'delete')
   @ApiOperation({ summary: 'Delete an assignment' })
   deleteAssignment(
     @Request() req: { user: JwtPayload },
@@ -128,7 +128,7 @@ export class TargetsController {
   // ============================================================
 
   @Post(':id/cascade')
-  @AdminOnly()
+  @RequirePermission('targets', 'edit')
   @ApiOperation({ summary: 'Auto-distribute target from parent scope' })
   cascadeTarget(
     @Request() req: { user: JwtPayload },
@@ -145,7 +145,7 @@ export class TargetsController {
   // ============================================================
 
   @Post(':id/generate-periods')
-  @AdminOnly()
+  @RequirePermission('targets', 'edit')
   @ApiOperation({ summary: 'Generate assignments for next N periods' })
   generatePeriods(
     @Request() req: { user: JwtPayload },
@@ -162,6 +162,7 @@ export class TargetsController {
   // ============================================================
 
   @Get('progress/my')
+  @RequirePermission('targets', 'view')
   @ApiOperation({ summary: 'My current target progress' })
   getMyProgress(
     @Request() req: { user: JwtPayload },
@@ -171,7 +172,7 @@ export class TargetsController {
   }
 
   @Get('progress/team/:teamId')
-  @RequirePermission('settings', 'view')
+  @RequirePermission('targets', 'view')
   @ApiOperation({ summary: 'Team target progress' })
   getTeamProgress(
     @Request() req: { user: JwtPayload },
@@ -182,6 +183,7 @@ export class TargetsController {
   }
 
   @Get('progress/leaderboard')
+  @RequirePermission('targets', 'view')
   @ApiOperation({ summary: 'Target-based leaderboard' })
   getLeaderboard(
     @Request() req: { user: JwtPayload },
@@ -192,7 +194,7 @@ export class TargetsController {
   }
 
   @Post('progress/refresh')
-  @AdminOnly()
+  @RequirePermission('targets', 'view')
   @ApiOperation({ summary: 'Force recompute all progress' })
   refreshProgress(@Request() req: { user: JwtPayload }) {
     return this.targetsService.refreshAllProgress(req.user.tenantSchema, true);

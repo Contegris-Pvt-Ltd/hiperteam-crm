@@ -9,8 +9,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   ChevronLeft, ChevronRight, Plus, Clock,
   CheckCircle2, AlertCircle, ArrowUp, ArrowDown, Minus,
-  CheckSquare, Phone, Mail, Calendar as CalendarIcon,
-  Monitor, FileText, Users, GripVertical, Loader2,
+  Calendar as CalendarIcon,
+  FileText, GripVertical, Loader2,
   MapPin, ExternalLink, X,
 } from 'lucide-react';
 import type {

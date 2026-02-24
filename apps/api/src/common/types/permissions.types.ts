@@ -90,6 +90,9 @@ export const CRM_MODULES = [
   'roles',
   'settings',
   'admin',
+  'targets',
+  'gamification',
+  'notifications',
 ] as const;
 
 export type CrmModule = typeof CRM_MODULES[number];
@@ -108,10 +111,14 @@ export function getModuleActions(module: CrmModule): ModuleAction[] {
   switch (module) {
     case 'users':
       return USER_MODULE_ACTIONS;
-    case 'roles':
     case 'settings':
     case 'admin':
       return ADMIN_MODULE_ACTIONS;
+    case 'roles':
+    case 'targets':
+    case 'gamification':
+    case 'notifications':
+      return ['view', 'create', 'edit', 'delete'] as ModuleAction[];
     default:
       return DATA_MODULE_ACTIONS;
   }
