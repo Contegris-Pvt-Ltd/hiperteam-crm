@@ -425,7 +425,7 @@ export function TasksPage() {
           onColumnWidthsChange={tablePrefs.setColumnWidths}
           onRowClick={(row) => navigate(`/tasks/${row.id}`)}
           emptyMessage="No tasks found. Try adjusting your filters."
-          renderCell={(col, value, row) => {
+          renderCell={(col, _value, row) => {
             const task = row as unknown as Task;
 
             // Title column — checkbox + type icon + title + subtask count
@@ -600,7 +600,7 @@ interface TaskKanbanBoardProps {
 
 function TaskKanbanBoard({
   statuses, loading, onStatusDrop, onTaskClick, onComplete,
-  getTypeIcon, getPriorityIcon, formatDueDate, isOverdue,
+  getTypeIcon, getPriorityIcon, formatDueDate,
 }: TaskKanbanBoardProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);

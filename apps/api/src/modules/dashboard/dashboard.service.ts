@@ -998,7 +998,7 @@ export class DashboardService {
   private inlineOwnerFilter(
     filter: { clause: string; params: string[] },
     schema: string,
-    _ownerCol = 'owner_id',
+    ownerCol = 'owner_id',
   ): string {
     let clause = filter.clause.replace(/\$SCHEMA\$/g, schema);
     // Replace $PARAM$ with actual $N params (already set by caller)
@@ -1007,6 +1007,7 @@ export class DashboardService {
       clause = clause.replace('$PARAM$', `$${idx}`);
       idx++;
     }
+    console.log(ownerCol)
     return clause;
   }
 

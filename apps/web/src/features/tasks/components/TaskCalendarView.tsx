@@ -14,7 +14,7 @@ import {
   MapPin, ExternalLink, X,
 } from 'lucide-react';
 import type {
-  Task, TaskType, TaskPriority, TaskStatus, CreateTaskData, UpdateTaskData,
+  Task, TaskType, TaskPriority, TaskStatus, UpdateTaskData,
 } from '../../../api/tasks.api';
 import { tasksApi } from '../../../api/tasks.api';
 import { calendarSyncApi } from '../../../api/calendar-sync.api';
@@ -23,10 +23,6 @@ import type { CalendarEvent } from '../../../api/calendar-sync.api';
 // ── Icon maps (same as TasksPage) ──
 const PRIORITY_ICONS: Record<string, any> = {
   'alert-circle': AlertCircle, 'arrow-up': ArrowUp, minus: Minus, 'arrow-down': ArrowDown,
-};
-const TYPE_ICONS: Record<string, any> = {
-  'check-square': CheckSquare, phone: Phone, mail: Mail, calendar: CalendarIcon,
-  'arrow-right': ArrowUp, monitor: Monitor, 'file-text': FileText, users: Users,
 };
 
 // ── Date helpers ──
@@ -92,7 +88,6 @@ interface TaskCalendarViewProps {
 // ════════════════════════════════════════════════════════════
 
 export function TaskCalendarView({
-  types, statuses, priorities,
   onTaskClick, onQuickCreate, onTaskUpdate,
   colorBy = 'priority',
 }: TaskCalendarViewProps) {

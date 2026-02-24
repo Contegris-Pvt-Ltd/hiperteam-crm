@@ -5,8 +5,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Trash2, CheckCircle2, RotateCcw,
-  Clock, Calendar, User, Tag, Repeat, Link as LinkIcon,
-  Plus, Loader2, MessageSquare, Activity, ChevronDown,
+  Clock, Calendar, User, Repeat, Link as LinkIcon,
+  Plus, Loader2, MessageSquare, Activity,
   AlertCircle, ArrowUp, ArrowDown, Minus,
   CheckSquare, Phone, Mail, Monitor, FileText, Users,
 } from 'lucide-react';

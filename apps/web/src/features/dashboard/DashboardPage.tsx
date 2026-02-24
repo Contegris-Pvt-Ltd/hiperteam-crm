@@ -99,7 +99,7 @@ export function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [activitySummary, setActivitySummary] = useState<ActivitySummary | null>(null);
   const [pipelineFunnel, setPipelineFunnel] = useState<FunnelStage[]>([]);
-  const [leadFunnel, setLeadFunnel] = useState<FunnelStage[]>([]);
+  const [_leadFunnel, setLeadFunnel] = useState<FunnelStage[]>([]);
   const [velocity, setVelocity] = useState<VelocityStage[]>([]);
   const [winLoss, setWinLoss] = useState<WinLossAnalysis | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -110,7 +110,7 @@ export function DashboardPage() {
   const [conversionFunnel, setConversionFunnel] = useState<ConversionStep[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityFeedItem[]>([]);
   const [stuckDeals, setStuckDeals] = useState<StuckDeal[]>([]);
-  const [effortVsResult, setEffortVsResult] = useState<EffortVsResult[]>([]);
+  const [_effortVsResult, setEffortVsResult] = useState<EffortVsResult[]>([]);
 
   const dateRange = useMemo(() => getDateRange(datePreset), [datePreset]);
   const query = useMemo(() => ({ scope, ...dateRange }), [scope, dateRange]);

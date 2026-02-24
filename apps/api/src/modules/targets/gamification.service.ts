@@ -394,11 +394,11 @@ export class GamificationService {
     }));
   }
 
-  async getLeaderboard(schema: string, _period?: string) {
+  async getLeaderboard(schema: string, period?: string) {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-
+    console.log(period)
     const rows = await this.dataSource.query(
       `SELECT u.id, u.first_name, u.last_name, u.avatar_url,
               COALESCE(SUM(ba.points_earned), 0) as total_points,

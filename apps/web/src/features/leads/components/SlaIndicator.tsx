@@ -7,7 +7,6 @@
 //   - Kanban cards (compact badge mode)
 // ============================================================
 
-import { useState, useEffect } from 'react';
 import {
   Clock, CheckCircle2, AlertTriangle, XCircle, ArrowUpCircle,
   Timer, Loader2,
@@ -196,7 +195,7 @@ interface CardProps {
   loading?: boolean;
 }
 
-export function SlaCard({ leadId, slaData, loading }: CardProps) {
+export function SlaCard({ slaData, loading }: CardProps) {
   if (loading) {
     return (
       <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-4">

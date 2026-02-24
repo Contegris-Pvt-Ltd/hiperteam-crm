@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  CheckCircle2, Clock, Plus, Loader2, RotateCcw,
+  CheckCircle2, Plus, Loader2,
   AlertCircle, ArrowUp, ArrowDown, Minus,
   ChevronDown, ChevronRight, ExternalLink,
 } from 'lucide-react';
@@ -189,7 +189,7 @@ export function EntityTasksPanel({ entityType, entityId, entityName }: EntityTas
 
 // ── Single Task Row ──
 function TaskRow({
-  task, onComplete, onReopen, onClick, isOverdue, formatDue, canEdit,
+  task, onComplete, onReopen, onClick, formatDue, canEdit,
 }: {
   task: Task;
   onComplete: () => void;

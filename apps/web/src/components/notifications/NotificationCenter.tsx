@@ -122,7 +122,7 @@ export function NotificationCenter() {
   // GROUP BY DATE
   // ============================================================
   const groupedNotifications = notifications.reduce<Record<string, Notification[]>>((groups, n) => {
-    const date = format(new Date(n.createdAt), 'yyyy-MM-dd');
+    //const date = format(new Date(n.createdAt), 'yyyy-MM-dd');
     const label = isToday(n.createdAt) ? 'Today' : isYesterday(n.createdAt) ? 'Yesterday' : format(new Date(n.createdAt), 'EEEE, MMMM d');
     if (!groups[label]) groups[label] = [];
     groups[label].push(n);

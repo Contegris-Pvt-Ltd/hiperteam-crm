@@ -9,8 +9,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Calendar, Link2, Unlink, RefreshCw, CheckCircle2,
-  AlertCircle, Loader2, ExternalLink, Clock,
+  Calendar, Unlink, RefreshCw, CheckCircle2,
+  AlertCircle, Loader2, Clock,
 } from 'lucide-react';
 import { calendarSyncApi } from '../../api/calendar-sync.api';
 import type { CalendarConnection } from '../../api/calendar-sync.api';

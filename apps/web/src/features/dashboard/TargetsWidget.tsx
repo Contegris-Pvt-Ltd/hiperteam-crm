@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useState, useEffect } from 'react';
-import { Target, RefreshCw, ChevronDown, Flame, TrendingUp, TrendingDown, Award } from 'lucide-react';
+import { Target, RefreshCw, Flame, TrendingUp, TrendingDown, Award } from 'lucide-react';
 import { targetsApi } from '../../api/targets.api';
 import type { TargetProgress, LeaderboardEntry } from '../../api/targets.api';
 
@@ -314,7 +314,7 @@ export function TargetLeaderboard({ className = '' }: TargetLeaderboardProps) {
           {entries.map((entry, idx) => {
             const pace = getPace(entry.pace);
             const pct = Math.min(entry.percentage, 100);
-            const selectedMetric = metrics.find(m => m.key === metricKey);
+            //const selectedMetric = metrics.find(m => m.key === metricKey);
             const unit = metricKey.includes('revenue') || metricKey.includes('pipeline') || metricKey.includes('deal_size') ? '$' : '';
 
             return (

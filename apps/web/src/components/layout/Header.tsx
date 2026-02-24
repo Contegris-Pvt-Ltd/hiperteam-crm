@@ -4,7 +4,6 @@ import { useThemeStore } from '../../stores/theme.store';
 import { useSidebarStore } from '../../stores/sidebar.store';
 import {
   Search,
-  Bell,
   Plus,
   ChevronDown,
   Menu,
