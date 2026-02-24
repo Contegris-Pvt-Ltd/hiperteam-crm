@@ -407,6 +407,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   changes JSONB DEFAULT '{}',
   old_values JSONB DEFAULT '{}',
   new_values JSONB DEFAULT '{}',
+  previous_values JSONB DEFAULT NULL,
+  metadata JSONB DEFAULT NULL,
   performed_by UUID REFERENCES users(id),
   performed_at TIMESTAMPTZ DEFAULT NOW(),
   ip_address VARCHAR(50),

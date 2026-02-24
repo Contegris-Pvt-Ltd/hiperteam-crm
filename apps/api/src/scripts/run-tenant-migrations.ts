@@ -898,6 +898,70 @@ async function runTenantMigrations() {
             name: '017_targets_gamification_seed_values',
             sql: buildTargetsGamificationSeedData(schema)
           },
+          {
+            name: '019_add_new_module_permissions',
+            sql: `
+              -- Grant view to all roles for new modules
+              UPDATE "${schema}".roles
+              SET permissions = permissions
+                || '{"targets": {"view": true, "create": false, "edit": false, "delete": false}}'::jsonb
+                || '{"gamification": {"view": true, "create": false, "edit": false, "delete": false}}'::jsonb
+                || '{"notifications": {"view": true, "create": false, "edit": false, "delete": false}}'::jsonb
+              WHERE NOT (permissions ? 'notifications');
+
+              -- Full access for admin roles
+              UPDATE "${schema}".roles
+              SET permissions = permissions
+                || '{"targets": {"view": true, "create": true, "edit": true, "delete": true}}'::jsonb
+                || '{"gamification": {"view": true, "create": true, "edit": true, "delete": true}}'::jsonb
+                || '{"notifications": {"view": true, "create": true, "edit": true, "delete": true}}'::jsonb
+              WHERE name IN ('Super Admin', 'Admin', 'super_admin', 'admin')
+                OR level >= 90;
+            `,
+          },
+          {
+            name: '005_audit_metadata',
+            sql: `
+              ALTER TABLE "${schema}".audit_logs
+                ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT NULL;
+
+              -- Rename old_values → previous_values if needed
+              DO $$
+              BEGIN
+                IF EXISTS (
+                  SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = '${schema}'
+                  AND table_name = 'audit_logs'
+                  AND column_name = 'old_values'
+                ) AND NOT EXISTS (
+                  SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = '${schema}'
+                  AND table_name = 'audit_logs'
+                  AND column_name = 'previous_values'
+                ) THEN
+                  ALTER TABLE "${schema}".audit_logs RENAME COLUMN old_values TO previous_values;
+                END IF;
+
+                IF NOT EXISTS (
+                  SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = '${schema}'
+                  AND table_name = 'audit_logs'
+                  AND column_name = 'previous_values'
+                ) THEN
+                  ALTER TABLE "${schema}".audit_logs ADD COLUMN previous_values JSONB DEFAULT NULL;
+                END IF;
+              END $$;
+
+              ALTER TABLE "${schema}".audit_logs
+                ADD COLUMN IF NOT EXISTS new_values JSONB DEFAULT NULL;
+
+              CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
+                ON "${schema}".audit_logs(created_at DESC);
+
+              CREATE INDEX IF NOT EXISTS idx_audit_logs_performed_by
+                ON "${schema}".audit_logs(performed_by);
+            `,
+          },
           // ▼ ADD THIS NEW ENTRY ▼
           {
             name: '0021_module_settings',
