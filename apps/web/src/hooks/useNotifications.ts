@@ -203,9 +203,13 @@ export async function subscribeToBrowserPush(): Promise<boolean> {
     await navigator.serviceWorker.ready;
 
     // Subscribe to push
+    const applicationServerKey = urlBase64ToUint8Array(publicKey);
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey).buffer as ArrayBuffer,
+      applicationServerKey: applicationServerKey.buffer.slice(
+        applicationServerKey.byteOffset,
+        applicationServerKey.byteOffset + applicationServerKey.byteLength,
+      ) as ArrayBuffer,
     });
 
     const json = subscription.toJSON();
