@@ -48,6 +48,13 @@ export class AuthController {
     };
   }
 
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh access token' })
+  async refresh(@Body('refreshToken') refreshToken: string) {
+    return this.authService.refreshToken(refreshToken);
+  }
+  
   // ============================================================
   // D6: INVITE ACCEPTANCE
   // ============================================================

@@ -189,6 +189,55 @@ export class AuthService {
     };
   }
 
+  async refreshToken(refreshToken: string) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token required');
+    }
+
+    try {
+      const decoded = this.jwtService.verify(refreshToken);
+
+      // Re-fetch user to get latest permissions
+      const tenant = await this.tenantService.findById(decoded.tenantId);
+      if (!tenant) throw new UnauthorizedException('Tenant not found');
+
+      const schema = tenant.schemaName;
+      const [user] = await this.dataSource.query(
+        `SELECT u.*, r.name as role, r.id as role_id, r.level as role_level,
+                r.permissions, r.record_access, r.field_permissions
+         FROM "${schema}".users u
+         LEFT JOIN "${schema}".roles r ON u.role_id = r.id
+         WHERE u.id = $1 AND u.status = 'active' AND u.deleted_at IS NULL`,
+        [decoded.sub],
+      );
+
+      if (!user) throw new UnauthorizedException('User not found or inactive');
+
+      const teamIds = await this.getUserTeamIds(schema, user.id);
+
+      const tokens = this.generateTokens({
+        sub: user.id,
+        email: user.email,
+        tenantId: tenant.id,
+        tenantSlug: tenant.slug,
+        tenantSchema: schema,
+        role: user.role || 'user',
+        roleId: user.role_id || '',
+        roleLevel: user.role_level ?? 0,
+        permissions: user.permissions || {},
+        recordAccess: user.record_access || {},
+        fieldPermissions: user.field_permissions || {},
+        departmentId: user.department_id || undefined,
+        teamIds,
+        managerId: user.manager_id || undefined,
+      });
+
+      return { ...tokens };
+    } catch (err) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+  }
+
   // ════════════════════════════════════════════════════════════
   // INVITE: VALIDATE TOKEN
   // ════════════════════════════════════════════════════════════
@@ -629,7 +678,7 @@ export class AuthService {
 
   private generateTokens(payload: JwtPayload) {
     return {
-      accessToken: this.jwtService.sign(payload, { expiresIn: '15m' }),
+      accessToken: this.jwtService.sign(payload, { expiresIn: '1h' }),
       refreshToken: this.jwtService.sign(payload, { expiresIn: '7d' }),
     };
   }
