@@ -215,7 +215,7 @@ export class GamificationService {
       };
     } catch (err) {
       // Unique constraint violation = already awarded
-      this.logger.debug(`Badge ${badge.name} already awarded to ${userId}`);
+      this.logger.debug(`Badge ${badge.name} already awarded to ${userId}`, err);
       return null;
     }
   }
@@ -394,7 +394,7 @@ export class GamificationService {
     }));
   }
 
-  async getLeaderboard(schema: string, period?: string) {
+  async getLeaderboard(schema: string, _period?: string) {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);

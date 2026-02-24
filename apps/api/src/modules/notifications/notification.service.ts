@@ -81,7 +81,7 @@ export class NotificationService {
   // ============================================================
   async notify(schemaName: string, payload: NotifyPayload): Promise<string | null> {
     try {
-      const { userId, eventType, title, body, icon, actionUrl, entityType, entityId, metadata, variables, forceChannels } = payload;
+      const { userId, eventType, title, body, icon, actionUrl, entityType, entityId, metadata, forceChannels } = payload;
 
       // 1. Determine which channels to use
       let channelsUsed: string[] = [];

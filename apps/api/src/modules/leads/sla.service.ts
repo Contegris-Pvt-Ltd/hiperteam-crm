@@ -303,7 +303,8 @@ export class SlaService {
         -(config.escalationHours), // We need leads where breach happened > escalationHours ago
         config,
       );
-
+      console.log(escalationDueAt);
+      
       // Simpler approach: escalate if breached AND breach time + escalation hours has passed
       const needsEscalation = await this.dataSource.query(
         `SELECT l.id, l.owner_id, l.sla_breached_at,

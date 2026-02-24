@@ -9,7 +9,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
-import { RequirePermission, AdminOnly } from '../../common/guards/permissions.guard';
+import { AdminOnly } from '../../common/guards/permissions.guard';
 import { GamificationService } from './gamification.service';
 
 @ApiTags('Gamification')

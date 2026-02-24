@@ -11,7 +11,7 @@
 import {
   Controller, Get, Query, UseGuards, Request,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { DashboardService } from './dashboard.service';
 import { TargetsService } from '../targets/targets.service';
@@ -196,7 +196,7 @@ export class DashboardController {
     @Request() req: { user: JwtPayload },
     @Query() query: { scope?: string; from?: string; to?: string },
   ) {
-    const { schema, userId, teamId, scope, dateRange } = this.parseParams(req, query);
+    const { schema, teamId, scope, dateRange } = this.parseParams(req, query);
     return this.dashboardService.getEffortVsResult(schema, teamId, scope, dateRange);
   }
 

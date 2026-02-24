@@ -7,7 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 import { DataSource } from 'typeorm';
-import { SqlInMemory } from 'typeorm/driver/SqlInMemory';
+//import { SqlInMemory } from 'typeorm/driver/SqlInMemory';
 
 const dataSource = new DataSource({
   type: 'postgres',

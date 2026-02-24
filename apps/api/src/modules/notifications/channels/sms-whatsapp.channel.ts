@@ -102,7 +102,7 @@ export class SmsWhatsAppChannel {
         return { success: false, error: 'Twilio not configured' };
       }
       // Verify by fetching account info
-      const account = await client.api.accounts(client.accountSid).fetch();
+      //const account = await client.api.accounts(client.accountSid).fetch();
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };

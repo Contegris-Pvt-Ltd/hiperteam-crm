@@ -5,7 +5,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
-import { PermissionGuard, RequirePermission } from '../../common/guards/permissions.guard';
+import { PermissionGuard } from '../../common/guards/permissions.guard';
 import { NotificationService } from './notification.service';
 import { NotificationPreferencesService } from './notification-preferences.service';
 import { NotificationTemplateService } from './notification-template.service';
