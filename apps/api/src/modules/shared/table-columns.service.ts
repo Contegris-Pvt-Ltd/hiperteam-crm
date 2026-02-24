@@ -191,6 +191,11 @@ const COMPUTED_COLUMNS: Record<string, TableColumn[]> = {
       badgeColors: { active: 'blue', converted: 'green', disqualified: 'red' },
     },
     { key: 'lastActivityAt', label: 'Last Activity', type: 'datetime', sortKey: 'last_activity_at', sortable: true, defaultVisible: false, defaultWidth: 160, isCustomField: false, source: 'computed' },
+    { key: 'slaStatus', label: 'SLA', type: 'badge', sortable: false, defaultVisible: false, defaultWidth: 130, isCustomField: false, source: 'computed',
+      badgeColors: { on_track: 'green', at_risk: 'amber', breached: 'red', escalated: 'red', met: 'green', met_late: 'amber' },
+    },
+    { key: 'slaFirstContactDueAt', label: 'SLA Due', type: 'datetime', sortKey: 'sla_first_contact_due_at', sortable: true, defaultVisible: false, defaultWidth: 160, isCustomField: false, source: 'computed' },
+    { key: 'slaBreached', label: 'SLA Breached', type: 'boolean', sortKey: 'sla_breached', sortable: true, defaultVisible: false, defaultWidth: 110, isCustomField: false, source: 'computed' },
   ],
   contacts: [
     { key: 'name', label: 'Name', type: 'text', sortKey: 'first_name', sortable: true, defaultVisible: true, defaultWidth: 280, frozen: true, isCustomField: false, source: 'computed' },
@@ -237,6 +242,16 @@ const COMPUTED_COLUMNS: Record<string, TableColumn[]> = {
     { key: 'priorityName', label: 'Priority', type: 'badge', sortKey: 'priority', sortable: true, defaultVisible: false, defaultWidth: 110, isCustomField: false, source: 'computed' },
     { key: 'ownerName', label: 'Owner', type: 'text', sortKey: 'owner', sortable: true, defaultVisible: true, defaultWidth: 150, isCustomField: false, source: 'computed' },
     { key: 'lastActivityAt', label: 'Last Activity', type: 'datetime', sortKey: 'last_activity_at', sortable: true, defaultVisible: false, defaultWidth: 160, isCustomField: false, source: 'computed' },
+  ],
+  tasks: [
+    { key: 'title',        label: 'Task',      type: 'text',     sortKey: 'title',        sortable: true,  defaultVisible: true,  defaultWidth: 300, frozen: true, isCustomField: false, source: 'computed' },
+    { key: 'statusName',   label: 'Status',    type: 'badge',    sortKey: 'status',       sortable: true,  defaultVisible: true,  defaultWidth: 120, isCustomField: false, source: 'computed' },
+    { key: 'priorityName', label: 'Priority',  type: 'badge',    sortKey: 'priority',     sortable: true,  defaultVisible: true,  defaultWidth: 110, isCustomField: false, source: 'computed' },
+    { key: 'typeName',     label: 'Type',      type: 'text',     sortKey: 'type',         sortable: true,  defaultVisible: true,  defaultWidth: 100, isCustomField: false, source: 'computed' },
+    { key: 'dueDate',      label: 'Due Date',  type: 'datetime', sortKey: 'due_date',     sortable: true,  defaultVisible: true,  defaultWidth: 140, isCustomField: false, source: 'computed' },
+    { key: 'assigneeName', label: 'Assignee',  type: 'text',     sortKey: 'assignee',     sortable: true,  defaultVisible: true,  defaultWidth: 150, isCustomField: false, source: 'computed' },
+    { key: 'ownerName',    label: 'Owner',     type: 'text',     sortKey: 'owner',        sortable: true,  defaultVisible: false, defaultWidth: 150, isCustomField: false, source: 'computed' },
+    { key: 'completedAt',  label: 'Completed', type: 'datetime', sortKey: 'completed_at', sortable: true,  defaultVisible: false, defaultWidth: 140, isCustomField: false, source: 'computed' },
   ],
 };
 

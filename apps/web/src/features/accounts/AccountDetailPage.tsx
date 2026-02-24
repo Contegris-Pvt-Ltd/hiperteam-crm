@@ -4,7 +4,7 @@ import {
   ArrowLeft, Pencil, Trash2, MoreHorizontal,
   Mail, Phone, Globe, MapPin, 
   Calendar, User, Tag, Linkedin, Twitter, 
-  Facebook, Instagram, Users, DollarSign,
+  Facebook, Instagram, Users, DollarSign, CheckSquare,
   History, MessageSquare, FileText, Activity, Network,
   ChevronDown, ChevronRight, Cake, CreditCard, Building2
 } from 'lucide-react';
@@ -25,13 +25,14 @@ import { ProfileCompletion } from '../../components/shared/ProfileCompletion';
 import type { ProfileCompletionData } from '../../components/shared/ProfileCompletion';
 import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
 import { QuickCreateContactModal } from '../../components/shared/QuickCreateContactModal';
+import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 
 // ============ PAGE DESIGNER IMPORTS ============
 import { useModuleLayout } from '../../hooks/useModuleLayout';
 import { DynamicPageRenderer } from '../../components/shared/DynamicPageRenderer';
 // ===============================================
 
-type TabType = 'activity' | 'notes' | 'documents' | 'contacts' | 'children' | 'history';
+type TabType = 'activity' | 'notes' | 'documents' | 'contacts' | 'children' | 'tasks' | 'history';
 
 export function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -483,6 +484,7 @@ export function AccountDetailPage() {
     { id: 'notes', label: 'Notes', icon: <MessageSquare className="w-4 h-4" /> },
     { id: 'documents', label: 'Documents', icon: <FileText className="w-4 h-4" /> },
     { id: 'children', label: 'Sub-accounts', icon: <Network className="w-4 h-4" /> },
+    { id: 'tasks', label: 'Tasks', icon: <CheckSquare className="w-4 h-4" /> },
     { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
   ];
 
@@ -1020,6 +1022,14 @@ export function AccountDetailPage() {
                 </div>
               )}
 
+              {activeTab === 'tasks' && (
+                <EntityTasksPanel
+                  entityType="accounts"
+                  entityId={id!}
+                  entityName={account.name}
+                />
+              )}
+              
               {activeTab === 'history' && (
                 <ChangeHistory history={history} loading={tabLoading} />
               )}

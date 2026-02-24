@@ -9,9 +9,11 @@ import {
   Tag, Activity, History,
   MessageSquare, FileText,
   ExternalLink, Flame, Thermometer, Snowflake, Sun, Minus,
-  AlertTriangle, ChevronDown, ChevronRight, Package
+  AlertTriangle, ChevronDown, ChevronRight, Package, CheckSquare
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
+import { SlaCard } from './components/SlaIndicator';
+import type { LeadSlaStatus } from '../../api/leads.api';
 import { leadsApi } from '../../api/leads.api';
 import type { Lead } from '../../api/leads.api';
 import { StageJourneyBar } from './components/StageJourneyBar';
@@ -26,8 +28,9 @@ import { adminApi } from '../../api/admin.api';
 import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.api';
 import { usePermissions } from '../../hooks/usePermissions';
 import { LeadProductsTab } from './components/LeadProductsTab';
+import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 
-type TabType = 'products' | 'activity' | 'notes' | 'documents' | 'history';
+type TabType = 'products' | 'activity' | 'notes' | 'documents' | 'history' | 'tasks';
 
 const PRIORITY_ICONS: Record<string, any> = {
   flame: Flame, thermometer: Thermometer, snowflake: Snowflake, sun: Sun, minus: Minus,
@@ -56,9 +59,28 @@ export function LeadDetailPage() {
   const [customGroups, setCustomGroups] = useState<CustomFieldGroup[]>([]);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
+  const [slaData, setSlaData] = useState<LeadSlaStatus | null>(null);
+  const [slaLoading, setSlaLoading] = useState(false);
+
   // ── Fetch Lead ──
   useEffect(() => {
     if (id) fetchLead();
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    const fetchSla = async () => {
+      setSlaLoading(true);
+      try {
+        const data = await leadsApi.getSlaStatus(id);
+        setSlaData(data);
+      } catch {
+        // SLA not critical — silently fail
+      } finally {
+        setSlaLoading(false);
+      }
+    };
+    fetchSla();
   }, [id]);
 
   useEffect(() => {
@@ -457,6 +479,7 @@ export function LeadDetailPage() {
                 { key: 'notes', label: 'Notes', icon: MessageSquare },
                 { key: 'documents', label: 'Documents', icon: FileText },
                 { key: 'history', label: 'History', icon: History },
+                { key: 'tasks', label: 'Tasks', icon: CheckSquare }
               ].map(({ key, label, icon: Icon }) => (
                 <button
                   key={key}
@@ -495,7 +518,15 @@ export function LeadDetailPage() {
                 />
               ) : activeTab === 'history' ? (
                 <ChangeHistory history={tabData || []} />
+              ) : activeTab === 'tasks' ? (
+                <EntityTasksPanel
+                  entityType="leads"
+                  entityId={id!}
+                  entityName={`${lead.firstName} ${lead.lastName}`}
+                />
               ) : null}
+
+          
             </div>
           </div>
         </div>
@@ -531,6 +562,9 @@ export function LeadDetailPage() {
               </div>
             )}
           </div>
+
+          {/* SLA Status Card */}
+          <SlaCard leadId={id!} slaData={slaData} loading={slaLoading} />
 
           {/* Owner & Record Team */}
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-5">

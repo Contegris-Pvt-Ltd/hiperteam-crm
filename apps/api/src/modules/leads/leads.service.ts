@@ -9,6 +9,7 @@ import { ActivityService } from '../shared/activity.service';
 import { LeadScoringService } from './lead-scoring.service';
 import { RecordTeamService } from '../shared/record-team.service';
 import { FieldValidationService } from '../shared/field-validation.service';
+import { SlaService } from './sla.service';
 
 @Injectable()
 export class LeadsService {
@@ -28,6 +29,7 @@ export class LeadsService {
     private scoringService: LeadScoringService,
     private recordTeamService: RecordTeamService,
     private fieldValidationService: FieldValidationService,
+    private slaService: SlaService,
   ) {}
 
   // ============================================================
@@ -190,6 +192,12 @@ export class LeadsService {
       newValues: formatted,
       performedBy: userId,
     });
+
+    try {
+      await this.slaService.setSlaDueDate(schemaName, lead.id, new Date(lead.created_at));
+    } catch (slaErr) {
+      this.logger.warn(`Failed to set SLA for lead ${lead.id}: ${slaErr}`);
+    }
 
     if (dto.productIds?.length) {
       for (const productId of dto.productIds) {
@@ -393,6 +401,44 @@ export class LeadsService {
     };
   }
 
+  /**
+   * Called when a user creates an activity (call, email, meeting, note) on a lead.
+   * Marks the SLA as met if it hasn't been met yet.
+   */
+  async checkAndMarkSlaMet(schemaName: string, leadId: string, userId: string): Promise<void> {
+    try {
+      await this.slaService.markSlaMet(schemaName, leadId, userId);
+    } catch (err) {
+      this.logger.warn(`Failed to mark SLA met for lead ${leadId}: ${err}`);
+    }
+  }
+
+  /**
+   * Get SLA status for a specific lead
+   */
+  async getSlaStatus(schemaName: string, leadId: string) {
+    return this.slaService.getSlaStatus(schemaName, leadId);
+  }
+
+  /**
+   * Get SLA summary for dashboard/reporting
+   */
+  async getSlaSummary(schemaName: string, filters?: {
+    ownerId?: string;
+    pipelineId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) {
+    return this.slaService.getSlaSummary(schemaName, filters);
+  }
+
+  /**
+   * Run breach detection (called by cron or manual trigger)
+   */
+  async checkSlaBreaches(schemaName: string) {
+    return this.slaService.checkBreaches(schemaName);
+  }
+  
   // ============================================================
   // KANBAN VIEW (grouped by stage)
   // ============================================================
@@ -905,6 +951,35 @@ export class LeadsService {
       [dto.stageId, JSON.stringify(stageHistory), userId, id],
     );
 
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".leads 
+       SET stage_id = $1, stage_entered_at = NOW(), stage_history = $2, 
+           updated_by = $3, updated_at = NOW()
+       WHERE id = $4`,
+      [dto.stageId, JSON.stringify(stageHistory), userId, id],
+    );
+
+    // ── Record lead stage history (for dashboard analytics) ──
+    try {
+      const timeInStage = lead.stageEnteredAt
+        ? `NOW() - '${new Date(lead.stageEnteredAt).toISOString()}'::timestamptz`
+        : 'NULL';
+      await this.dataSource.query(
+        `INSERT INTO "${schemaName}".lead_stage_history
+         (lead_id, from_stage_id, to_stage_id, changed_by, time_in_stage, note)
+         VALUES ($1, $2, $3, $4, ${timeInStage}, $5)`,
+        [
+          id,
+          lead.stageId || null,
+          dto.stageId,
+          userId,
+          dto.unlockReason || `Stage changed to ${targetStage.name}`,
+        ],
+      );
+    } catch (err) {
+      this.logger.warn(`Failed to record lead stage history: ${err}`);
+    }
+
     // Activity log
     await this.activityService.create(schemaName, {
       entityType: 'leads',
@@ -950,6 +1025,21 @@ export class LeadsService {
       enteredBy: userId,
       previousStageId: lead.stageId,
     });
+
+    // Record stage history for disqualification
+    try {
+      const timeInStage = lead.stageEnteredAt
+        ? `NOW() - '${new Date(lead.stageEnteredAt).toISOString()}'::timestamptz`
+        : 'NULL';
+      await this.dataSource.query(
+        `INSERT INTO "${schemaName}".lead_stage_history
+         (lead_id, from_stage_id, to_stage_id, changed_by, time_in_stage, note)
+         VALUES ($1, $2, $3, $4, ${timeInStage}, $5)`,
+        [id, lead.stageId || null, disqStage?.id, userId, dto.notes || 'Lead disqualified'],
+      );
+    } catch (err) {
+      this.logger.warn(`Failed to record lead stage history: ${err}`);
+    }
 
     await this.dataSource.query(
       `UPDATE "${schemaName}".leads
@@ -1384,6 +1474,21 @@ export class LeadsService {
       enteredBy: userId,
       previousStageId: lead.stageId,
     });
+
+    // Record stage history for conversion
+    try {
+      const timeInStage = lead.stageEnteredAt
+        ? `NOW() - '${new Date(lead.stageEnteredAt).toISOString()}'::timestamptz`
+        : 'NULL';
+      await this.dataSource.query(
+        `INSERT INTO "${schemaName}".lead_stage_history
+         (lead_id, from_stage_id, to_stage_id, changed_by, time_in_stage, note)
+         VALUES ($1, $2, $3, $4, ${timeInStage}, $5)`,
+        [id, lead.stageId || null, convStage?.id, userId, 'Lead converted'],
+      );
+    } catch (err) {
+      this.logger.warn(`Failed to record lead stage history: ${err}`);
+    }
 
     await this.dataSource.query(
       `UPDATE "${schemaName}".leads
@@ -1938,6 +2043,13 @@ export class LeadsService {
       disqualificationReasonId: lead.disqualification_reason_id,
       disqualificationReasonName: lead.disqualification_reason_name,
       disqualificationNotes: lead.disqualification_notes,
+      // SLA
+      slaFirstContactDueAt: lead.sla_first_contact_due_at || null,
+      slaFirstContactMetAt: lead.sla_first_contact_met_at || null,
+      slaBreached: lead.sla_breached || false,
+      slaBreachedAt: lead.sla_breached_at || null,
+      slaEscalated: lead.sla_escalated || false,
+      slaEscalatedAt: lead.sla_escalated_at || null,
       stageEnteredAt: lead.stage_entered_at,
       stageHistory: typeof lead.stage_history === 'string' ? JSON.parse(lead.stage_history as string) : (lead.stage_history || []),
       doNotContact: lead.do_not_contact,

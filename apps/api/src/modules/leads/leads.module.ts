@@ -12,6 +12,7 @@ import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
 import { DocumentsService } from '../shared/documents.service';
 import { NotesService } from '../shared/notes.service';
+import { SlaService } from './sla.service';
 
 @Module({
   controllers: [LeadsController, LeadSettingsController],
@@ -24,7 +25,8 @@ import { NotesService } from '../shared/notes.service';
     ActivityService,
     DocumentsService,
     NotesService,
+    SlaService,
   ],
-  exports: [LeadsService, LeadSettingsService, LeadScoringService, RecordTeamService],
+  exports: [LeadsService, LeadSettingsService, LeadScoringService, RecordTeamService, SlaService],
 })
 export class LeadsModule {}

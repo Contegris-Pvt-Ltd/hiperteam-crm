@@ -157,6 +157,44 @@ export class LeadsController {
   }
 
   // ============================================================
+  // SLA
+  // ============================================================
+
+  @Get('sla/summary')
+  @RequirePermission('leads', 'view')
+  @ApiOperation({ summary: 'Get SLA summary metrics' })
+  async getSlaSummary(
+    @Request() req: { user: JwtPayload },
+    @Query('ownerId') ownerId?: string,
+    @Query('pipelineId') pipelineId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.leadsService.getSlaSummary(req.user.tenantSchema, {
+      ownerId, pipelineId, dateFrom, dateTo,
+    });
+  }
+
+  @Get(':id/sla')
+  @RequirePermission('leads', 'view')
+  @ApiOperation({ summary: 'Get SLA status for a specific lead' })
+  async getSlaStatus(
+    @Request() req: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.leadsService.getSlaStatus(req.user.tenantSchema, id);
+  }
+
+  @Post('sla/check-breaches')
+  @RequirePermission('leads', 'edit')
+  @ApiOperation({ summary: 'Run SLA breach detection (admin/cron trigger)' })
+  async checkSlaBreaches(
+    @Request() req: { user: JwtPayload },
+  ) {
+    return this.leadsService.checkSlaBreaches(req.user.tenantSchema);
+  }
+
+  // ============================================================
   // RECORD TEAM
   // ============================================================
 
@@ -313,6 +351,11 @@ export class LeadsController {
       req.user.tenantSchema, 'leads', id, body.content, req.user.sub,
     );
 
+    // Mark SLA as met on first contact (note counts as contact)
+    await this.leadsService.checkAndMarkSlaMet(
+      req.user.tenantSchema, id, req.user.sub,
+    );
+    
     await this.activityService.create(req.user.tenantSchema, {
       entityType: 'leads',
       entityId: id,

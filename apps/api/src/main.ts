@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as compression from 'compression';
 import { AppModule } from './app.module';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -11,7 +12,8 @@ async function bootstrap() {
   // Security
   app.use(helmet());
   app.use(compression());
-
+  app.useWebSocketAdapter(new IoAdapter(app));
+  
   // CORS
   app.enableCors({
     origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:5173', 'https://hiperteam.intellicon.io'],

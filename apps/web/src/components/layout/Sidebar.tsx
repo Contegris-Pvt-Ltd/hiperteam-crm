@@ -14,7 +14,8 @@ import {
   ChevronRight,
   X,
   Shield,
-  Package
+  Package,
+  Bell,
 } from 'lucide-react';
 
 const navigation = [
@@ -25,6 +26,7 @@ const navigation = [
   { name: 'Opportunities', href: '/opportunities', icon: TrendingUp },
   { name: 'Products', href: '/products', icon: Package },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
+  { name: 'Notifications', href: '/notifications', icon: Bell },
 ];
 
 const adminNavigation = [

@@ -7,6 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 import { DataSource } from 'typeorm';
+import { SqlInMemory } from 'typeorm/driver/SqlInMemory';
 
 const dataSource = new DataSource({
   type: 'postgres',
@@ -128,6 +129,241 @@ async function runTenantMigrations() {
               CREATE INDEX IF NOT EXISTS idx_lead_products_lead ON "${schema}".lead_products(lead_id);
               CREATE INDEX IF NOT EXISTS idx_lead_products_product ON "${schema}".lead_products(product_id);
             `
+          },
+          {
+            name: '013_lead_sla',
+            sql: `
+              -- Add SLA tracking columns to leads table
+              ALTER TABLE "${schema}".leads
+                ADD COLUMN IF NOT EXISTS sla_first_contact_due_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS sla_first_contact_met_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS sla_breached BOOLEAN DEFAULT false,
+                ADD COLUMN IF NOT EXISTS sla_breached_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS sla_escalated BOOLEAN DEFAULT false,
+                ADD COLUMN IF NOT EXISTS sla_escalated_at TIMESTAMPTZ;
+
+              -- Index for breach detection queries (find leads where SLA is due but not met)
+              CREATE INDEX IF NOT EXISTS idx_leads_sla_due
+                ON "${schema}".leads(sla_first_contact_due_at)
+                WHERE sla_first_contact_met_at IS NULL
+                  AND sla_breached = false
+                  AND deleted_at IS NULL;
+
+              -- Index for SLA dashboard/reporting
+              CREATE INDEX IF NOT EXISTS idx_leads_sla_breached
+                ON "${schema}".leads(sla_breached)
+                WHERE sla_breached = true AND deleted_at IS NULL;
+
+              -- Seed default SLA settings (if not already present)
+              INSERT INTO "${schema}".lead_settings (setting_key, setting_value)
+              VALUES (
+                'sla',
+                '${JSON.stringify({
+                  enabled: false,
+                  firstContactHours: 4,
+                  workingHoursStart: "09:00",
+                  workingHoursEnd: "18:00",
+                  workingDays: [1, 2, 3, 4, 5],
+                  timezone: "UTC",
+                  breachNotifyOwner: true,
+                  breachNotifyManager: true,
+                  escalationEnabled: true,
+                  escalationHours: 8,
+                  escalationNotifyManager: true,
+                  escalationNotifyAdmin: false,
+                  excludeWeekends: true
+                })}'
+              )
+              ON CONFLICT (setting_key) DO NOTHING;
+
+              -- Grant privileges
+              GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+            `
+          },
+          {
+            name: '014_tasks',
+            sql: `-- ============================================================
+              -- MIGRATION: 014_tasks
+              -- Full Tasks module: types, statuses, priorities, tasks, subtasks,
+              -- recurring config, entity linking
+              -- ============================================================
+
+              -- ────────────────────────────────────────────────────────────
+              -- TASK TYPES (admin-configurable)
+              -- ────────────────────────────────────────────────────────────
+              CREATE TABLE IF NOT EXISTS "${schema}".task_types (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(100) NOT NULL,
+                slug VARCHAR(100) NOT NULL,
+                icon VARCHAR(50) DEFAULT 'check-square',
+                color VARCHAR(20) DEFAULT '#3B82F6',
+                description TEXT,
+                default_duration_minutes INT,
+                is_system BOOLEAN DEFAULT false,
+                is_active BOOLEAN DEFAULT true,
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(slug)
+              );
+
+              INSERT INTO "${schema}".task_types (name, slug, icon, color, is_system, sort_order) VALUES
+                ('To-Do',    'todo',    'check-square', '#3B82F6', true, 1),
+                ('Call',     'call',    'phone',        '#10B981', true, 2),
+                ('Email',    'email',   'mail',         '#F59E0B', true, 3),
+                ('Meeting',  'meeting', 'calendar',     '#8B5CF6', true, 4),
+                ('Follow-Up','follow-up','arrow-right', '#EC4899', true, 5),
+                ('Demo',     'demo',    'monitor',      '#06B6D4', true, 6),
+                ('Proposal', 'proposal','file-text',    '#F97316', true, 7),
+                ('Onboarding','onboarding','users',     '#14B8A6', true, 8)
+              ON CONFLICT (slug) DO NOTHING;
+
+              -- ────────────────────────────────────────────────────────────
+              -- TASK STATUSES (admin-configurable)
+              -- ────────────────────────────────────────────────────────────
+              CREATE TABLE IF NOT EXISTS "${schema}".task_statuses (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(100) NOT NULL,
+                slug VARCHAR(100) NOT NULL,
+                color VARCHAR(20) DEFAULT '#6B7280',
+                icon VARCHAR(50),
+                is_open BOOLEAN DEFAULT true,
+                is_completed BOOLEAN DEFAULT false,
+                is_system BOOLEAN DEFAULT false,
+                is_active BOOLEAN DEFAULT true,
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(slug)
+              );
+
+              INSERT INTO "${schema}".task_statuses (name, slug, color, is_open, is_completed, is_system, sort_order) VALUES
+                ('Not Started', 'not_started', '#9CA3AF', true,  false, true, 1),
+                ('In Progress', 'in_progress', '#3B82F6', true,  false, true, 2),
+                ('Waiting',     'waiting',     '#F59E0B', true,  false, true, 3),
+                ('Deferred',    'deferred',    '#6B7280', true,  false, true, 4),
+                ('Completed',   'completed',   '#10B981', false, true,  true, 5),
+                ('Cancelled',   'cancelled',   '#EF4444', false, false, true, 6)
+              ON CONFLICT (slug) DO NOTHING;
+
+              -- ────────────────────────────────────────────────────────────
+              -- TASK PRIORITIES
+              -- ────────────────────────────────────────────────────────────
+              CREATE TABLE IF NOT EXISTS "${schema}".task_priorities (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(100) NOT NULL,
+                slug VARCHAR(100) NOT NULL,
+                color VARCHAR(20) DEFAULT '#6B7280',
+                icon VARCHAR(50),
+                level INT DEFAULT 0,
+                is_default BOOLEAN DEFAULT false,
+                is_system BOOLEAN DEFAULT false,
+                is_active BOOLEAN DEFAULT true,
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(slug)
+              );
+
+              INSERT INTO "${schema}".task_priorities (name, slug, color, icon, level, is_default, is_system, sort_order) VALUES
+                ('Urgent', 'urgent', '#EF4444', 'alert-circle', 4, false, true, 1),
+                ('High',   'high',   '#F59E0B', 'arrow-up',     3, false, true, 2),
+                ('Medium', 'medium', '#3B82F6', 'minus',         2, true,  true, 3),
+                ('Low',    'low',    '#10B981', 'arrow-down',    1, false, true, 4)
+              ON CONFLICT (slug) DO NOTHING;
+
+              -- ────────────────────────────────────────────────────────────
+              -- TASKS TABLE (main)
+              -- ────────────────────────────────────────────────────────────
+              CREATE TABLE IF NOT EXISTS "${schema}".tasks (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+                -- Core fields
+                title VARCHAR(500) NOT NULL,
+                description TEXT,
+                task_type_id UUID REFERENCES "${schema}".task_types(id) ON DELETE SET NULL,
+                status_id UUID REFERENCES "${schema}".task_statuses(id) ON DELETE SET NULL,
+                priority_id UUID REFERENCES "${schema}".task_priorities(id) ON DELETE SET NULL,
+
+                -- Dates
+                due_date TIMESTAMPTZ,
+                start_date TIMESTAMPTZ,
+                completed_at TIMESTAMPTZ,
+                reminder_at TIMESTAMPTZ,
+
+                -- Duration
+                estimated_minutes INT,
+                actual_minutes INT,
+
+                -- Assignment
+                owner_id UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                assigned_to UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+
+                -- Entity linking (polymorphic)
+                related_entity_type VARCHAR(50),   -- 'leads', 'contacts', 'accounts', 'opportunities'
+                related_entity_id UUID,
+
+                -- Subtasks (parent-child)
+                parent_task_id UUID REFERENCES "${schema}".tasks(id) ON DELETE CASCADE,
+
+                -- Recurring
+                is_recurring BOOLEAN DEFAULT false,
+                recurrence_rule JSONB,
+                -- recurrence_rule example:
+                -- { "frequency": "weekly", "interval": 1, "daysOfWeek": [1,3,5],
+                --   "endType": "never"|"after"|"on", "endAfterCount": 10, "endDate": "2026-12-31" }
+                recurrence_parent_id UUID REFERENCES "${schema}".tasks(id) ON DELETE SET NULL,
+                recurrence_index INT,
+
+                -- Metadata
+                tags TEXT[] DEFAULT '{}',
+                custom_fields JSONB DEFAULT '{}',
+                result TEXT,  -- outcome/notes after completion
+
+                -- Audit
+                created_by UUID REFERENCES "${schema}".users(id),
+                updated_by UUID,
+                deleted_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              -- Indexes
+              CREATE INDEX IF NOT EXISTS idx_tasks_owner ON "${schema}".tasks(owner_id) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON "${schema}".tasks(assigned_to) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_tasks_status ON "${schema}".tasks(status_id) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_tasks_type ON "${schema}".tasks(task_type_id) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_tasks_priority ON "${schema}".tasks(priority_id) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON "${schema}".tasks(due_date) WHERE deleted_at IS NULL AND completed_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_tasks_entity ON "${schema}".tasks(related_entity_type, related_entity_id) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_tasks_parent ON "${schema}".tasks(parent_task_id) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_tasks_recurring_parent ON "${schema}".tasks(recurrence_parent_id) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_tasks_deleted ON "${schema}".tasks(deleted_at);
+
+              -- ────────────────────────────────────────────────────────────
+              -- TASK SETTINGS (key-value config)
+              -- ────────────────────────────────────────────────────────────
+              CREATE TABLE IF NOT EXISTS "${schema}".task_settings (
+                setting_key VARCHAR(100) PRIMARY KEY,
+                setting_value JSONB DEFAULT '{}',
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              INSERT INTO "${schema}".task_settings (setting_key, setting_value) VALUES
+                ('general', '{"defaultTaskType":"todo","defaultPriority":"medium","autoAssignToCreator":true,"requireDueDate":false,"allowSubtasks":true,"maxSubtaskDepth":2}'),
+                ('reminders', '{"enabled":true,"defaultReminderMinutes":30,"options":[5,10,15,30,60,120,1440]}'),
+                ('recurring', '{"enabled":true,"maxRecurrenceCount":365,"allowedFrequencies":["daily","weekly","biweekly","monthly","quarterly","yearly"]}'),
+                ('kanban', '{"groupBy":"status","showSubtasks":true,"cardFields":["dueDate","priority","assignee","entityLink"]}')
+              ON CONFLICT (setting_key) DO NOTHING;
+
+              -- ────────────────────────────────────────────────────────────
+              -- GRANT PRIVILEGES
+              -- ────────────────────────────────────────────────────────────
+              GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;`
+          },
+          {
+            name: '015_notifications',
+            sql: buildNotificationsMigration(schema),
           },
           {
             name: '004_password_reset_tokens',
@@ -523,6 +759,145 @@ async function runTenantMigrations() {
                 WHERE account_classification IS NULL;
             `
           },
+          {
+            name: '013_calendar_sync',
+            sql: `
+              -- ============================================================
+              -- CALENDAR CONNECTIONS (per-user OAuth tokens)
+              -- ============================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".calendar_connections (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+                provider VARCHAR(20) NOT NULL DEFAULT 'google',
+                email VARCHAR(255),
+                access_token TEXT NOT NULL,
+                refresh_token TEXT,
+                token_expires_at TIMESTAMPTZ,
+                calendar_id VARCHAR(255) DEFAULT 'primary',
+                sync_token TEXT,
+                sync_direction VARCHAR(20) DEFAULT 'two_way',
+                last_synced_at TIMESTAMPTZ,
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(user_id, provider)
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_calendar_conn_user
+                ON "${schema}".calendar_connections(user_id);
+              CREATE INDEX IF NOT EXISTS idx_calendar_conn_active
+                ON "${schema}".calendar_connections(user_id, is_active) WHERE is_active = true;
+
+              -- ============================================================
+              -- CALENDAR EVENTS (sync mapping table)
+              -- ============================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".calendar_events (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+                connection_id UUID NOT NULL REFERENCES "${schema}".calendar_connections(id) ON DELETE CASCADE,
+                provider_event_id VARCHAR(512) NOT NULL,
+                task_id UUID REFERENCES "${schema}".tasks(id) ON DELETE SET NULL,
+                title VARCHAR(500),
+                description TEXT,
+                start_time TIMESTAMPTZ,
+                end_time TIMESTAMPTZ,
+                all_day BOOLEAN DEFAULT false,
+                location VARCHAR(500),
+                status VARCHAR(50) DEFAULT 'confirmed',
+                source VARCHAR(20) NOT NULL DEFAULT 'google',
+                raw_data JSONB,
+                last_synced_at TIMESTAMPTZ DEFAULT NOW(),
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(connection_id, provider_event_id)
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_calendar_events_user
+                ON "${schema}".calendar_events(user_id);
+              CREATE INDEX IF NOT EXISTS idx_calendar_events_conn
+                ON "${schema}".calendar_events(connection_id);
+              CREATE INDEX IF NOT EXISTS idx_calendar_events_task
+                ON "${schema}".calendar_events(task_id) WHERE task_id IS NOT NULL;
+              CREATE INDEX IF NOT EXISTS idx_calendar_events_date
+                ON "${schema}".calendar_events(user_id, start_time);
+              CREATE INDEX IF NOT EXISTS idx_calendar_events_source
+                ON "${schema}".calendar_events(connection_id, source);
+            `,
+          },
+          {
+            name: '016_lead_stage_history_and_user_activity',
+            sql: `
+              -- ============================================================
+              -- MIGRATION 016: Dashboard Prerequisites
+              -- 1. lead_stage_history (mirrors opportunity_stage_history)
+              -- 2. user_activity_daily (rollup table for dashboard trending)
+              -- ============================================================
+
+              -- ============================================================
+              -- LEAD STAGE HISTORY
+              -- ============================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".lead_stage_history (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                lead_id UUID NOT NULL REFERENCES "${schema}".leads(id) ON DELETE CASCADE,
+                from_stage_id UUID REFERENCES "${schema}".pipeline_stages(id),
+                to_stage_id UUID NOT NULL REFERENCES "${schema}".pipeline_stages(id),
+                changed_by UUID REFERENCES "${schema}".users(id),
+                time_in_stage INTERVAL,
+                note TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_lead_stage_history_lead
+                ON "${schema}".lead_stage_history(lead_id);
+              CREATE INDEX IF NOT EXISTS idx_lead_stage_history_created
+                ON "${schema}".lead_stage_history(created_at DESC);
+              CREATE INDEX IF NOT EXISTS idx_lead_stage_history_changed_by
+                ON "${schema}".lead_stage_history(changed_by);
+
+              -- ============================================================
+              -- USER ACTIVITY DAILY (rollup for dashboard sparklines)
+              -- Populated by cron or on-demand aggregation
+              -- ============================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".user_activity_daily (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+                activity_date DATE NOT NULL,
+                leads_created INT DEFAULT 0,
+                leads_converted INT DEFAULT 0,
+                opps_created INT DEFAULT 0,
+                opps_won INT DEFAULT 0,
+                opps_lost INT DEFAULT 0,
+                tasks_completed INT DEFAULT 0,
+                tasks_created INT DEFAULT 0,
+                activities_logged INT DEFAULT 0,
+                calls_made INT DEFAULT 0,
+                emails_sent INT DEFAULT 0,
+                meetings_held INT DEFAULT 0,
+                notes_added INT DEFAULT 0,
+                total_revenue_won NUMERIC(15,2) DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(user_id, activity_date)
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_user_activity_daily_user_date
+                ON "${schema}".user_activity_daily(user_id, activity_date DESC);
+              CREATE INDEX IF NOT EXISTS idx_user_activity_daily_date
+                ON "${schema}".user_activity_daily(activity_date DESC);
+                `,
+          },
+          {
+            name: '016_dashboard_prerequisites',
+            sql: buildDashboardMigration(schema),
+          },
+          {
+            name: '017_targets_gamification',
+            sql: buildTargetsGamificationMigration(schema),
+          },
+          {
+            name: '017_targets_gamification_seed_values',
+            sql: buildTargetsGamificationSeedData(schema)
+          },
           // ▼ ADD THIS NEW ENTRY ▼
           {
             name: '0021_module_settings',
@@ -873,8 +1248,6 @@ function buildRbacMigration(schema: string): string {
     CREATE INDEX IF NOT EXISTS idx_line_items_opportunity ON opportunity_line_items(opportunity_id);
     CREATE INDEX IF NOT EXISTS idx_line_items_product ON opportunity_line_items(product_id);
   `;
-
-  
 }
 
 function buildLeadsMigration(schema: string): string {
@@ -1566,6 +1939,837 @@ function buildOpportunitiesRolesMigration(schema: string): string {
     WHERE name = 'user' AND is_system = true
       AND NOT (permissions ? 'opportunities');
   `;
+}
+
+function buildNotificationsMigration(schema: string): string {
+  return `
+    -- 1. Notifications
+    CREATE TABLE IF NOT EXISTS "${schema}".notifications (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id         UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+        type            VARCHAR(50) NOT NULL,
+        title           VARCHAR(500) NOT NULL,
+        body            TEXT,
+        icon            VARCHAR(50),
+        action_url      VARCHAR(500),
+        entity_type     VARCHAR(50),
+        entity_id       UUID,
+        metadata        JSONB DEFAULT '{}',
+        channels        TEXT[] DEFAULT '{}',
+        is_read         BOOLEAN DEFAULT false,
+        read_at         TIMESTAMPTZ,
+        is_dismissed    BOOLEAN DEFAULT false,
+        created_at      TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_notifications_user ON "${schema}".notifications(user_id, is_read, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_notifications_entity ON "${schema}".notifications(entity_type, entity_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_type ON "${schema}".notifications(type, created_at DESC);
+
+    -- 2. Notification preferences
+    CREATE TABLE IF NOT EXISTS "${schema}".notification_preferences (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id         UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+        event_type      VARCHAR(50) NOT NULL,
+        in_app          BOOLEAN DEFAULT true,
+        email           BOOLEAN DEFAULT true,
+        browser_push    BOOLEAN DEFAULT false,
+        sms             BOOLEAN DEFAULT false,
+        whatsapp        BOOLEAN DEFAULT false,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, event_type)
+    );
+    CREATE INDEX IF NOT EXISTS idx_notification_prefs_user ON "${schema}".notification_preferences(user_id);
+
+    -- 3. Notification templates
+    CREATE TABLE IF NOT EXISTS "${schema}".notification_templates (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        event_type      VARCHAR(50) NOT NULL UNIQUE,
+        name            VARCHAR(200) NOT NULL,
+        email_subject   VARCHAR(500),
+        email_body_html TEXT,
+        email_body_text TEXT,
+        sms_body        VARCHAR(500),
+        whatsapp_template_id VARCHAR(100),
+        is_active       BOOLEAN DEFAULT true,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- 4. Push subscriptions
+    CREATE TABLE IF NOT EXISTS "${schema}".push_subscriptions (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id         UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+        endpoint        TEXT NOT NULL,
+        p256dh          TEXT NOT NULL,
+        auth            TEXT NOT NULL,
+        user_agent      VARCHAR(500),
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, endpoint)
+    );
+    CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON "${schema}".push_subscriptions(user_id);
+
+    -- 5. Notification settings
+    CREATE TABLE IF NOT EXISTS "${schema}".notification_settings (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        setting_key     VARCHAR(100) NOT NULL UNIQUE,
+        setting_value   JSONB NOT NULL DEFAULT '{}',
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- SEED: Templates
+    INSERT INTO "${schema}".notification_templates (event_type, name, email_subject, email_body_html, email_body_text, sms_body) VALUES
+      ('task_assigned', 'Task Assigned',
+       'New task assigned: {{taskTitle}}',
+       '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><h2 style="color:#1e293b">New Task Assigned</h2><p>Hi {{assigneeName}},</p><p>You have been assigned a new task:</p><div style="background:#f1f5f9;border-radius:8px;padding:16px;margin:16px 0"><p style="font-weight:600;font-size:16px;margin:0 0 8px">{{taskTitle}}</p><p style="color:#64748b;margin:0">Due: {{dueDate}}</p><p style="color:#64748b;margin:4px 0 0">Priority: {{priority}}</p></div><p><a href="{{actionUrl}}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">View Task</a></p></div>',
+       'Hi {{assigneeName}}, you have been assigned: {{taskTitle}} - Due {{dueDate}}. View: {{actionUrl}}',
+       'New task: {{taskTitle}} - Due {{dueDate}}'),
+      ('task_due_reminder', 'Task Due Reminder',
+       'Reminder: {{taskTitle}} is due {{dueLabel}}',
+       '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><h2 style="color:#1e293b">Task Reminder</h2><p>Hi {{userName}},</p><p>Your task <strong>{{taskTitle}}</strong> is due <strong>{{dueLabel}}</strong>.</p><p><a href="{{actionUrl}}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">View Task</a></p></div>',
+       'Hi {{userName}}, your task "{{taskTitle}}" is due {{dueLabel}}. View: {{actionUrl}}',
+       'Reminder: {{taskTitle}} due {{dueLabel}}'),
+      ('task_overdue', 'Task Overdue',
+       'Overdue: {{taskTitle}}',
+       '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><h2 style="color:#dc2626">Task Overdue</h2><p>Hi {{userName}},</p><p>Your task <strong>{{taskTitle}}</strong> is now <span style="color:#dc2626;font-weight:600">overdue</span> (was due {{dueDate}}).</p><p><a href="{{actionUrl}}" style="display:inline-block;background:#dc2626;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">View Task</a></p></div>',
+       'Hi {{userName}}, your task "{{taskTitle}}" is OVERDUE (was due {{dueDate}}). View: {{actionUrl}}',
+       'OVERDUE: {{taskTitle}} was due {{dueDate}}'),
+      ('task_completed', 'Task Completed',
+       'Task completed: {{taskTitle}}',
+       '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><h2 style="color:#16a34a">Task Completed</h2><p>Hi {{ownerName}},</p><p>Task <strong>{{taskTitle}}</strong> has been completed by {{completedBy}}.</p><p><a href="{{actionUrl}}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">View Task</a></p></div>',
+       'Hi {{ownerName}}, task "{{taskTitle}}" completed by {{completedBy}}.',
+       NULL),
+      ('meeting_reminder', 'Meeting Reminder',
+       'Reminder: {{meetingTitle}} {{dueLabel}}',
+       '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><h2 style="color:#1e293b">Meeting Reminder</h2><p>Hi {{userName}},</p><p>Your meeting <strong>{{meetingTitle}}</strong> starts <strong>{{dueLabel}}</strong>.</p><div style="background:#f1f5f9;border-radius:8px;padding:16px;margin:16px 0"><p style="margin:0">When: {{dateTime}}</p><p style="margin:4px 0 0">Where: {{location}}</p></div><p><a href="{{actionUrl}}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">View Meeting</a></p></div>',
+       'Hi {{userName}}, meeting "{{meetingTitle}}" starts {{dueLabel}}. {{location}}',
+       'Meeting: {{meetingTitle}} {{dueLabel}}'),
+      ('meeting_booked', 'Meeting Booked',
+       'New meeting booked: {{meetingTitle}}',
+       '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><h2 style="color:#1e293b">New Meeting Booked</h2><p>Hi {{hostName}},</p><p>A new meeting has been booked:</p><div style="background:#f1f5f9;border-radius:8px;padding:16px;margin:16px 0"><p style="font-weight:600;font-size:16px;margin:0 0 8px">{{meetingTitle}}</p><p style="color:#64748b;margin:0">With: {{guestName}} ({{guestEmail}})</p><p style="color:#64748b;margin:4px 0 0">When: {{dateTime}}</p><p style="color:#64748b;margin:4px 0 0">Where: {{location}}</p></div><p><a href="{{actionUrl}}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">View Meeting</a></p></div>',
+       'Hi {{hostName}}, new meeting booked: "{{meetingTitle}}" with {{guestName}} on {{dateTime}}.',
+       'New meeting: {{meetingTitle}} with {{guestName}} on {{dateTime}}'),
+      ('meeting_cancelled', 'Meeting Cancelled',
+       'Meeting cancelled: {{meetingTitle}}',
+       '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><h2 style="color:#dc2626">Meeting Cancelled</h2><p>Hi {{userName}},</p><p>The meeting <strong>{{meetingTitle}}</strong> scheduled for {{dateTime}} has been cancelled.</p><p style="color:#64748b">Reason: {{reason}}</p></div>',
+       'Hi {{userName}}, meeting "{{meetingTitle}}" on {{dateTime}} has been cancelled.',
+       'Meeting cancelled: {{meetingTitle}} on {{dateTime}}'),
+      ('meeting_rescheduled', 'Meeting Rescheduled',
+       'Meeting rescheduled: {{meetingTitle}}',
+       '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><h2 style="color:#f59e0b">Meeting Rescheduled</h2><p>Hi {{userName}},</p><p>The meeting <strong>{{meetingTitle}}</strong> has been rescheduled.</p><div style="background:#f1f5f9;border-radius:8px;padding:16px;margin:16px 0"><p style="color:#dc2626;text-decoration:line-through;margin:0">Old: {{oldDateTime}}</p><p style="color:#16a34a;font-weight:600;margin:4px 0 0">New: {{newDateTime}}</p></div><p><a href="{{actionUrl}}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">View Meeting</a></p></div>',
+       'Hi {{userName}}, meeting "{{meetingTitle}}" rescheduled to {{newDateTime}}.',
+       'Meeting rescheduled: {{meetingTitle}} to {{newDateTime}}'),
+      ('lead_assigned', 'Lead Assigned',
+       'New lead assigned: {{leadName}}',
+       '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><h2 style="color:#1e293b">New Lead Assigned</h2><p>Hi {{assigneeName}},</p><p>A new lead has been assigned to you:</p><div style="background:#f1f5f9;border-radius:8px;padding:16px;margin:16px 0"><p style="font-weight:600;font-size:16px;margin:0 0 8px">{{leadName}}</p><p style="color:#64748b;margin:0">Company: {{company}}</p><p style="color:#64748b;margin:4px 0 0">Source: {{source}}</p></div><p><a href="{{actionUrl}}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">View Lead</a></p></div>',
+       'Hi {{assigneeName}}, new lead assigned: {{leadName}} from {{company}}. View: {{actionUrl}}',
+       'New lead: {{leadName}} from {{company}}'),
+      ('mention', 'Mentioned in Note',
+       'You were mentioned in a note',
+       '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><h2 style="color:#1e293b">You Were Mentioned</h2><p>Hi {{userName}},</p><p><strong>{{mentionedBy}}</strong> mentioned you in a note on <strong>{{entityName}}</strong>:</p><div style="background:#f1f5f9;border-radius:8px;padding:16px;margin:16px 0;border-left:4px solid #2563eb"><p style="margin:0;color:#475569">{{notePreview}}</p></div><p><a href="{{actionUrl}}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">View Note</a></p></div>',
+       'Hi {{userName}}, {{mentionedBy}} mentioned you on {{entityName}}: "{{notePreview}}" View: {{actionUrl}}',
+       '{{mentionedBy}} mentioned you on {{entityName}}')
+    ON CONFLICT (event_type) DO NOTHING;
+
+    -- SEED: Settings
+    INSERT INTO "${schema}".notification_settings (setting_key, setting_value) VALUES
+      ('default_preferences', '{"task_assigned":{"in_app":true,"email":true,"browser_push":false,"sms":false,"whatsapp":false},"task_due_reminder":{"in_app":true,"email":true,"browser_push":true,"sms":false,"whatsapp":false},"task_overdue":{"in_app":true,"email":true,"browser_push":true,"sms":false,"whatsapp":false},"task_completed":{"in_app":true,"email":false,"browser_push":false,"sms":false,"whatsapp":false},"meeting_reminder":{"in_app":true,"email":true,"browser_push":true,"sms":false,"whatsapp":false},"meeting_booked":{"in_app":true,"email":true,"browser_push":false,"sms":false,"whatsapp":false},"meeting_cancelled":{"in_app":true,"email":true,"browser_push":false,"sms":false,"whatsapp":false},"meeting_rescheduled":{"in_app":true,"email":true,"browser_push":false,"sms":false,"whatsapp":false},"lead_assigned":{"in_app":true,"email":true,"browser_push":false,"sms":false,"whatsapp":false},"mention":{"in_app":true,"email":true,"browser_push":true,"sms":false,"whatsapp":false}}'),
+      ('smtp_config', '{"host":"","port":587,"secure":false,"user":"","pass":"","from":"noreply@hiperteam.com","fromName":"HiperTeam CRM"}'),
+      ('twilio_config', '{"accountSid":"","authToken":"","fromPhone":"","whatsappFrom":""}'),
+      ('push_config', '{"publicKey":"","privateKey":"","contact":"mailto:admin@hiperteam.com"}')
+    ON CONFLICT (setting_key) DO NOTHING;
+
+    -- Permissions
+    -- GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+    -- GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app;
+  `;
+}
+
+function buildDashboardMigration(schema: string): string {
+  return `
+    CREATE TABLE IF NOT EXISTS "${schema}".lead_stage_history (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      lead_id UUID NOT NULL REFERENCES "${schema}".leads(id) ON DELETE CASCADE,
+      from_stage_id UUID REFERENCES "${schema}".pipeline_stages(id),
+      to_stage_id UUID NOT NULL REFERENCES "${schema}".pipeline_stages(id),
+      changed_by UUID REFERENCES "${schema}".users(id),
+      time_in_stage INTERVAL,
+      note TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_lead_stage_history_lead
+      ON "${schema}".lead_stage_history(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_lead_stage_history_created
+      ON "${schema}".lead_stage_history(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_lead_stage_history_changed_by
+      ON "${schema}".lead_stage_history(changed_by);
+
+    CREATE TABLE IF NOT EXISTS "${schema}".user_activity_daily (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+      activity_date DATE NOT NULL,
+      leads_created INT DEFAULT 0,
+      leads_converted INT DEFAULT 0,
+      opps_created INT DEFAULT 0,
+      opps_won INT DEFAULT 0,
+      opps_lost INT DEFAULT 0,
+      tasks_completed INT DEFAULT 0,
+      tasks_created INT DEFAULT 0,
+      activities_logged INT DEFAULT 0,
+      calls_made INT DEFAULT 0,
+      emails_sent INT DEFAULT 0,
+      meetings_held INT DEFAULT 0,
+      notes_added INT DEFAULT 0,
+      total_revenue_won NUMERIC(15,2) DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, activity_date)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_activity_daily_user_date
+      ON "${schema}".user_activity_daily(user_id, activity_date DESC);
+    CREATE INDEX IF NOT EXISTS idx_user_activity_daily_date
+      ON "${schema}".user_activity_daily(activity_date DESC);
+  `;
+}
+
+function buildTargetsGamificationMigration(schema: string): string {
+  return `
+    -- ============================================================
+    -- MIGRATION 017: TARGETS & GAMIFICATION ENGINE
+    -- ============================================================
+
+    -- 1. TARGETS (metric definitions)
+    CREATE TABLE IF NOT EXISTS "${schema}".targets (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      module VARCHAR(50) NOT NULL,
+      metric_key VARCHAR(100) NOT NULL,
+      metric_type VARCHAR(20) NOT NULL DEFAULT 'count',
+      metric_unit VARCHAR(20) DEFAULT '',
+      aggregation_field VARCHAR(100),
+      filter_criteria JSONB DEFAULT '{}',
+      custom_query TEXT,
+      period VARCHAR(20) NOT NULL DEFAULT 'monthly',
+      cascade_enabled BOOLEAN DEFAULT false,
+      cascade_method VARCHAR(20) DEFAULT 'equal',
+      badge_on_achieve BOOLEAN DEFAULT true,
+      streak_tracking BOOLEAN DEFAULT true,
+      milestone_notifications BOOLEAN DEFAULT true,
+      is_active BOOLEAN DEFAULT true,
+      sort_order INT DEFAULT 0,
+      created_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_targets_module ON "${schema}".targets(module);
+    CREATE INDEX IF NOT EXISTS idx_targets_metric ON "${schema}".targets(metric_key);
+    CREATE INDEX IF NOT EXISTS idx_targets_active ON "${schema}".targets(is_active) WHERE is_active = true;
+
+    -- 2. TARGET ASSIGNMENTS
+    CREATE TABLE IF NOT EXISTS "${schema}".target_assignments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      target_id UUID NOT NULL REFERENCES "${schema}".targets(id) ON DELETE CASCADE,
+      scope_type VARCHAR(20) NOT NULL,
+      user_id UUID REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+      team_id UUID REFERENCES "${schema}".teams(id) ON DELETE CASCADE,
+      department VARCHAR(100),
+      target_value NUMERIC(15,2) NOT NULL,
+      period_start DATE NOT NULL,
+      period_end DATE NOT NULL,
+      is_cascaded BOOLEAN DEFAULT false,
+      is_overridden BOOLEAN DEFAULT false,
+      parent_assignment_id UUID REFERENCES "${schema}".target_assignments(id) ON DELETE SET NULL,
+      cascade_weights JSONB DEFAULT '{}',
+      is_active BOOLEAN DEFAULT true,
+      created_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_ta_target ON "${schema}".target_assignments(target_id);
+    CREATE INDEX IF NOT EXISTS idx_ta_user ON "${schema}".target_assignments(user_id) WHERE user_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_ta_team ON "${schema}".target_assignments(team_id) WHERE team_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_ta_period ON "${schema}".target_assignments(period_start, period_end);
+    CREATE INDEX IF NOT EXISTS idx_ta_scope ON "${schema}".target_assignments(scope_type);
+
+    -- 3. TARGET PROGRESS (cached actuals)
+    CREATE TABLE IF NOT EXISTS "${schema}".target_progress (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      assignment_id UUID NOT NULL REFERENCES "${schema}".target_assignments(id) ON DELETE CASCADE,
+      actual_value NUMERIC(15,2) NOT NULL DEFAULT 0,
+      percentage NUMERIC(5,1) NOT NULL DEFAULT 0,
+      pace_status VARCHAR(20) DEFAULT 'on_track',
+      expected_by_now NUMERIC(15,2) DEFAULT 0,
+      days_elapsed INT DEFAULT 0,
+      days_total INT DEFAULT 0,
+      milestone_50 BOOLEAN DEFAULT false,
+      milestone_75 BOOLEAN DEFAULT false,
+      milestone_100 BOOLEAN DEFAULT false,
+      milestone_exceeded BOOLEAN DEFAULT false,
+      last_computed_at TIMESTAMPTZ DEFAULT NOW(),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(assignment_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_tp_assignment ON "${schema}".target_progress(assignment_id);
+    CREATE INDEX IF NOT EXISTS idx_tp_pace ON "${schema}".target_progress(pace_status);
+
+    -- 4. BADGES
+    CREATE TABLE IF NOT EXISTS "${schema}".badges (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(100) NOT NULL,
+      description TEXT,
+      icon VARCHAR(50) NOT NULL DEFAULT '🏆',
+      color VARCHAR(20) DEFAULT '#F59E0B',
+      trigger_type VARCHAR(30) NOT NULL,
+      trigger_config JSONB DEFAULT '{}',
+      tier VARCHAR(20) DEFAULT 'bronze',
+      points INT DEFAULT 10,
+      is_active BOOLEAN DEFAULT true,
+      is_system BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_badges_trigger ON "${schema}".badges(trigger_type);
+
+    -- 5. BADGE AWARDS
+    CREATE TABLE IF NOT EXISTS "${schema}".badge_awards (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      badge_id UUID NOT NULL REFERENCES "${schema}".badges(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+      awarded_for TEXT,
+      target_assignment_id UUID REFERENCES "${schema}".target_assignments(id) ON DELETE SET NULL,
+      points_earned INT DEFAULT 0,
+      awarded_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_ba_user ON "${schema}".badge_awards(user_id);
+    CREATE INDEX IF NOT EXISTS idx_ba_badge ON "${schema}".badge_awards(badge_id);
+    CREATE INDEX IF NOT EXISTS idx_ba_awarded ON "${schema}".badge_awards(awarded_at DESC);
+
+    -- 6. USER STREAKS
+    CREATE TABLE IF NOT EXISTS "${schema}".user_streaks (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+      target_id UUID NOT NULL REFERENCES "${schema}".targets(id) ON DELETE CASCADE,
+      current_streak INT DEFAULT 0,
+      longest_streak INT DEFAULT 0,
+      last_achieved_period DATE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, target_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_us_user ON "${schema}".user_streaks(user_id);
+
+    -- 7. ACHIEVEMENT LOG
+    CREATE TABLE IF NOT EXISTS "${schema}".achievement_log (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+      event_type VARCHAR(30) NOT NULL,
+      event_data JSONB DEFAULT '{}',
+      target_id UUID REFERENCES "${schema}".targets(id) ON DELETE SET NULL,
+      badge_id UUID REFERENCES "${schema}".badges(id) ON DELETE SET NULL,
+      message TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_al_user ON "${schema}".achievement_log(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_al_type ON "${schema}".achievement_log(event_type);
+
+    -- 8. SEED DEFAULT BADGES
+    INSERT INTO "${schema}".badges (name, description, icon, color, trigger_type, trigger_config, tier, points, is_system) VALUES
+      ('Target Crusher', 'Hit 100% of any target', '🎯', '#10B981', 'target_achieved', '{"percentage":100}', 'gold', 50, true),
+      ('Overachiever', 'Exceeded a target by 50%+', '🚀', '#8B5CF6', 'target_achieved', '{"percentage":150}', 'platinum', 100, true),
+      ('Hot Streak', '3 periods in a row hitting target', '🔥', '#F59E0B', 'streak', '{"streak_count":3}', 'silver', 30, true),
+      ('Unstoppable', '5 periods in a row hitting target', '⚡', '#EF4444', 'streak', '{"streak_count":5}', 'gold', 75, true),
+      ('Consistency King', '6 consecutive periods hitting target', '👑', '#F59E0B', 'streak', '{"streak_count":6}', 'diamond', 200, true),
+      ('First Deal', 'Won your first deal', '🥇', '#10B981', 'milestone', '{"metric_key":"opps_won","lifetime_count":1}', 'bronze', 10, true),
+      ('Deal Machine', 'Won 50 deals lifetime', '⭐', '#F59E0B', 'milestone', '{"metric_key":"opps_won","lifetime_count":50}', 'gold', 50, true),
+      ('Pipeline Builder', 'Created 100 leads lifetime', '🏗️', '#3B82F6', 'milestone', '{"metric_key":"leads_created","lifetime_count":100}', 'silver', 25, true),
+      ('Conversation Starter', 'Made 500 calls lifetime', '📞', '#10B981', 'milestone', '{"metric_key":"calls_made","lifetime_count":500}', 'bronze', 15, true),
+      ('Early Bird', 'Hit target before period midpoint', '🐦', '#F59E0B', 'custom', '{"rule":"achieved_before_half_period"}', 'silver', 20, true),
+      ('Comeback Kid', 'Was behind pace but still hit target', '💪', '#EF4444', 'custom', '{"rule":"was_behind_then_achieved"}', 'gold', 40, true),
+      ('Email Champion', 'Sent 1000 emails lifetime', '📧', '#3B82F6', 'milestone', '{"metric_key":"emails_sent","lifetime_count":1000}', 'silver', 25, true)
+    ON CONFLICT DO NOTHING;
+  `
+}
+
+function buildTargetsGamificationSeedData(schema: string): string {
+ return  `
+    -- ============================================================
+    -- SEED: TARGETS & GOALS — Industry Standard Templates
+    -- ============================================================
+    --
+    -- Run AFTER migration 017_targets_gamification.sql
+    -- Replace ${schema} with your tenant schema name.
+    --
+    -- Includes:
+    --   • 14 targets across Sales, Lead Gen, Activities
+    --   • Company-level assignments for current + next 2 months
+    --   • Industry-standard target values (adjust to your team size)
+    --
+    -- Benchmarks based on:
+    --   - Bridge Group Inside Sales Report
+    --   - HubSpot Sales Benchmarks
+    --   - Salesforce State of Sales Report
+    --   - Gartner B2B Sales Research
+    -- ============================================================
+
+    -- ────────────────────────────────────────────────────────────
+    -- 1. TARGETS (metric definitions)
+    -- ────────────────────────────────────────────────────────────
+
+    INSERT INTO "${schema}".targets
+      (name, description, module, metric_key, metric_type, metric_unit, period,
+      cascade_enabled, cascade_method, badge_on_achieve, streak_tracking,
+      milestone_notifications, is_active, sort_order)
+    VALUES
+
+    -- ═══════════ REVENUE & DEALS ═══════════
+
+    -- #1  Monthly Revenue Target
+    -- Industry avg: $50K-$150K/rep/month for mid-market SaaS
+    ('Monthly Revenue Target',
+    'Total revenue from closed-won deals. Industry benchmark: $50K-$150K per rep/month for mid-market B2B.',
+    'opportunities', 'revenue_won', 'sum', '$', 'monthly',
+    true, 'equal', true, true, true, true, 1),
+
+    -- #2  Quarterly Revenue Target
+    -- Rolls up monthly into quarterly view for exec reporting
+    ('Quarterly Revenue Target',
+    'Quarterly revenue goal. Typically 3x monthly with stretch. Used for QBR reporting.',
+    'opportunities', 'revenue_won', 'sum', '$', 'quarterly',
+    true, 'equal', true, true, true, true, 2),
+
+    -- #3  Deals Won per Month
+    -- Industry avg: 3-8 deals/rep/month depending on deal size
+    ('Monthly Deals Won',
+    'Number of closed-won deals per month. Benchmark: 3-8 deals/rep for mid-market, 1-3 for enterprise.',
+    'opportunities', 'opps_won', 'count', 'deals', 'monthly',
+    true, 'equal', true, true, true, true, 3),
+
+    -- #4  Pipeline Value Target
+    -- Best practice: 3-4x quota coverage in pipeline
+    ('Pipeline Coverage Target',
+    'Open pipeline value. Best practice: maintain 3-4x quota coverage. If monthly target is $100K, pipeline should be $300-400K.',
+    'opportunities', 'pipeline_value', 'sum', '$', 'monthly',
+    false, 'equal', true, false, true, true, 4),
+
+    -- #5  Average Deal Size
+    -- Track to ensure reps aren't discounting heavily
+    ('Average Deal Size',
+    'Average revenue per closed deal. Monitor for discounting trends. Benchmark varies by segment.',
+    'opportunities', 'avg_deal_size', 'sum', '$', 'monthly',
+    false, 'equal', false, false, true, true, 5),
+
+    -- ═══════════ LEAD GENERATION ═══════════
+
+    -- #6  New Leads Created
+    -- SDR benchmark: 150-300 leads/month through outbound + inbound
+    ('Monthly New Leads',
+    'New leads created per month. SDR benchmark: 150-300 for outbound-heavy, 50-100 for inbound-focused teams.',
+    'leads', 'leads_created', 'count', 'leads', 'monthly',
+    true, 'equal', true, true, true, true, 6),
+
+    -- #7  Leads Converted
+    -- Industry conversion rate: 5-15% of leads convert to opportunities
+    ('Monthly Lead Conversions',
+    'Leads converted to opportunities. Industry avg: 5-15% conversion rate. Track absolute count + rate.',
+    'leads', 'leads_converted', 'count', 'leads', 'monthly',
+    true, 'equal', true, true, true, true, 7),
+
+    -- #8  Leads Qualified
+    -- Typically 20-40% of new leads pass qualification
+    ('Monthly Leads Qualified',
+    'Leads advancing past initial stage. Benchmark: 20-40% of new leads should reach qualified status.',
+    'leads', 'leads_reached_stage', 'count', 'leads', 'monthly',
+    true, 'equal', true, true, true, true, 8),
+
+    -- #9  Weekly New Leads (for SDR teams)
+    -- Weekly cadence keeps SDRs accountable on sourcing
+    ('Weekly Lead Generation',
+    'Weekly lead creation target for SDR/BDR teams. Keeps sourcing consistent vs. end-of-month rushes.',
+    'leads', 'leads_created', 'count', 'leads', 'weekly',
+    true, 'equal', true, true, true, true, 9),
+
+    -- ═══════════ ACTIVITY METRICS ═══════════
+
+    -- #10 Monthly Calls on Leads
+    -- Inside sales benchmark: 40-60 calls/day = 800-1200/month
+    ('Monthly Outbound Calls (Leads)',
+    'Calls logged against leads. Inside sales benchmark: 40-60 dials/day, 800-1200/month. Quality > quantity.',
+    'leads', 'lead_calls', 'count', 'calls', 'monthly',
+    true, 'equal', true, true, true, true, 10),
+
+    -- #11 Monthly Emails on Leads
+    -- Outbound cadence: 5-8 touches per lead = high email volume
+    ('Monthly Emails Sent (Leads)',
+    'Emails logged against leads. Outbound cadence typically includes 5-8 email touches per prospect.',
+    'leads', 'lead_emails', 'count', 'emails', 'monthly',
+    true, 'equal', true, false, true, true, 11),
+
+    -- #12 Monthly Demos/Presentations
+    -- Account exec benchmark: 8-15 demos/month
+    ('Monthly Demos Given (Leads)',
+    'Demos and presentations for leads. AE benchmark: 8-15 qualified demos/month. Key conversion driver.',
+    'leads', 'lead_demos', 'count', 'demos', 'monthly',
+    true, 'equal', true, true, true, true, 12),
+
+    -- #13 Monthly Meetings on Opportunities
+    -- Deal progression requires 2-4 meetings per deal cycle
+    ('Monthly Opp Meetings',
+    'Meetings logged against opportunities. Benchmark: 2-4 meetings per deal in pipeline per month.',
+    'opportunities', 'opp_meetings', 'count', 'meetings', 'monthly',
+    true, 'equal', true, false, true, true, 13),
+
+    -- #14 Tasks Completed
+    -- Operational hygiene metric
+    ('Weekly Tasks Completed',
+    'CRM tasks completed per week. Ensures follow-ups, admin tasks, and pipeline hygiene stay on track.',
+    'tasks', 'tasks_completed', 'count', 'tasks', 'weekly',
+    false, 'equal', true, true, true, true, 14)
+
+    ON CONFLICT DO NOTHING;
+
+
+    -- ────────────────────────────────────────────────────────────
+    -- 2. COMPANY-LEVEL ASSIGNMENTS
+    --    (Current month + next 2 months)
+    --
+    --    Adjust target_value to match your team size:
+    --      - Values below assume ~5-8 reps
+    --      - For per-rep: divide by headcount
+    --      - cascade_enabled targets will auto-distribute
+    --        when you click "Cascade" in the UI
+    -- ────────────────────────────────────────────────────────────
+
+    DO $$
+    DECLARE
+      t_id UUID;
+      m_start DATE;
+      m_end DATE;
+      q_start DATE;
+      q_end DATE;
+      w_start DATE;
+      w_end DATE;
+    BEGIN
+
+      -- ── Current month boundaries ──
+      m_start := date_trunc('month', NOW())::date;
+      m_end   := (date_trunc('month', NOW()) + interval '1 month' - interval '1 day')::date;
+
+      -- ── Current quarter boundaries ──
+      q_start := date_trunc('quarter', NOW())::date;
+      q_end   := (date_trunc('quarter', NOW()) + interval '3 months' - interval '1 day')::date;
+
+      -- ── Current week (Monday start) ──
+      w_start := date_trunc('week', NOW())::date;
+      w_end   := (date_trunc('week', NOW()) + interval '6 days')::date;
+
+      -- ═══════════════════════════════════════════
+      -- MONTHLY REVENUE TARGET — $500K company/month
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'revenue_won' AND period = 'monthly' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        -- Current month
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 500000, m_start, m_end)
+        ON CONFLICT DO NOTHING;
+        -- Next month
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 500000, m_start + interval '1 month', m_end + interval '1 month')
+        ON CONFLICT DO NOTHING;
+        -- Month after
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 500000, m_start + interval '2 months', m_end + interval '2 months')
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      -- ═══════════════════════════════════════════
+      -- QUARTERLY REVENUE — $1.5M company/quarter
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'revenue_won' AND period = 'quarterly' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 1500000, q_start, q_end)
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      -- ═══════════════════════════════════════════
+      -- MONTHLY DEALS WON — 30 deals company/month
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'opps_won' AND period = 'monthly' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 30, m_start, m_end)
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 30, m_start + interval '1 month', m_end + interval '1 month')
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 30, m_start + interval '2 months', m_end + interval '2 months')
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      -- ═══════════════════════════════════════════
+      -- PIPELINE COVERAGE — $2M open pipeline
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'pipeline_value' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 2000000, m_start, m_end)
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      -- ═══════════════════════════════════════════
+      -- MONTHLY NEW LEADS — 200 company/month
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'leads_created' AND period = 'monthly' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 200, m_start, m_end)
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 200, m_start + interval '1 month', m_end + interval '1 month')
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 200, m_start + interval '2 months', m_end + interval '2 months')
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      -- ═══════════════════════════════════════════
+      -- MONTHLY CONVERSIONS — 25 company/month
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'leads_converted' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 25, m_start, m_end)
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 25, m_start + interval '1 month', m_end + interval '1 month')
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      -- ═══════════════════════════════════════════
+      -- MONTHLY LEADS QUALIFIED — 60 company/month
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'leads_reached_stage' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 60, m_start, m_end)
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 60, m_start + interval '1 month', m_end + interval '1 month')
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      -- ═══════════════════════════════════════════
+      -- WEEKLY LEAD GENERATION — 50/week
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'leads_created' AND period = 'weekly' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        -- Current week
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 50, w_start, w_end)
+        ON CONFLICT DO NOTHING;
+        -- Next 3 weeks
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 50, w_start + interval '7 days', w_end + interval '7 days')
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 50, w_start + interval '14 days', w_end + interval '14 days')
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 50, w_start + interval '21 days', w_end + interval '21 days')
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      -- ═══════════════════════════════════════════
+      -- MONTHLY CALLS ON LEADS — 4000 company/month
+      -- (approx 800/rep × 5 reps)
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'lead_calls' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 4000, m_start, m_end)
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 4000, m_start + interval '1 month', m_end + interval '1 month')
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      -- ═══════════════════════════════════════════
+      -- MONTHLY EMAILS ON LEADS — 3000 company/month
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'lead_emails' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 3000, m_start, m_end)
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      -- ═══════════════════════════════════════════
+      -- MONTHLY DEMOS — 50 company/month
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'lead_demos' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 50, m_start, m_end)
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 50, m_start + interval '1 month', m_end + interval '1 month')
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      -- ═══════════════════════════════════════════
+      -- MONTHLY OPP MEETINGS — 80 company/month
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'opp_meetings' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 80, m_start, m_end)
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      -- ═══════════════════════════════════════════
+      -- WEEKLY TASKS COMPLETED — 100/week company
+      -- ═══════════════════════════════════════════
+      SELECT id INTO t_id FROM "${schema}".targets WHERE metric_key = 'tasks_completed' LIMIT 1;
+      IF t_id IS NOT NULL THEN
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 100, w_start, w_end)
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 100, w_start + interval '7 days', w_end + interval '7 days')
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 100, w_start + interval '14 days', w_end + interval '14 days')
+        ON CONFLICT DO NOTHING;
+        INSERT INTO "${schema}".target_assignments (target_id, scope_type, target_value, period_start, period_end)
+        VALUES (t_id, 'company', 100, w_start + interval '21 days', w_end + interval '21 days')
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+    END $$;
+
+
+    -- ────────────────────────────────────────────────────────────
+    -- 3. ADDITIONAL BADGES (beyond the 12 system defaults)
+    -- ────────────────────────────────────────────────────────────
+
+    INSERT INTO "${schema}".badges
+      (name, description, icon, color, trigger_type, trigger_config, tier, points, is_system)
+    VALUES
+      -- Revenue milestones
+      ('$100K Club',
+      'Closed $100K+ in a single month',
+      '💰', '#10B981', 'milestone',
+      '{"metric_key":"revenue_won","period_value":100000}',
+      'gold', 75, true),
+
+      ('Quarter Million',
+      'Closed $250K+ in a single quarter',
+      '💎', '#8B5CF6', 'milestone',
+      '{"metric_key":"revenue_won","period_value":250000}',
+      'platinum', 150, true),
+
+      ('Million Dollar Rep',
+      'Closed $1M+ lifetime revenue',
+      '👑', '#F59E0B', 'milestone',
+      '{"metric_key":"revenue_won","lifetime_value":1000000}',
+      'diamond', 500, true),
+
+      -- Activity milestones
+      ('Call Warrior',
+      'Made 100+ calls in a single week',
+      '📞', '#3B82F6', 'milestone',
+      '{"metric_key":"lead_calls","period_value":100,"period":"weekly"}',
+      'silver', 20, true),
+
+      ('Demo King',
+      'Delivered 20+ demos in a month',
+      '🎤', '#EC4899', 'milestone',
+      '{"metric_key":"lead_demos","period_value":20}',
+      'gold', 40, true),
+
+      ('Meeting Machine',
+      'Held 30+ meetings in a month',
+      '🤝', '#10B981', 'milestone',
+      '{"metric_key":"opp_meetings","period_value":30}',
+      'silver', 25, true),
+
+      -- Lead gen milestones
+      ('Lead Magnet',
+      'Created 50+ leads in a single month',
+      '🧲', '#6366F1', 'milestone',
+      '{"metric_key":"leads_created","period_value":50}',
+      'silver', 25, true),
+
+      ('Conversion Expert',
+      'Converted 10+ leads in a single month',
+      '🔄', '#10B981', 'milestone',
+      '{"metric_key":"leads_converted","period_value":10}',
+      'gold', 50, true),
+
+      -- Streak badges (higher tiers)
+      ('Iron Will',
+      '10 consecutive periods hitting target',
+      '🛡️', '#6B7280', 'streak',
+      '{"streak_count":10}',
+      'diamond', 300, true),
+
+      -- Special recognition
+      ('Team Player',
+      'Helped 3+ colleagues hit their targets (contributed to cascaded goals)',
+      '🤝', '#3B82F6', 'custom',
+      '{"rule":"cascade_contributor","count":3}',
+      'silver', 30, true),
+
+      ('Fast Starter',
+      'Hit 50% of monthly target in the first week',
+      '⚡', '#F97316', 'custom',
+      '{"rule":"half_target_first_week"}',
+      'bronze', 15, true),
+
+      ('Perfect Month',
+      'Hit 100% on ALL assigned targets in a single month',
+      '✨', '#F59E0B', 'custom',
+      '{"rule":"all_targets_achieved_in_period"}',
+      'platinum', 200, true)
+
+    ON CONFLICT DO NOTHING;
+
+
+    -- ────────────────────────────────────────────────────────────
+    -- QUICK REFERENCE: Per-Rep Benchmarks
+    -- ────────────────────────────────────────────────────────────
+    --
+    -- When you cascade company targets to individuals, here's
+    -- what industry benchmarks look like per rep:
+    --
+    -- ┌─────────────────────────┬──────────────┬───────────────┐
+    -- │ Metric                  │ Per Rep/Mo   │ Source         │
+    -- ├─────────────────────────┼──────────────┼───────────────┤
+    -- │ Revenue Won             │ $50-150K     │ Bridge Group   │
+    -- │ Deals Won               │ 3-8          │ HubSpot        │
+    -- │ New Leads Created       │ 30-60        │ SDR benchmarks │
+    -- │ Leads Converted         │ 3-8          │ 10-15% rate    │
+    -- │ Leads Qualified         │ 8-15         │ 30% qualify    │
+    -- │ Outbound Calls          │ 600-1200     │ 40-60/day      │
+    -- │ Emails Sent             │ 400-800      │ 5-8 per lead   │
+    -- │ Demos/Presentations     │ 8-15         │ AE benchmark   │
+    -- │ Opp Meetings            │ 12-20        │ 3-5/deal       │
+    -- │ Tasks Completed         │ 15-25/week   │ CRM hygiene    │
+    -- │ Pipeline Coverage       │ 3-4x quota   │ Best practice  │
+    -- │ Avg Deal Size           │ $15-50K      │ Mid-market     │
+    -- └─────────────────────────┴──────────────┴───────────────┘
+    --
+    -- To customize for your team:
+    --   1. Update company target_value = per_rep × number_of_reps
+    --   2. Use "Cascade" button in admin UI to auto-distribute
+    --   3. Override individual targets for top/ramp reps
+    -- ────────────────────────────────────────────────────────────
+  `
 }
 
 runTenantMigrations();

@@ -4,6 +4,7 @@
 import { useState, useRef } from 'react';
 import { Building2, GripVertical } from 'lucide-react';
 import type { KanbanStageData, Lead } from '../../../api/leads.api';
+import { SlaInlineBadge } from './SlaIndicator';
 
 interface KanbanBoardProps {
   stages: KanbanStageData[];
@@ -135,6 +136,13 @@ export function KanbanBoard({
                     </div>
                   </div>
 
+                  {/* SLA indicator */}
+                  {lead.slaFirstContactDueAt && (
+                    <div className="mt-1.5">
+                      <SlaInlineBadge lead={lead} />
+                    </div>
+                  )}
+                  
                   {/* Bottom row: priority + score + owner */}
                   <div className="flex items-center justify-between mt-2.5">
                     <div className="flex items-center gap-2">

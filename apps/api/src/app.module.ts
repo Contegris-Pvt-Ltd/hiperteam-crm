@@ -21,6 +21,11 @@ import { RolesModule } from './modules/roles/roles.module';
 import { ProductsModule } from './modules/products/products.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { OpportunitiesModule } from './modules/opportunities/opportunities.module';
+import { TasksModule } from './modules/tasks/tasks.module';
+import { NotificationModule } from './modules/notifications/notification.module';
+import { CalendarSyncModule } from './modules/calendar-sync/calendar-sync.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { TargetsModule } from './modules/targets/targets.module';
 
 @Module({
   imports: [
@@ -58,7 +63,12 @@ import { OpportunitiesModule } from './modules/opportunities/opportunities.modul
     RolesModule,
     ProductsModule,
     LeadsModule,
-    OpportunitiesModule
+    OpportunitiesModule,
+    DashboardModule,
+    CalendarSyncModule,
+    TasksModule,
+    NotificationModule,
+    TargetsModule
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -743,6 +743,70 @@ export const LEADS_SYSTEM_FIELDS: SystemFieldDefinition[] = [
     isSystem: true,
     isEditable: true,
   },
+// Other
+  {
+    id: 'system-description',
+    fieldKey: 'description',
+    fieldLabel: 'Description',
+    fieldType: 'textarea',
+    section: 'other',
+    isRequired: false,
+    placeholder: 'Additional notes...',
+    columnSpan: 2,
+    displayOrder: 40,
+    isSystem: true,
+    isEditable: true,
+  },
+
+  // SLA
+  {
+    id: 'system-slaFirstContactDueAt',
+    fieldKey: 'slaFirstContactDueAt',
+    fieldLabel: 'SLA Due Date',
+    fieldType: 'date',
+    section: 'sla',
+    isRequired: false,
+    columnSpan: 1,
+    displayOrder: 50,
+    isSystem: true,
+    isEditable: false,
+  },
+  {
+    id: 'system-slaFirstContactMetAt',
+    fieldKey: 'slaFirstContactMetAt',
+    fieldLabel: 'SLA Met Date',
+    fieldType: 'date',
+    section: 'sla',
+    isRequired: false,
+    columnSpan: 1,
+    displayOrder: 51,
+    isSystem: true,
+    isEditable: false,
+  },
+  {
+    id: 'system-slaBreached',
+    fieldKey: 'slaBreached',
+    fieldLabel: 'SLA Breached',
+    fieldType: 'checkbox',
+    section: 'sla',
+    isRequired: false,
+    columnSpan: 1,
+    displayOrder: 52,
+    isSystem: true,
+    isEditable: false,
+  },
+  {
+    id: 'system-slaEscalated',
+    fieldKey: 'slaEscalated',
+    fieldLabel: 'SLA Escalated',
+    fieldType: 'checkbox',
+    section: 'sla',
+    isRequired: false,
+    columnSpan: 1,
+    displayOrder: 53,
+    isSystem: true,
+    isEditable: false,
+  },
 ];
 
 // ==================== OPPORTUNITIES MODULE ====================
@@ -1007,7 +1071,7 @@ export function getAllFields(
   // Sort by section, then displayOrder
   return allFields.sort((a, b) => {
     if (a.section !== b.section) {
-      const sectionOrder = ['basic', 'contact', 'address', 'social', 'other', 'custom'];
+      const sectionOrder = ['basic', 'contact', 'address', 'social', 'other', 'sla', 'custom'];
       return sectionOrder.indexOf(a.section) - sectionOrder.indexOf(b.section);
     }
     return a.displayOrder - b.displayOrder;

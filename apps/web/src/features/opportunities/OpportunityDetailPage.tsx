@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Trash2, DollarSign, Building2,
-  Trophy, XCircle, RotateCcw, Loader2,
+  Trophy, XCircle, RotateCcw, Loader2, CheckSquare,
   Users, Package, History, BarChart3, MessageSquare, FileText, Activity,
   UserPlus, X, Search,
 } from 'lucide-react';
@@ -22,8 +22,9 @@ import { ForecastView } from './components/ForecastView';
 import { usePermissions } from '../../hooks/usePermissions';
 //import { AuditLogViewer } from '../../components/shared/AuditLogViewer';
 import { DocumentsPanel } from '../../components/shared/DocumentsPanel';
+import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 
-type Tab = 'details' | 'contacts' | 'products' | 'activity' | 'notes' | 'files' | 'history' | 'forecast';
+type Tab = 'details' | 'contacts' | 'products' | 'activity' | 'notes' | 'tasks' | 'files' | 'history' | 'forecast';
 
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: 'details', label: 'Details', icon: FileText },
@@ -32,6 +33,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: 'activity', label: 'Activity', icon: Activity },
   { id: 'notes', label: 'Notes', icon: MessageSquare },
   { id: 'files', label: 'Files', icon: FileText },
+  { id: 'tasks', label: 'Tasks', icon: CheckSquare },
   { id: 'history', label: 'Stage History', icon: History },
   { id: 'forecast', label: 'Forecast', icon: BarChart3 },
 ];
@@ -456,6 +458,14 @@ export function OpportunityDetailPage() {
 
         {/* Forecast Tab */}
         {activeTab === 'forecast' && <ForecastView pipelineId={opp.pipelineId || undefined} />}
+
+        {activeTab === 'tasks' && (
+          <EntityTasksPanel
+            entityType="opportunities"
+            entityId={opp.id}
+            entityName={opp.name}
+          />
+        )}
       </div>
         </div>
 

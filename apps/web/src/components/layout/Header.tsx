@@ -17,6 +17,7 @@ import {
   Keyboard,
   LogOut,
 } from 'lucide-react';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 export function Header() {
   const { user, logout } = useAuthStore();
@@ -101,10 +102,7 @@ export function Header() {
         </div>
 
         {/* Notifications */}
-        <button className="relative p-2 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-900"></span>
-        </button>
+        <NotificationBell />
 
         {/* User Menu */}
         <div className="relative ml-1">

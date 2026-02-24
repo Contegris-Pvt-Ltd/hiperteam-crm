@@ -178,6 +178,13 @@ export interface Lead {
   stageSettings?: Record<string, any>;
   duplicates?: DuplicateMatch[];
   productsCount?: number;
+  // SLA fields
+  slaFirstContactDueAt?: string | null;
+  slaFirstContactMetAt?: string | null;
+  slaBreached?: boolean;
+  slaBreachedAt?: string | null;
+  slaEscalated?: boolean;
+  slaEscalatedAt?: string | null;
 }
 
 export interface LeadsQuery {
@@ -264,6 +271,49 @@ export interface ConvertLeadData {
   closeDate?: string;
   newOwnerId?: string;
   notes?: string;
+}
+
+export type SlaStatus = 'no_sla' | 'on_track' | 'at_risk' | 'breached' | 'escalated' | 'met' | 'met_late';
+
+export interface LeadSlaStatus {
+  hasSla: boolean;
+  dueAt: string | null;
+  metAt: string | null;
+  breached: boolean;
+  breachedAt: string | null;
+  escalated: boolean;
+  escalatedAt: string | null;
+  status: SlaStatus;
+  remainingMinutes: number | null;
+  responseMinutes: number | null;
+}
+
+export interface SlaSummary {
+  totalWithSla: number;
+  onTrack: number;
+  atRisk: number;
+  breached: number;
+  escalated: number;
+  met: number;
+  metLate: number;
+  avgResponseMinutes: number | null;
+  breachRate: number;
+}
+
+export interface SlaConfig {
+  enabled: boolean;
+  firstContactHours: number;
+  workingHoursStart: string;
+  workingHoursEnd: string;
+  workingDays: number[];
+  timezone: string;
+  breachNotifyOwner: boolean;
+  breachNotifyManager: boolean;
+  escalationEnabled: boolean;
+  escalationHours: number;
+  escalationNotifyManager: boolean;
+  escalationNotifyAdmin: boolean;
+  excludeWeekends: boolean;
 }
 
 // ============================================================
@@ -392,6 +442,32 @@ export const leadsApi = {
 
   updateProductNotes: async (leadId: string, productId: string, notes: string): Promise<void> => {
     await api.put(`/leads/${leadId}/products/${productId}/notes`, { notes });
+  },
+
+  // ── SLA ──
+  getSlaStatus: async (leadId: string): Promise<LeadSlaStatus> => {
+    const { data } = await api.get(`/leads/${leadId}/sla`);
+    return data;
+  },
+
+  getSlaSummary: async (filters?: {
+    ownerId?: string;
+    pipelineId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }): Promise<SlaSummary> => {
+    const params = new URLSearchParams();
+    if (filters?.ownerId) params.append('ownerId', filters.ownerId);
+    if (filters?.pipelineId) params.append('pipelineId', filters.pipelineId);
+    if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
+    if (filters?.dateTo) params.append('dateTo', filters.dateTo);
+    const { data } = await api.get(`/leads/sla/summary?${params.toString()}`);
+    return data;
+  },
+
+  checkSlaBreaches: async (): Promise<{ breached: number; escalated: number }> => {
+    const { data } = await api.post('/leads/sla/check-breaches');
+    return data;
   },
 };
 
@@ -559,5 +635,29 @@ export const leadSettingsApi = {
   updateSetting: async (key: string, value: any) => {
     const { data } = await api.put(`/lead-settings/settings/${key}`, value);
     return data;
+  },
+
+  // ── SLA Settings ──
+  getSlaConfig: async (): Promise<SlaConfig> => {
+    const settings = await leadSettingsApi.getSettings();
+    return settings.sla || {
+      enabled: false,
+      firstContactHours: 4,
+      workingHoursStart: '09:00',
+      workingHoursEnd: '18:00',
+      workingDays: [1, 2, 3, 4, 5],
+      timezone: 'UTC',
+      breachNotifyOwner: true,
+      breachNotifyManager: true,
+      escalationEnabled: true,
+      escalationHours: 8,
+      escalationNotifyManager: true,
+      escalationNotifyAdmin: false,
+      excludeWeekends: true,
+    };
+  },
+
+  updateSlaConfig: async (config: Partial<SlaConfig>): Promise<any> => {
+    return leadSettingsApi.updateSetting('sla', config);
   },
 };

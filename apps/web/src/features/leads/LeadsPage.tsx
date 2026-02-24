@@ -16,6 +16,7 @@ import { KanbanBoard } from './components/KanbanBoard';
 import { usePermissions } from '../../hooks/usePermissions';
 import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
 import { api } from '../../api/contacts.api';
+import { SlaInlineBadge } from './components/SlaIndicator';
 
 // Priority icon map
 const PRIORITY_ICONS: Record<string, any> = {
@@ -662,6 +663,11 @@ export function LeadsPage() {
                 );
               }
 
+              // SLA Status column — inline badge
+              if (col.key === 'slaStatus') {
+                return <SlaInlineBadge lead={lead} />;
+              }
+              
               return undefined; // use default renderer
             }}
             renderActions={(row) => (

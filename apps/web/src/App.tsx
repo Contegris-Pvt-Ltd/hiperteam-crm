@@ -32,6 +32,12 @@ import { OpportunityDetailPage } from './features/opportunities/OpportunityDetai
 import { OpportunityEditPage } from './features/opportunities/OpportunityEditPage';
 import { OpportunitySettingsPage } from './features/admin/OpportunitySettingsPage';
 import { FieldValidationPage } from './features/admin/FieldValidationPage';
+import { TasksPage } from './features/tasks/TasksPage';
+import { TaskDetailPage } from './features/tasks/TaskDetailPage';
+import { TaskSettingsPage } from './features/admin/TaskSettingsPage';
+import { NotificationCenter } from './components/notifications/NotificationCenter';
+import { NotificationPreferencesPage } from './features/settings/NotificationPreferencesPage';
+import { TargetsSettingsPage } from './features/admin/TargetsSettingsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -96,9 +102,10 @@ function App() {
           <Route path="products/price-books" element={<PriceBooksPage />} />
           <Route path="products/:id" element={<ProductDetailPage />} />
           <Route path="products/:id/edit" element={<ProductEditPage />} />
+          <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/tasks/:id" element={<TaskDetailPage />} />
+
           
-          {/* Placeholder routes */}
-          <Route path="tasks" element={<PlaceholderPage title="Tasks" />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:id" element={<UserDetailPage />} />
           <Route path="users/:id/edit" element={<UserEditPage />} />
@@ -106,6 +113,7 @@ function App() {
           <Route path="departments" element={<DepartmentsPage />} />
           <Route path="teams" element={<TeamsPage />} />
           <Route path="roles" element={<RolesPage />} />
+          <Route path="notifications" element={<NotificationCenter />} />
         </Route>
 
         {/* Admin Routes - Outside main layout */}
@@ -122,20 +130,12 @@ function App() {
           <Route path="lead-settings" element={<LeadSettingsPage />} />
           <Route path="opportunity-settings" element={<OpportunitySettingsPage />} />
           <Route path="field-validation" element={<FieldValidationPage />} />
+          <Route path="task-settings" element={<TaskSettingsPage />} />
+          <Route path="notification-settings" element={<NotificationPreferencesPage />} />
+          <Route path="targets" element={<TargetsSettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
-  );
-}
-
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="flex items-center justify-center h-96">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{title}</h1>
-        <p className="text-gray-500 dark:text-slate-400">Coming soon...</p>
-      </div>
-    </div>
   );
 }
 

@@ -47,6 +47,7 @@ const TABS = [
   { id: 'types', label: 'Types', icon: Briefcase },
   { id: 'sources', label: 'Sources', icon: Globe },
   { id: 'forecast', label: 'Forecast Categories', icon: BarChart3 },
+  { id: 'targets', label: 'Targets', icon: Target },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
@@ -181,7 +182,7 @@ export function OpportunitySettingsPage() {
           {activeTab === 'types' && <TypesTab types={types} onReload={() => loadTabData('types')} />}
           {activeTab === 'sources' && <SourcesTab sources={sources} onReload={() => loadTabData('sources')} />}
           {activeTab === 'forecast' && <ForecastTab categories={forecastCategories} onReload={() => loadTabData('forecast')} />}
-        </div>
+      </div>
       )}
     </div>
   );

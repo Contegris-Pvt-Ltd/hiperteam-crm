@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Settings, ListPlus, BarChart3, Users, Building2, Shield,
-  Target, Briefcase, LayoutGrid, ArrowLeft, LayoutTemplate, ClipboardList
+  Target, Briefcase, LayoutGrid, ArrowLeft, LayoutTemplate, ClipboardList,
+  CheckSquare, Bell, Award
 } from 'lucide-react';
 
 const adminNavItems = [
@@ -75,6 +76,24 @@ const adminNavItems = [
     label: 'Opportunity Settings', 
     icon: Briefcase, 
     description: 'Stages, scoring, routing & more' 
+  },
+  {
+    label: 'Targets & Goals',
+    path: '/admin/targets',
+    icon: Award,
+    description: 'Targets, badges & gamification'
+  },
+  {
+    path: '/admin/task-settings',
+    label: 'Task Settings',
+    icon: CheckSquare,
+    description: 'Types, statuses & priorities'
+  },
+  {
+    path: '/admin/notification-settings',
+    label: 'Notification Settings',
+    icon: Bell,
+    description: 'Channels, templates & preferences'
   },
 ];
 

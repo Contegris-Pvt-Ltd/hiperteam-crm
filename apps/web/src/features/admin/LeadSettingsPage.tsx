@@ -13,11 +13,13 @@ import {
   Pencil, X, Check, AlertTriangle,
   Zap, Target, Route, Award, Ban, Globe, Settings,
   RefreshCw, ToggleLeft, ToggleRight, Flame, Thermometer,
-  Sun, Snowflake, Minus 
+  Sun, Snowflake, Minus, Timer, Clock, ArrowUpCircle
 } from 'lucide-react';
 import { leadSettingsApi } from '../../api/leads.api';
+import { leadsApi } from '../../api/leads.api';
 import type { LeadStage, LeadPriority, Pipeline } from '../../api/leads.api';
 import { StageFieldsModal } from './StageFieldsModal';
+import type { SlaConfig } from '../../api/leads.api';
 
 // ============================================================
 // TYPES
@@ -115,7 +117,9 @@ const TABS = [
   { id: 'routing', label: 'Routing', icon: Route },
   { id: 'qualification', label: 'Qualification', icon: Award },
   { id: 'sources', label: 'Sources & Reasons', icon: Globe },
+  { id: 'sla', label: 'SLA', icon: Timer },
   { id: 'general', label: 'General', icon: Settings },
+  { id: 'targets', label: 'Targets', icon: Target },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
@@ -150,6 +154,7 @@ export function LeadSettingsPage() {
   const [disqualificationReasons, setDisqualificationReasons] = useState<DisqualificationReason[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [settings, setSettings] = useState<LeadSettings>({});
+  const [slaConfig, setSlaConfig] = useState<SlaConfig | null>(null);
 
   // Load initial data for active tab
   useEffect(() => {
@@ -200,6 +205,9 @@ export function LeadSettingsPage() {
           setSources(s);
           break;
         }
+        case 'sla':
+          setSlaConfig(await leadSettingsApi.getSlaConfig());
+          break;
         case 'general':
           setSettings(await leadSettingsApi.getSettings());
           break;
@@ -298,10 +306,304 @@ export function LeadSettingsPage() {
               onReload={() => loadTabData('sources')}
             />
           )}
+          {activeTab === 'sla' && slaConfig && (
+            <SlaSettingsTab config={slaConfig} onReload={() => loadTabData('sla')} />
+          )}
           {activeTab === 'general' && (
             <GeneralTab settings={settings} onReload={() => loadTabData('general')} />
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function SlaSettingsTab({ config, onReload }: { config: SlaConfig; onReload: () => void }) {
+  const [saving, setSaving] = useState<string | null>(null);
+  const [localConfig, setLocalConfig] = useState<SlaConfig>(config);
+  const [checkingBreaches, setCheckingBreaches] = useState(false);
+  const [breachResult, setBreachResult] = useState<{ breached: number; escalated: number } | null>(null);
+
+  useEffect(() => {
+    setLocalConfig(config);
+  }, [config]);
+
+  const updateField = async (field: string, value: any) => {
+    const updated = { ...localConfig, [field]: value };
+    setLocalConfig(updated);
+    setSaving(field);
+    try {
+      await leadSettingsApi.updateSlaConfig({ [field]: value });
+      onReload();
+    } catch (err) {
+      console.error(`Failed to update SLA ${field}:`, err);
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleCheckBreaches = async () => {
+    setCheckingBreaches(true);
+    setBreachResult(null);
+    try {
+      const result = await leadsApi.checkSlaBreaches();
+      setBreachResult(result);
+    } catch (err) {
+      console.error('Failed to check breaches:', err);
+    } finally {
+      setCheckingBreaches(false);
+    }
+  };
+
+  const DAY_LABELS = [
+    { value: 0, label: 'Sun' },
+    { value: 1, label: 'Mon' },
+    { value: 2, label: 'Tue' },
+    { value: 3, label: 'Wed' },
+    { value: 4, label: 'Thu' },
+    { value: 5, label: 'Fri' },
+    { value: 6, label: 'Sat' },
+  ];
+
+  const TIMEZONES = [
+    'UTC', 'Asia/Karachi', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore',
+    'Europe/London', 'Europe/Paris', 'Europe/Berlin',
+    'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+    'Australia/Sydney', 'Pacific/Auckland',
+  ];
+
+  const Toggle = ({ checked, onChange, label, description, savingKey }: {
+    checked: boolean; onChange: (v: boolean) => void; label: string; description?: string; savingKey?: string;
+  }) => (
+    <div className="flex items-center justify-between py-3">
+      <div>
+        <span className="text-sm font-medium text-gray-900 dark:text-white">{label}</span>
+        {description && <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{description}</p>}
+      </div>
+      <div className="flex items-center gap-2">
+        {saving === savingKey && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
+        <button onClick={() => onChange(!checked)}>
+          {checked
+            ? <ToggleRight className="w-8 h-8 text-blue-600" />
+            : <ToggleLeft className="w-8 h-8 text-gray-400" />
+          }
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Enable/Disable */}
+      <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+            <Timer className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white">First Contact SLA</h3>
+            <p className="text-xs text-gray-500 dark:text-slate-400">
+              Track how quickly sales reps make first contact with new leads
+            </p>
+          </div>
+        </div>
+        <Toggle
+          checked={localConfig.enabled}
+          onChange={(v) => updateField('enabled', v)}
+          label="Enable SLA Tracking"
+          description="When enabled, every new lead gets a first-contact deadline based on working hours"
+          savingKey="enabled"
+        />
+      </div>
+
+      {localConfig.enabled && (
+        <>
+          {/* SLA Target */}
+          <SettingsCard title="SLA Target" icon={<Clock className="w-5 h-5 text-blue-500" />} saving={saving === 'firstContactHours'}>
+            <div className="py-3">
+              <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                First Contact Deadline (working hours)
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={localConfig.firstContactHours}
+                  onChange={(e) => setLocalConfig({ ...localConfig, firstContactHours: parseInt(e.target.value, 10) || 4 })}
+                  onBlur={() => updateField('firstContactHours', localConfig.firstContactHours)}
+                  className="w-24 px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white"
+                />
+                <span className="text-sm text-gray-500 dark:text-slate-400">working hours after lead creation</span>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
+                Example: 4 hours means the rep must contact the lead within 4 business hours
+              </p>
+            </div>
+          </SettingsCard>
+
+          {/* Working Hours */}
+          <SettingsCard title="Working Hours" icon={<Clock className="w-5 h-5 text-emerald-500" />} saving={saving === 'workingHoursStart' || saving === 'workingHoursEnd'}>
+            <div className="grid grid-cols-2 gap-4 py-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Start Time</label>
+                <input
+                  type="time"
+                  value={localConfig.workingHoursStart}
+                  onChange={(e) => setLocalConfig({ ...localConfig, workingHoursStart: e.target.value })}
+                  onBlur={() => updateField('workingHoursStart', localConfig.workingHoursStart)}
+                  className="w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">End Time</label>
+                <input
+                  type="time"
+                  value={localConfig.workingHoursEnd}
+                  onChange={(e) => setLocalConfig({ ...localConfig, workingHoursEnd: e.target.value })}
+                  onBlur={() => updateField('workingHoursEnd', localConfig.workingHoursEnd)}
+                  className="w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            {/* Working Days */}
+            <div className="py-3 border-t border-gray-100 dark:border-slate-800">
+              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-2">Working Days</label>
+              <div className="flex gap-2">
+                {DAY_LABELS.map((day) => {
+                  const isActive = localConfig.workingDays.includes(day.value);
+                  return (
+                    <button
+                      key={day.value}
+                      onClick={() => {
+                        const newDays = isActive
+                          ? localConfig.workingDays.filter(d => d !== day.value)
+                          : [...localConfig.workingDays, day.value].sort();
+                        updateField('workingDays', newDays);
+                      }}
+                      className={`w-10 h-10 rounded-lg text-xs font-medium transition-colors ${
+                        isActive
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {day.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Timezone */}
+            <div className="py-3 border-t border-gray-100 dark:border-slate-800">
+              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Timezone</label>
+              <select
+                value={localConfig.timezone}
+                onChange={(e) => updateField('timezone', e.target.value)}
+                className="w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white"
+              >
+                {TIMEZONES.map(tz => (
+                  <option key={tz} value={tz}>{tz}</option>
+                ))}
+              </select>
+            </div>
+          </SettingsCard>
+
+          {/* Breach Notifications */}
+          <SettingsCard title="Breach Notifications" icon={<AlertTriangle className="w-5 h-5 text-amber-500" />} saving={!!saving?.startsWith('breachNotify')} >
+            <Toggle
+              checked={localConfig.breachNotifyOwner}
+              onChange={(v) => updateField('breachNotifyOwner', v)}
+              label="Notify Lead Owner"
+              description="Send notification to the assigned owner when SLA is breached"
+              savingKey="breachNotifyOwner"
+            />
+            <div className="border-t border-gray-100 dark:border-slate-800" />
+            <Toggle
+              checked={localConfig.breachNotifyManager}
+              onChange={(v) => updateField('breachNotifyManager', v)}
+              label="Notify Owner's Manager"
+              description="Send notification to the owner's reporting manager"
+              savingKey="breachNotifyManager"
+            />
+          </SettingsCard>
+
+          {/* Escalation */}
+          <SettingsCard title="Escalation" icon={<ArrowUpCircle className="w-5 h-5 text-red-500" />} saving={!!saving?.startsWith('escalation')}>
+            <Toggle
+              checked={localConfig.escalationEnabled}
+              onChange={(v) => updateField('escalationEnabled', v)}
+              label="Enable Escalation"
+              description="Auto-escalate leads if no contact is made even after initial breach"
+              savingKey="escalationEnabled"
+            />
+
+            {localConfig.escalationEnabled && (
+              <>
+                <div className="py-3 border-t border-gray-100 dark:border-slate-800">
+                  <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                    Escalation Threshold (working hours after lead creation)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min={localConfig.firstContactHours + 1}
+                      max={336}
+                      value={localConfig.escalationHours}
+                      onChange={(e) => setLocalConfig({ ...localConfig, escalationHours: parseInt(e.target.value, 10) || 8 })}
+                      onBlur={() => updateField('escalationHours', localConfig.escalationHours)}
+                      className="w-24 px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-white"
+                    />
+                    <span className="text-sm text-gray-500 dark:text-slate-400">working hours</span>
+                  </div>
+                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
+                    Must be greater than the first-contact deadline ({localConfig.firstContactHours}h)
+                  </p>
+                </div>
+
+                <div className="border-t border-gray-100 dark:border-slate-800" />
+                <Toggle
+                  checked={localConfig.escalationNotifyManager}
+                  onChange={(v) => updateField('escalationNotifyManager', v)}
+                  label="Notify Manager on Escalation"
+                  savingKey="escalationNotifyManager"
+                />
+                <div className="border-t border-gray-100 dark:border-slate-800" />
+                <Toggle
+                  checked={localConfig.escalationNotifyAdmin}
+                  onChange={(v) => updateField('escalationNotifyAdmin', v)}
+                  label="Notify Admin on Escalation"
+                  savingKey="escalationNotifyAdmin"
+                />
+              </>
+            )}
+          </SettingsCard>
+
+          {/* Manual Breach Check */}
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Manual Breach Detection</h3>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">
+              Run breach detection now to identify any leads that have missed their SLA deadline.
+              In production, this runs automatically via a scheduled job.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleCheckBreaches}
+                disabled={checkingBreaches}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50 flex items-center gap-2"
+              >
+                {checkingBreaches ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+                Check Breaches Now
+              </button>
+              {breachResult && (
+                <span className="text-sm text-gray-600 dark:text-slate-400">
+                  Found {breachResult.breached} new breach(es), {breachResult.escalated} escalation(s)
+                </span>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -985,7 +1287,7 @@ function ScoringTab({ templates, onReload }: { templates: ScoringTemplate[]; onR
   const [saving, setSaving] = useState(false);
   const [rescoring, setRescoring] = useState(false);
   const [ruleForm, setRuleForm] = useState({
-    name: '', category: 'demographic', fieldKey: '', operator: 'equals', value: '', scoreDelta: 10,
+    name: '', category: 'demographic', type: 'field_check', fieldKey: '', operator: 'equals', value: '', scoreDelta: 10,
   });
 
   const CATEGORIES = ['demographic', 'qualification', 'engagement', 'decay'];
@@ -1005,7 +1307,7 @@ function ScoringTab({ templates, onReload }: { templates: ScoringTemplate[]; onR
         scoreDelta: Number(ruleForm.scoreDelta),
       });
       setAddingRule(null);
-      setRuleForm({ name: '', category: 'demographic', fieldKey: '', operator: 'equals', value: '', scoreDelta: 10 });
+      setRuleForm({ name: '', category: 'demographic', type: 'field_check', fieldKey: '', operator: 'equals', value: '', scoreDelta: 10 });
       onReload();
     } catch (err) {
       console.error('Failed to create rule:', err);

@@ -6,7 +6,7 @@ import {
   Calendar, Tag, Linkedin, Twitter, 
   Facebook, Instagram, PhoneOff, MailX, BellOff,
   History, MessageSquare, FileText, Activity,
-  ChevronDown, ChevronRight
+  ChevronDown, ChevronRight, CheckSquare
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { contactsApi } from '../../api/contacts.api';
@@ -26,8 +26,9 @@ import type { ProfileCompletionData } from '../../components/shared/ProfileCompl
 import { useModuleLayout } from '../../hooks/useModuleLayout';
 import { DynamicPageRenderer } from '../../components/shared/DynamicPageRenderer';
 // ===============================================
+import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 
-type TabType = 'activity' | 'notes' | 'documents' | 'history' | 'accounts';
+type TabType = 'activity' | 'notes' | 'accounts' | 'tasks' | 'documents' | 'history';
 
 export function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -135,6 +136,8 @@ export function ContactDetailPage() {
         case 'accounts':
           const accountsData = await contactsApi.getAccounts(id);
           setLinkedAccounts(accountsData);
+          break;
+        case 'tasks':
           break;
       }
     } catch (error) {
@@ -489,6 +492,7 @@ export function ContactDetailPage() {
     { id: 'notes', label: 'Notes', icon: <MessageSquare className="w-4 h-4" /> },
     { id: 'documents', label: 'Documents', icon: <FileText className="w-4 h-4" /> },
     { id: 'accounts', label: 'Accounts', icon: <Building2 className="w-4 h-4" /> },
+    { id: 'tasks', label: 'Tasks', icon: <CheckSquare className="w-4 h-4" /> },
     { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
   ];
 
@@ -883,6 +887,13 @@ export function ContactDetailPage() {
                     </div>
                   )}
                   {activeTab === 'history' && <ChangeHistory history={history} loading={tabLoading} />}
+                  {activeTab === 'tasks' && (
+                    <EntityTasksPanel
+                      entityType="contacts"
+                      entityId={id!}
+                      entityName={`${contact.firstName} ${contact.lastName}`}
+                    />
+                  )}
                 </div>
               </div>
             </div>
