@@ -136,7 +136,7 @@ export class DashboardController {
     @Request() req: { user: JwtPayload },
     @Query() query: { scope?: string; from?: string; to?: string },
   ) {
-    const { schema, userId, teamId, scope, dateRange } = this.parseParams(req, query);
+    const { schema, teamId, scope, dateRange } = this.parseParams(req, query);
     return this.dashboardService.getTeamLeaderboard(schema, teamId, scope, dateRange);
   }
 
@@ -146,7 +146,7 @@ export class DashboardController {
     @Request() req: { user: JwtPayload },
     @Query() query: { scope?: string; from?: string; to?: string },
   ) {
-    const { schema, userId, teamId, scope, dateRange } = this.parseParams(req, query);
+    const { schema, teamId, scope, dateRange } = this.parseParams(req, query);
     return this.dashboardService.getTeamActivity(schema, teamId, scope, dateRange);
   }
 

@@ -254,7 +254,7 @@ export class TasksService {
   // ============================================================
   // FIND ALL (List + Kanban)
   // ============================================================
-  async findAll(schemaName: string, query: QueryTasksDto, userId?: string): Promise<any> {
+  async findAll(schemaName: string, query: QueryTasksDto, _userId?: string): Promise<any> {
     const {
       search, statusId, statusSlug, taskTypeId, taskTypeSlug,
       priorityId, assignedTo, ownerId,

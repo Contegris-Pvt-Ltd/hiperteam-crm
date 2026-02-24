@@ -64,7 +64,7 @@ export class DashboardService {
     let clause = ownerFilter.clause;
 
     // Replace each $PARAM$ with $N
-    for (const _p of ownerFilter.params) {
+    for (let i = 0; i < ownerFilter.params.length; i++) {
       clause = clause.replace('$PARAM$', `$${paramIdx}`);
       paramIdx++;
     }
