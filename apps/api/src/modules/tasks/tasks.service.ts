@@ -254,7 +254,7 @@ export class TasksService {
   // ============================================================
   // FIND ALL (List + Kanban)
   // ============================================================
-  async findAll(schemaName: string, query: QueryTasksDto, _userId?: string): Promise<any> {
+  async findAll(schemaName: string, query: QueryTasksDto, userId?: string): Promise<any> {
     const {
       search, statusId, statusSlug, taskTypeId, taskTypeSlug,
       priorityId, assignedTo, ownerId,
@@ -265,6 +265,7 @@ export class TasksService {
       sortBy = 'due_date', sortOrder = 'ASC',
     } = query;
 
+    console.log(userId)
     const conditions: string[] = ['t.deleted_at IS NULL'];
     const params: unknown[] = [];
     let pi = 1;
