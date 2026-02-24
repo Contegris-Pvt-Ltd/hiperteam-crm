@@ -38,6 +38,9 @@ import { TaskSettingsPage } from './features/admin/TaskSettingsPage';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import { NotificationPreferencesPage } from './features/settings/NotificationPreferencesPage';
 import { TargetsSettingsPage } from './features/admin/TargetsSettingsPage';
+import { ReportsPage } from './features/reports/ReportsPage';
+import { ReportViewerPage } from './features/reports/ReportViewerPage';
+import { ReportBuilderPage } from './features/reports/ReportBuilderPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -105,6 +108,11 @@ function App() {
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:id" element={<TaskDetailPage />} />
 
+          {/* Reports */}
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="reports/new" element={<ReportBuilderPage />} />
+          <Route path="reports/:id" element={<ReportViewerPage />} />
+          <Route path="reports/:id/edit" element={<ReportBuilderPage />} />
           
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:id" element={<UserDetailPage />} />

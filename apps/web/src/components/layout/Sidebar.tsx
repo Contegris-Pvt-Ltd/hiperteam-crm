@@ -16,6 +16,7 @@ import {
   Shield,
   Package,
   Bell,
+  BarChart3
 } from 'lucide-react';
 
 const navigation = [
@@ -27,6 +28,7 @@ const navigation = [
   { name: 'Products', href: '/products', icon: Package },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Notifications', href: '/notifications', icon: Bell },
+  { name: 'Reports', href: '/reports', icon: BarChart3 },
 ];
 
 const adminNavigation = [

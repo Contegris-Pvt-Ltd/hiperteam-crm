@@ -49,7 +49,7 @@ async function runTenantMigrations() {
             //const sqlPath = path.join(__dirname, 'tenant-schema.sql');
             const sqlPath = path.join(__dirname, '..', 'database', 'scripts', 'tenant-schema.sql');
             let schemaSql = fs.readFileSync(sqlPath, 'utf8');
-            schemaSql = schemaSql.replace(/TENANT_SCHEMA/g, schema);
+            schemaSql = schemaSql.replace(/${schema}/g, schema);
             await dataSource.query(schemaSql);
             console.log(`  ✅ ${schema} initialized successfully`);
           } catch (initError: unknown) {
@@ -955,12 +955,22 @@ async function runTenantMigrations() {
               ALTER TABLE "${schema}".audit_logs
                 ADD COLUMN IF NOT EXISTS new_values JSONB DEFAULT NULL;
 
+              ALTER TABLE "${schema}".audit_logs
+                ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+              ALTER TABLE "${schema}".audit_logs
+                ADD COLUMN IF NOT EXISTS performed_by UUID;
+
               CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
                 ON "${schema}".audit_logs(created_at DESC);
 
               CREATE INDEX IF NOT EXISTS idx_audit_logs_performed_by
                 ON "${schema}".audit_logs(performed_by);
             `,
+          },
+          {
+            name: '020_reports_migration',
+            sql: buildReportsMigration(schema),
           },
           // ▼ ADD THIS NEW ENTRY ▼
           {
@@ -1948,8 +1958,9 @@ function buildOpportunitySettingsMigration(schema: string): string {
       END IF;
     END $$;
 
-    -- Grant privileges
+    -- Permissions
     GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app;
   `;
 }
 
@@ -1969,8 +1980,9 @@ function buildLineItemBundleSupportMigration(schema: string): string {
     CREATE INDEX IF NOT EXISTS idx_oli_type
       ON "${schema}".opportunity_line_items(line_item_type);
 
-    -- Grant privileges
+    -- Permissions
     GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app;
   `;
 }
 
@@ -2002,6 +2014,10 @@ function buildOpportunitiesRolesMigration(schema: string): string {
       updated_at = NOW()
     WHERE name = 'user' AND is_system = true
       AND NOT (permissions ? 'opportunities');
+      
+    -- Permissions
+    GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app;
   `;
 }
 
@@ -2144,8 +2160,8 @@ function buildNotificationsMigration(schema: string): string {
     ON CONFLICT (setting_key) DO NOTHING;
 
     -- Permissions
-    -- GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
-    -- GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app;
+    GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app;
   `;
 }
 
@@ -2195,6 +2211,10 @@ function buildDashboardMigration(schema: string): string {
       ON "${schema}".user_activity_daily(user_id, activity_date DESC);
     CREATE INDEX IF NOT EXISTS idx_user_activity_daily_date
       ON "${schema}".user_activity_daily(activity_date DESC);
+
+    -- Permissions
+    GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app;
   `;
 }
 
@@ -2355,6 +2375,10 @@ function buildTargetsGamificationMigration(schema: string): string {
       ('Comeback Kid', 'Was behind pace but still hit target', '💪', '#EF4444', 'custom', '{"rule":"was_behind_then_achieved"}', 'gold', 40, true),
       ('Email Champion', 'Sent 1000 emails lifetime', '📧', '#3B82F6', 'milestone', '{"metric_key":"emails_sent","lifetime_count":1000}', 'silver', 25, true)
     ON CONFLICT DO NOTHING;
+
+    -- Permissions
+    GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app;
   `
 }
 
@@ -2833,7 +2857,219 @@ function buildTargetsGamificationSeedData(schema: string): string {
     --   2. Use "Cascade" button in admin UI to auto-distribute
     --   3. Override individual targets for top/ramp reps
     -- ────────────────────────────────────────────────────────────
+
+    -- Permissions
+    GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app;
   `
+}
+
+function buildReportsMigration(schema: string): string {
+  return `
+    CREATE TABLE IF NOT EXISTS "${schema}".report_folders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    parent_id UUID REFERENCES "${schema}".report_folders(id) ON DELETE CASCADE,
+    created_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+    is_system BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_report_folders_parent
+    ON "${schema}".report_folders(parent_id);
+
+  CREATE TABLE IF NOT EXISTS "${schema}".reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    category VARCHAR(50) NOT NULL DEFAULT 'custom',
+    report_type VARCHAR(20) NOT NULL DEFAULT 'summary',
+    chart_type VARCHAR(20) DEFAULT 'bar',
+    data_source VARCHAR(50) NOT NULL,
+    config JSONB NOT NULL DEFAULT '{}',
+    is_system BOOLEAN DEFAULT false,
+    is_public BOOLEAN DEFAULT true,
+    created_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+    folder_id UUID REFERENCES "${schema}".report_folders(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reports_category ON "${schema}".reports(category);
+  CREATE INDEX IF NOT EXISTS idx_reports_data_source ON "${schema}".reports(data_source);
+  CREATE INDEX IF NOT EXISTS idx_reports_created_by ON "${schema}".reports(created_by);
+  CREATE INDEX IF NOT EXISTS idx_reports_folder ON "${schema}".reports(folder_id);
+  CREATE INDEX IF NOT EXISTS idx_reports_system ON "${schema}".reports(is_system);
+
+  CREATE TABLE IF NOT EXISTS "${schema}".report_schedules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    report_id UUID NOT NULL REFERENCES "${schema}".reports(id) ON DELETE CASCADE,
+    frequency VARCHAR(20) NOT NULL DEFAULT 'weekly',
+    day_of_week INT DEFAULT 1,
+    day_of_month INT DEFAULT 1,
+    time_of_day TIME DEFAULT '08:00:00',
+    recipients TEXT[] NOT NULL DEFAULT '{}',
+    format VARCHAR(10) DEFAULT 'csv',
+    is_active BOOLEAN DEFAULT true,
+    last_sent_at TIMESTAMPTZ,
+    next_run_at TIMESTAMPTZ,
+    created_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_report_schedules_report
+    ON "${schema}".report_schedules(report_id);
+  CREATE INDEX IF NOT EXISTS idx_report_schedules_active
+    ON "${schema}".report_schedules(is_active, next_run_at);
+
+  -- SEED FOLDERS
+  INSERT INTO "${schema}".report_folders (name, is_system)
+  SELECT v.name, true FROM (VALUES
+    ('Pipeline & Deals'), ('Leads'), ('Activities & Productivity'),
+    ('Contacts & Accounts'), ('Revenue & Forecasting'), ('Targets & Performance')
+  ) AS v(name)
+  WHERE NOT EXISTS (SELECT 1 FROM "${schema}".report_folders WHERE name = v.name AND is_system = true);
+
+  -- SEED 30 PRE-BUILT REPORTS (skip if already seeded)
+  INSERT INTO "${schema}".reports (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+  SELECT v.name, v.description, v.category, v.report_type, v.chart_type, v.data_source, v.config::jsonb, true, true,
+    (SELECT id FROM "${schema}".report_folders WHERE name = v.folder_name AND is_system = true LIMIT 1)
+  FROM (VALUES
+    -- PIPELINE & DEALS (8)
+    ('Pipeline by Stage', 'Opportunity count and value per pipeline stage', 'pipeline', 'summary', 'bar', 'opportunities',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Deal Count","format":"number"},{"field":"amount","aggregate":"sum","label":"Total Value","format":"currency"}],"dimensions":[{"field":"stage_name","type":"field","label":"Stage"}],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null}],"orderBy":[{"field":"stage_sort","direction":"ASC"}]}',
+     'Pipeline & Deals'),
+
+    ('Pipeline by Month', 'Expected close revenue grouped by month and stage', 'pipeline', 'summary', 'stacked_bar', 'opportunities',
+     '{"measures":[{"field":"amount","aggregate":"sum","label":"Value","format":"currency"}],"dimensions":[{"field":"close_date","type":"date","dateGranularity":"month","label":"Close Month"},{"field":"stage_name","type":"field","label":"Stage"}],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null},{"field":"close_date","operator":"is_not_null","value":null}],"orderBy":[{"field":"close_date","direction":"ASC"}]}',
+     'Pipeline & Deals'),
+
+    ('Pipeline by Owner', 'Each rep''s pipeline value, deal count, and average deal size', 'pipeline', 'summary', 'table', 'opportunities',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Deals","format":"number"},{"field":"amount","aggregate":"sum","label":"Total Value","format":"currency"},{"field":"amount","aggregate":"avg","label":"Avg Deal Size","format":"currency"}],"dimensions":[{"field":"owner_name","type":"field","label":"Owner"}],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}]}',
+     'Pipeline & Deals'),
+
+    ('Weighted Forecast', 'Amount x probability grouped by month and forecast category', 'pipeline', 'summary', 'bar', 'opportunities',
+     '{"measures":[{"field":"weighted_amount","aggregate":"sum","label":"Weighted Value","format":"currency"},{"field":"amount","aggregate":"sum","label":"Total Value","format":"currency"}],"dimensions":[{"field":"close_date","type":"date","dateGranularity":"month","label":"Month"},{"field":"forecast_category","type":"field","label":"Category"}],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null}],"orderBy":[{"field":"close_date","direction":"ASC"}]}',
+     'Pipeline & Deals'),
+
+    ('Deals Won vs Lost', 'Won and lost deals count and value over time', 'pipeline', 'summary', 'bar', 'opportunities',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Count","format":"number"},{"field":"amount","aggregate":"sum","label":"Value","format":"currency"}],"dimensions":[{"field":"closed_at","type":"date","dateGranularity":"month","label":"Month"},{"field":"outcome","type":"field","label":"Outcome"}],"filters":[{"field":"outcome","operator":"in","value":["won","lost"]}],"orderBy":[{"field":"closed_at","direction":"ASC"}]}',
+     'Pipeline & Deals'),
+
+    ('Win/Loss by Reason', 'Close reasons breakdown for won and lost deals', 'pipeline', 'summary', 'pie', 'opportunities',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Count","format":"number"}],"dimensions":[{"field":"close_reason_name","type":"field","label":"Reason"}],"filters":[{"field":"outcome","operator":"in","value":["won","lost"]}],"orderBy":[{"field":"id_count","direction":"DESC"}]}',
+     'Pipeline & Deals'),
+
+    ('Sales Cycle Length', 'Average days to close by owner and source', 'pipeline', 'summary', 'bar', 'opportunities',
+     '{"measures":[{"field":"days_to_close","aggregate":"avg","label":"Avg Days","format":"number"},{"field":"id","aggregate":"count","label":"Deals","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Owner"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"days_to_close_avg","direction":"ASC"}]}',
+     'Pipeline & Deals'),
+
+    ('Stalled Deals', 'Open deals with no activity in 14+ days', 'pipeline', 'tabular', 'table', 'opportunities',
+     '{"measures":[],"dimensions":[],"fields":["name","owner_name","stage_name","amount","close_date","days_inactive","last_activity_at"],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null},{"field":"days_inactive","operator":"gte","value":14}],"orderBy":[{"field":"days_inactive","direction":"DESC"}],"limit":50}',
+     'Pipeline & Deals'),
+
+    -- LEADS (6)
+    ('Leads Created', 'New leads created over time', 'leads', 'summary', 'line', 'leads',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Leads Created","format":"number"}],"dimensions":[{"field":"created_at","type":"date","dateGranularity":"month","label":"Month"}],"filters":[],"orderBy":[{"field":"created_at","direction":"ASC"}]}',
+     'Leads'),
+
+    ('Leads by Source', 'Lead source distribution', 'leads', 'summary', 'pie', 'leads',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Count","format":"number"}],"dimensions":[{"field":"source_name","type":"field","label":"Source"}],"filters":[],"orderBy":[{"field":"id_count","direction":"DESC"}]}',
+     'Leads'),
+
+    ('Lead Funnel', 'Lead funnel by pipeline stage with conversion rates', 'leads', 'summary', 'funnel', 'leads',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Leads","format":"number"}],"dimensions":[{"field":"stage_name","type":"field","label":"Stage"}],"filters":[],"orderBy":[{"field":"stage_sort","direction":"ASC"}]}',
+     'Leads'),
+
+    ('Lead Conversion Rate', 'Converted vs total leads by owner and source', 'leads', 'summary', 'bar', 'leads',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Total Leads","format":"number"},{"field":"converted_at","aggregate":"count","label":"Converted","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Owner"}],"filters":[],"orderBy":[{"field":"converted_at_count","direction":"DESC"}]}',
+     'Leads'),
+
+    ('Lead Aging', 'Leads by days in current stage', 'leads', 'summary', 'bar', 'leads',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Leads","format":"number"}],"dimensions":[{"field":"age_bucket","type":"field","label":"Age"}],"filters":[{"field":"converted_at","operator":"is_null","value":null},{"field":"disqualified_at","operator":"is_null","value":null}],"orderBy":[{"field":"age_bucket_sort","direction":"ASC"}]}',
+     'Leads'),
+
+    ('Lead Response Time', 'Average time to first activity per lead by owner', 'leads', 'summary', 'bar', 'leads',
+     '{"measures":[{"field":"response_time_hours","aggregate":"avg","label":"Avg Response (hrs)","format":"number"},{"field":"id","aggregate":"count","label":"Leads","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Owner"}],"filters":[],"orderBy":[{"field":"response_time_hours_avg","direction":"ASC"}]}',
+     'Leads'),
+
+    -- ACTIVITIES & PRODUCTIVITY (5)
+    ('Activity Summary', 'Calls, emails, meetings, tasks by rep', 'activity', 'summary', 'table', 'activities',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Total","format":"number"}],"dimensions":[{"field":"performed_by_name","type":"field","label":"Rep"},{"field":"activity_type","type":"field","label":"Type"}],"filters":[{"field":"created_at","operator":"relative_date","value":null,"dateRelative":"this_month"}],"orderBy":[{"field":"id_count","direction":"DESC"}]}',
+     'Activities & Productivity'),
+
+    ('Activities by Type', 'Activity breakdown over time', 'activity', 'summary', 'stacked_bar', 'activities',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Count","format":"number"}],"dimensions":[{"field":"created_at","type":"date","dateGranularity":"week","label":"Week"},{"field":"activity_type","type":"field","label":"Type"}],"filters":[{"field":"created_at","operator":"relative_date","value":null,"dateRelative":"last_90_days"}],"orderBy":[{"field":"created_at","direction":"ASC"}]}',
+     'Activities & Productivity'),
+
+    ('Task Completion Rate', 'Completed vs overdue vs open tasks by owner', 'activity', 'summary', 'stacked_bar', 'tasks',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Tasks","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Owner"},{"field":"task_status","type":"field","label":"Status"}],"filters":[],"orderBy":[{"field":"id_count","direction":"DESC"}]}',
+     'Activities & Productivity'),
+
+    ('Effort vs Result', 'Activities performed vs deals closed per rep', 'activity', 'summary', 'scatter', 'cross_module',
+     '{"measures":[{"field":"activity_count","aggregate":"sum","label":"Activities","format":"number"},{"field":"deals_won","aggregate":"sum","label":"Deals Won","format":"number"},{"field":"revenue_won","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[{"field":"user_name","type":"field","label":"Rep"}],"filters":[{"field":"period","operator":"relative_date","value":null,"dateRelative":"this_quarter"}],"orderBy":[{"field":"revenue_won","direction":"DESC"}]}',
+     'Activities & Productivity'),
+
+    ('Top Performers', 'Reps ranked by revenue, activities, and conversion rate', 'activity', 'summary', 'table', 'cross_module',
+     '{"measures":[{"field":"revenue_won","aggregate":"sum","label":"Revenue Won","format":"currency"},{"field":"deals_won","aggregate":"sum","label":"Deals Won","format":"number"},{"field":"activity_count","aggregate":"sum","label":"Activities","format":"number"},{"field":"conversion_rate","aggregate":"avg","label":"Conversion %","format":"percent"}],"dimensions":[{"field":"user_name","type":"field","label":"Rep"}],"filters":[{"field":"period","operator":"relative_date","value":null,"dateRelative":"this_quarter"}],"orderBy":[{"field":"revenue_won","direction":"DESC"}],"limit":20}',
+     'Activities & Productivity'),
+
+    -- CONTACTS & ACCOUNTS (4)
+    ('New Contacts', 'Contacts created over time', 'contacts', 'summary', 'line', 'contacts',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Contacts","format":"number"}],"dimensions":[{"field":"created_at","type":"date","dateGranularity":"month","label":"Month"}],"filters":[],"orderBy":[{"field":"created_at","direction":"ASC"}]}',
+     'Contacts & Accounts'),
+
+    ('Contacts by Source', 'Contact source distribution', 'contacts', 'summary', 'pie', 'contacts',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Count","format":"number"}],"dimensions":[{"field":"source","type":"field","label":"Source"}],"filters":[],"orderBy":[{"field":"id_count","direction":"DESC"}]}',
+     'Contacts & Accounts'),
+
+    ('Accounts by Industry', 'Account distribution by industry and size', 'contacts', 'summary', 'bar', 'accounts',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Accounts","format":"number"}],"dimensions":[{"field":"industry","type":"field","label":"Industry"}],"filters":[],"orderBy":[{"field":"id_count","direction":"DESC"}],"limit":15}',
+     'Contacts & Accounts'),
+
+    ('Account Revenue', 'Top accounts by total opportunity value', 'contacts', 'summary', 'bar', 'opportunities',
+     '{"measures":[{"field":"amount","aggregate":"sum","label":"Total Value","format":"currency"},{"field":"id","aggregate":"count","label":"Deals","format":"number"}],"dimensions":[{"field":"account_name","type":"field","label":"Account"}],"filters":[],"orderBy":[{"field":"amount_sum","direction":"DESC"}],"limit":20}',
+     'Contacts & Accounts'),
+
+    -- REVENUE & FORECASTING (4)
+    ('Revenue by Month', 'Closed-won revenue trend over time', 'revenue', 'summary', 'line', 'opportunities',
+     '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"},{"field":"id","aggregate":"count","label":"Deals","format":"number"}],"dimensions":[{"field":"won_at","type":"date","dateGranularity":"month","label":"Month"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"won_at","direction":"ASC"}]}',
+     'Revenue & Forecasting'),
+
+    ('Revenue by Owner', 'Closed revenue per rep', 'revenue', 'summary', 'bar', 'opportunities',
+     '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"},{"field":"id","aggregate":"count","label":"Deals Won","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Owner"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}]}',
+     'Revenue & Forecasting'),
+
+    ('Revenue by Product', 'Which products generate the most revenue', 'revenue', 'summary', 'bar', 'opportunity_products',
+     '{"measures":[{"field":"line_total","aggregate":"sum","label":"Revenue","format":"currency"},{"field":"quantity","aggregate":"sum","label":"Qty Sold","format":"number"}],"dimensions":[{"field":"product_name","type":"field","label":"Product"}],"filters":[{"field":"opp_won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"line_total_sum","direction":"DESC"}],"limit":20}',
+     'Revenue & Forecasting'),
+
+    ('Revenue by Source', 'Closed-won revenue by lead source', 'revenue', 'summary', 'pie', 'opportunities',
+     '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[{"field":"source","type":"field","label":"Source"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}]}',
+     'Revenue & Forecasting'),
+
+    -- TARGETS & PERFORMANCE (3)
+    ('Target Attainment', 'Actual vs target by rep and team', 'targets', 'summary', 'bar', 'targets',
+     '{"measures":[{"field":"target_value","aggregate":"sum","label":"Target","format":"currency"},{"field":"actual_value","aggregate":"sum","label":"Actual","format":"currency"},{"field":"percentage","aggregate":"avg","label":"Attainment %","format":"percent"}],"dimensions":[{"field":"assignee_name","type":"field","label":"Rep"}],"filters":[{"field":"period","operator":"relative_date","value":null,"dateRelative":"this_month"}],"orderBy":[{"field":"percentage_avg","direction":"DESC"}]}',
+     'Targets & Performance'),
+
+    ('Target Trend', 'Progress over time against targets', 'targets', 'summary', 'line', 'targets',
+     '{"measures":[{"field":"target_value","aggregate":"sum","label":"Target","format":"currency"},{"field":"actual_value","aggregate":"sum","label":"Actual","format":"currency"}],"dimensions":[{"field":"period_start","type":"date","dateGranularity":"month","label":"Period"}],"filters":[],"orderBy":[{"field":"period_start","direction":"ASC"}]}',
+     'Targets & Performance'),
+
+    ('Team Scorecard', 'Multi-metric performance view per team member', 'targets', 'matrix', 'table', 'cross_module',
+     '{"measures":[{"field":"revenue_won","aggregate":"sum","label":"Revenue","format":"currency"},{"field":"deals_won","aggregate":"sum","label":"Deals Won","format":"number"},{"field":"leads_created","aggregate":"sum","label":"Leads","format":"number"},{"field":"activity_count","aggregate":"sum","label":"Activities","format":"number"},{"field":"target_attainment","aggregate":"avg","label":"Target %","format":"percent"}],"dimensions":[{"field":"user_name","type":"field","label":"Team Member"}],"filters":[{"field":"period","operator":"relative_date","value":null,"dateRelative":"this_month"}],"orderBy":[{"field":"revenue_won","direction":"DESC"}]}',
+     'Targets & Performance')
+
+  ) AS v(name, description, category, report_type, chart_type, data_source, config, folder_name)
+  WHERE NOT EXISTS (SELECT 1 FROM "${schema}".reports WHERE name = v.name AND is_system = true);
+
+  -- Permissions
+  GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
+  GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app;
+  `;
 }
 
 runTenantMigrations();

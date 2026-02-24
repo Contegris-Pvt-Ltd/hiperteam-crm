@@ -26,6 +26,7 @@ import { NotificationModule } from './modules/notifications/notification.module'
 import { CalendarSyncModule } from './modules/calendar-sync/calendar-sync.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { TargetsModule } from './modules/targets/targets.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -68,7 +69,8 @@ import { TargetsModule } from './modules/targets/targets.module';
     CalendarSyncModule,
     TasksModule,
     NotificationModule,
-    TargetsModule
+    TargetsModule,
+    ReportsModule
   ],
   controllers: [AppController],
   providers: [AppService],
