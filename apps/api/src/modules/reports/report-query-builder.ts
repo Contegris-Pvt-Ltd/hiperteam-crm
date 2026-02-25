@@ -86,7 +86,7 @@ export interface BuiltQuery {
 // ============================================================
 
 export function buildReportQuery(ctx: BuildContext): BuiltQuery {
-  const { schema, dataSource, config, reportType } = ctx;
+  const { dataSource, reportType } = ctx;
 
   // Cross-module reports use a special CTE-based path
   if (dataSource === 'cross_module') {
@@ -552,7 +552,8 @@ function buildRelativeDateFilter(expr: string, relative: string): string {
   }
 }
 
-function buildCrossModuleDateFilter(filters: ReportFilter[], _schema: string): string {
+function buildCrossModuleDateFilter(filters: ReportFilter[], schema: string): string {
+  console.log(schema);
   for (const f of filters) {
     if (f.operator === 'relative_date' && f.dateRelative) {
       return buildRelativeDateFilter('created_at', f.dateRelative);
@@ -566,6 +567,7 @@ function buildOrderBy(
   orderBy: ReportOrderBy[] | undefined,
   selectedFields: DataSourceField[],
 ): string {
+  console.log(selectedFields)
   if (!orderBy || orderBy.length === 0) return '';
 
   const parts: string[] = [];
