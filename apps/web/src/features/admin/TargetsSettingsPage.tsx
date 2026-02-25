@@ -18,6 +18,7 @@ import type {
 } from '../../api/targets.api';
 import { leadSettingsApi } from '../../api/leads.api';
 import { opportunitySettingsApi } from '../../api/opportunities.api';
+import { usersApi } from '../../api/users.api';
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -133,12 +134,22 @@ function TargetsTab() {
   });
 
   // Pipeline stages for parameterized metrics (stage picker)
-  const [pipelineStages, setPipelineStages] = useState<{ id: string; name: string; module: string; color: string; sortOrder: number }[]>([]);
+  const [pipelineStages, setPipelineStages] = useState<{ id: string; name: string; module: string; color: string; sortOrder: number; pipelineId?: string }[]>([]);
 
+  // Lookup data for assignment pickers
+  const [usersList, setUsersList] = useState<{ id: string; name: string }[]>([]);
+  const [teamsList, setTeamsList] = useState<{ id: string; name: string }[]>([]);
+  const [departmentsList, setDepartmentsList] = useState<{ id: string; name: string }[]>([]);
+  const [rolesList, setRolesList] = useState<{ id: string; name: string }[]>([]);
+
+  // Pipelines for stage picker filtering
+  const [pipelines, setPipelines] = useState<{ id: string; name: string; isDefault: boolean }[]>([]);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
+  
   // Assignment form
   const [showAssignForm, setShowAssignForm] = useState<string | null>(null);
   const [assignForm, setAssignForm] = useState({
-    scopeType: 'company', userId: '', teamId: '', department: '',
+    scopeType: 'company', userId: '', teamId: '', department: '', roleId: '',
     targetValue: '', periodCount: '3',
   });
 
@@ -151,15 +162,41 @@ function TargetsTab() {
       setTargets(tgts);
       setMetrics(mtrs);
 
-      // Load pipeline stages for stage picker (parameterized metrics)
+      // Load pipeline stages + pipelines for stage picker (parameterized metrics)
+      // Load pipelines + stages for stage picker
       try {
-        const leadStages = (await leadSettingsApi.getStages()).map((s: any) => ({ ...s, module: 'leads' }));
+        const pipelinesData = await leadSettingsApi.getPipelines();
+        setPipelines(pipelinesData.map((p: any) => ({ id: p.id, name: p.name, isDefault: p.isDefault })));
+        const defaultPl = pipelinesData.find((p: any) => p.isDefault);
+        if (defaultPl && !selectedPipelineId) setSelectedPipelineId(defaultPl.id);
+
+        const leadStages = (await leadSettingsApi.getStages()).map((s: any) => ({
+          ...s, module: 'leads', pipelineId: s.pipelineId || s.pipeline_id,
+        }));
         let oppStages: any[] = [];
         try {
-          oppStages = (await opportunitySettingsApi.getStages()).map((s: any) => ({ ...s, module: 'opportunities' }));
+          oppStages = (await opportunitySettingsApi.getStages()).map((s: any) => ({
+            ...s, module: 'opportunities', pipelineId: s.pipelineId || s.pipeline_id,
+          }));
         } catch { /* opp stages may not exist yet */ }
         setPipelineStages([...leadStages, ...oppStages]);
       } catch { /* stages optional */ }
+
+      // Load users, teams, departments, roles for assignment pickers
+      try {
+        const [usersRes, rolesRes, deptsRes, teamsRes] = await Promise.all([
+          usersApi.getAll({ limit: 500 }).catch(() => ({ data: [] })),
+          usersApi.getRoles().catch(() => []),
+          usersApi.getDepartments().catch(() => []),
+          usersApi.getTeams().catch(() => []),
+        ]);
+        setUsersList((usersRes.data || []).map((u: any) => ({
+          id: u.id, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+        })));
+        setRolesList((rolesRes || []).map((r: any) => ({ id: r.id, name: r.name })));
+        setDepartmentsList((deptsRes || []).map((d: any) => ({ id: d.id, name: d.name })));
+        setTeamsList((teamsRes || []).map((t: any) => ({ id: t.id, name: t.name })));
+      } catch { /* lookups optional */ }
     } catch (err) {
       console.error('Failed to load targets:', err);
     } finally {
@@ -260,15 +297,30 @@ function TargetsTab() {
   const handleCreateAssignment = async (targetId: string) => {
     if (!assignForm.targetValue) return;
     try {
-      await targetsApi.generatePeriods(targetId, {
-        count: parseInt(assignForm.periodCount) || 3,
-        scopeType: assignForm.scopeType,
-        userId: assignForm.userId || undefined,
-        teamId: assignForm.teamId || undefined,
-        department: assignForm.department || undefined,
-        targetValue: parseFloat(assignForm.targetValue),
-      });
+      if (assignForm.scopeType === 'role' && assignForm.roleId) {
+        // Create individual assignments for every active user in the selected role
+        const roleUsersRes = await usersApi.getAll({ roleId: assignForm.roleId, limit: 500 });
+        const usersInRole = roleUsersRes.data || [];
+        for (const user of usersInRole) {
+          await targetsApi.generatePeriods(targetId, {
+            count: parseInt(assignForm.periodCount) || 3,
+            scopeType: 'individual',
+            userId: user.id,
+            targetValue: parseFloat(assignForm.targetValue),
+          });
+        }
+      } else {
+        await targetsApi.generatePeriods(targetId, {
+          count: parseInt(assignForm.periodCount) || 3,
+          scopeType: assignForm.scopeType,
+          userId: assignForm.scopeType === 'individual' ? assignForm.userId || undefined : undefined,
+          teamId: assignForm.scopeType === 'team' ? assignForm.teamId || undefined : undefined,
+          department: assignForm.scopeType === 'department' ? assignForm.department || undefined : undefined,
+          targetValue: parseFloat(assignForm.targetValue),
+        });
+      }
       setShowAssignForm(null);
+      setAssignForm({ scopeType: 'company', userId: '', teamId: '', department: '', roleId: '', targetValue: '', periodCount: '3' });
       loadAssignments(targetId);
     } catch (err) { console.error('Assignment creation failed:', err); }
   };
@@ -395,34 +447,72 @@ function TargetsTab() {
                 <div className="grid grid-cols-2 gap-4">
                   {selectedMetric.configFields.map(field => {
                     if (field.type === 'stage_picker') {
-                      const stagesForModule = pipelineStages.filter(s => s.module === (field.module || form.module));
+                      const stageModule = field.module || form.module;
+                      const stagesForModule = pipelineStages.filter(s => {
+                        const matchesModule = s.module === stageModule;
+                        const matchesPipeline = selectedPipelineId ? s.pipelineId === selectedPipelineId : true;
+                        return matchesModule && matchesPipeline;
+                      });
+
                       return (
-                        <div key={field.key}>
-                          <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">
-                            {field.label} {field.required && <span className="text-red-500">*</span>}
-                          </label>
-                          <select
-                            value={form.filterCriteria[field.key] || ''}
-                            onChange={e => setForm(prev => ({
-                              ...prev,
-                              filterCriteria: { ...prev.filterCriteria, [field.key]: e.target.value },
-                            }))}
-                            className="w-full text-sm border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
-                          >
-                            <option value="">Select a stage...</option>
-                            {stagesForModule
-                              .sort((a, b) => a.sortOrder - b.sortOrder)
-                              .map(s => (
-                                <option key={s.id} value={s.id}>
-                                  {s.name}
-                                </option>
+                        <div key={field.key} className="col-span-2 space-y-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Pipeline</label>
+                            <select
+                              value={selectedPipelineId}
+                              onChange={e => {
+                                setSelectedPipelineId(e.target.value);
+                                setForm(prev => ({
+                                  ...prev,
+                                  filterCriteria: { ...prev.filterCriteria, [field.key]: '' },
+                                }));
+                                // Reload stages for selected pipeline + module
+                                const loader = stageModule === 'leads'
+                                  ? leadSettingsApi.getStages(e.target.value || undefined, 'leads')
+                                  : opportunitySettingsApi.getStages(e.target.value || undefined);
+                                loader.then((data: any[]) => {
+                                  const mapped = data.map((s: any) => ({
+                                    ...s, module: stageModule, pipelineId: s.pipelineId || s.pipeline_id,
+                                  }));
+                                  setPipelineStages(prev => [
+                                    ...prev.filter(s => s.module !== stageModule),
+                                    ...mapped,
+                                  ]);
+                                }).catch(console.error);
+                              }}
+                              className="w-full text-sm border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            >
+                              <option value="">All Pipelines</option>
+                              {pipelines.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}{p.isDefault ? ' (Default)' : ''}</option>
                               ))}
-                          </select>
-                          {stagesForModule.length === 0 && (
-                            <p className="text-[10px] text-amber-500 mt-1">
-                              No stages loaded. Check that pipeline stages exist for this module.
-                            </p>
-                          )}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">
+                              {field.label} {field.required && <span className="text-red-500">*</span>}
+                            </label>
+                            <select
+                              value={form.filterCriteria[field.key] || ''}
+                              onChange={e => setForm(prev => ({
+                                ...prev,
+                                filterCriteria: { ...prev.filterCriteria, [field.key]: e.target.value },
+                              }))}
+                              className="w-full text-sm border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            >
+                              <option value="">Select a stage...</option>
+                              {stagesForModule
+                                .sort((a, b) => a.sortOrder - b.sortOrder)
+                                .map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                            {stagesForModule.length === 0 && (
+                              <p className="text-[10px] text-amber-500 mt-1">
+                                {selectedPipelineId
+                                  ? 'No stages found for this pipeline and module.'
+                                  : 'Select a pipeline above, or check that stages exist.'}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       );
                     }
@@ -658,18 +748,68 @@ function TargetsTab() {
 
                     {showAssignForm === target.id && (
                       <div className="bg-gray-50 dark:bg-slate-800/50 rounded-lg p-3 mb-3 space-y-3">
-                        <div className="grid grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                           <div>
                             <label className="block text-[10px] font-medium text-gray-500 mb-1">Scope</label>
                             <select value={assignForm.scopeType}
-                              onChange={e => setAssignForm(prev => ({ ...prev, scopeType: e.target.value }))}
+                              onChange={e => setAssignForm(prev => ({ ...prev, scopeType: e.target.value, userId: '', teamId: '', department: '', roleId: '' }))}
                               className="w-full text-xs border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-900">
                               <option value="company">Company</option>
                               <option value="department">Department</option>
                               <option value="team">Team</option>
                               <option value="individual">Individual</option>
+                              <option value="role">Role (all users)</option>
                             </select>
                           </div>
+
+                          {assignForm.scopeType === 'individual' && (
+                            <div>
+                              <label className="block text-[10px] font-medium text-gray-500 mb-1">User <span className="text-red-500">*</span></label>
+                              <select value={assignForm.userId}
+                                onChange={e => setAssignForm(prev => ({ ...prev, userId: e.target.value }))}
+                                className="w-full text-xs border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-900">
+                                <option value="">Select user...</option>
+                                {usersList.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                              </select>
+                            </div>
+                          )}
+
+                          {assignForm.scopeType === 'team' && (
+                            <div>
+                              <label className="block text-[10px] font-medium text-gray-500 mb-1">Team <span className="text-red-500">*</span></label>
+                              <select value={assignForm.teamId}
+                                onChange={e => setAssignForm(prev => ({ ...prev, teamId: e.target.value }))}
+                                className="w-full text-xs border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-900">
+                                <option value="">Select team...</option>
+                                {teamsList.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              </select>
+                            </div>
+                          )}
+
+                          {assignForm.scopeType === 'department' && (
+                            <div>
+                              <label className="block text-[10px] font-medium text-gray-500 mb-1">Department <span className="text-red-500">*</span></label>
+                              <select value={assignForm.department}
+                                onChange={e => setAssignForm(prev => ({ ...prev, department: e.target.value }))}
+                                className="w-full text-xs border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-900">
+                                <option value="">Select department...</option>
+                                {departmentsList.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+                              </select>
+                            </div>
+                          )}
+
+                          {assignForm.scopeType === 'role' && (
+                            <div>
+                              <label className="block text-[10px] font-medium text-gray-500 mb-1">Role <span className="text-red-500">*</span></label>
+                              <select value={assignForm.roleId}
+                                onChange={e => setAssignForm(prev => ({ ...prev, roleId: e.target.value }))}
+                                className="w-full text-xs border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-900">
+                                <option value="">Select role...</option>
+                                {rolesList.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                              </select>
+                            </div>
+                          )}
+
                           <div>
                             <label className="block text-[10px] font-medium text-gray-500 mb-1">Target Value</label>
                             <input type="number" value={assignForm.targetValue}
@@ -685,12 +825,24 @@ function TargetsTab() {
                               className="w-full text-xs border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-900" />
                           </div>
                           <div className="flex items-end">
-                            <button onClick={() => handleCreateAssignment(target.id)} disabled={!assignForm.targetValue}
+                            <button onClick={() => handleCreateAssignment(target.id)}
+                              disabled={
+                                !assignForm.targetValue ||
+                                (assignForm.scopeType === 'individual' && !assignForm.userId) ||
+                                (assignForm.scopeType === 'team' && !assignForm.teamId) ||
+                                (assignForm.scopeType === 'department' && !assignForm.department) ||
+                                (assignForm.scopeType === 'role' && !assignForm.roleId)
+                              }
                               className="w-full text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                              Create
+                              {assignForm.scopeType === 'role' ? 'Create for All' : 'Create'}
                             </button>
                           </div>
                         </div>
+                        {assignForm.scopeType === 'role' && assignForm.roleId && (
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                            This will create individual assignments for every active user in the selected role.
+                          </p>
+                        )}
                       </div>
                     )}
 

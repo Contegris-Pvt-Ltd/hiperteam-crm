@@ -22,7 +22,7 @@ import type {
 } from '../../api/dashboard.api';
 import { TargetsWidget } from './TargetsWidget';
 import { MyBadgesWidget, AchievementFeed, PointsLeaderboard } from './BadgesDisplay';
-
+import { AccountForecastWidget } from './AccountForecastWidget';
 
 // ════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -559,6 +559,9 @@ export function DashboardPage() {
           )}
         </WidgetCard>
       </div>
+
+      {/* ── Account Forecast (Next Quarter) ── */}
+      <AccountForecastWidget scope={scope} className="" />
 
       {/* ── Deals Closing + Stuck Deals ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

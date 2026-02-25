@@ -44,7 +44,8 @@ export interface ReportFilter {
   value: any;
   dateRelative?: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'this_quarter' |
                  'this_year' | 'last_7_days' | 'last_30_days' | 'last_90_days' |
-                 'last_month' | 'last_quarter' | 'last_year';
+                 'last_month' | 'last_quarter' | 'last_year' | 
+                 'next_month' | 'next_quarter';
 }
 
 export interface ReportOrderBy {
@@ -542,6 +543,10 @@ function buildRelativeDateFilter(expr: string, relative: string): string {
       return `${expr} >= DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '3 months') AND ${expr} < DATE_TRUNC('quarter', CURRENT_DATE)`;
     case 'last_year':
       return `${expr} >= DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year') AND ${expr} < DATE_TRUNC('year', CURRENT_DATE)`;
+    case 'next_quarter':
+      return `${expr} >= DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '3 months') AND ${expr} < DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '3 months') + INTERVAL '3 months'`;
+    case 'next_month':
+      return `${expr} >= DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') AND ${expr} < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') + INTERVAL '1 month'`;
     default:
       return '';
   }

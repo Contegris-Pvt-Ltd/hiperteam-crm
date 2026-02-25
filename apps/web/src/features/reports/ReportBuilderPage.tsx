@@ -70,6 +70,8 @@ const FILTER_OPERATORS = [
   { value: 'is_null', label: 'Is Empty' },
   { value: 'is_not_null', label: 'Is Not Empty' },
   { value: 'relative_date', label: 'Date Range' },
+  { value: 'next_month', label: 'Next Month' },
+  { value: 'next_quarter', label: 'Next Quarter' },
 ];
 
 const RELATIVE_DATE_OPTIONS = [

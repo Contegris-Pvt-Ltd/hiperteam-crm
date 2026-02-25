@@ -41,6 +41,7 @@ import { TargetsSettingsPage } from './features/admin/TargetsSettingsPage';
 import { ReportsPage } from './features/reports/ReportsPage';
 import { ReportViewerPage } from './features/reports/ReportViewerPage';
 import { ReportBuilderPage } from './features/reports/ReportBuilderPage';
+import { AccountForecastPage } from './features/reports/AccountForecastPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -113,7 +114,8 @@ function App() {
           <Route path="reports/new" element={<ReportBuilderPage />} />
           <Route path="reports/:id" element={<ReportViewerPage />} />
           <Route path="reports/:id/edit" element={<ReportBuilderPage />} />
-          
+          <Route path="reports/account-forecast" element={<AccountForecastPage />} />
+
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:id" element={<UserDetailPage />} />
           <Route path="users/:id/edit" element={<UserEditPage />} />

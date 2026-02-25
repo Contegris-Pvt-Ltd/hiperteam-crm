@@ -1015,4 +1015,216 @@ export class DashboardService {
     if (previous === 0) return current > 0 ? 100 : 0;
     return Math.round(((current - previous) / previous) * 100);
   }
+
+  // ════════════════════════════════════════════════════════════
+  // ACCOUNT FORECAST (Next Quarter)
+  // ════════════════════════════════════════════════════════════
+
+  async getAccountForecast(
+    schema: string, userId: string, teamId: string | null,
+    scope: Scope,
+    quarter?: 'current' | 'next',  // default next
+  ) {
+    const ownerFilter = this.buildOwnerFilter(scope, userId, teamId, 'o');
+    const params = [...ownerFilter.params];
+
+    const qtrInterval = quarter === 'current' ? '0 months' : '3 months';
+
+    // ── 1. By Account → Forecast Category breakdown ──
+    const byAccount = await this.dataSource.query(
+      `SELECT
+         a.id as account_id,
+         a.name as account_name,
+         a.industry,
+         o.forecast_category,
+         COUNT(*) as deal_count,
+         COALESCE(SUM(o.amount), 0) as total_amount,
+         COALESCE(SUM(o.weighted_amount), 0) as weighted_amount,
+         COALESCE(AVG(o.probability), 0) as avg_probability
+       FROM "${schema}".opportunities o
+       INNER JOIN "${schema}".accounts a ON o.account_id = a.id AND a.deleted_at IS NULL
+       WHERE o.deleted_at IS NULL
+         AND o.won_at IS NULL AND o.lost_at IS NULL
+         AND o.close_date >= DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '${qtrInterval}')
+         AND o.close_date < DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '${qtrInterval}') + INTERVAL '3 months'
+         AND ${this.inlineOwnerFilter(ownerFilter, schema)}
+       GROUP BY a.id, a.name, a.industry, o.forecast_category
+       ORDER BY a.name ASC, o.forecast_category ASC`,
+      params,
+    );
+
+    // ── 2. By Forecast Category → Accounts breakdown ──
+    const byCategory = await this.dataSource.query(
+      `SELECT
+         o.forecast_category,
+         a.id as account_id,
+         a.name as account_name,
+         COUNT(*) as deal_count,
+         COALESCE(SUM(o.amount), 0) as total_amount,
+         COALESCE(SUM(o.weighted_amount), 0) as weighted_amount
+       FROM "${schema}".opportunities o
+       INNER JOIN "${schema}".accounts a ON o.account_id = a.id AND a.deleted_at IS NULL
+       WHERE o.deleted_at IS NULL
+         AND o.won_at IS NULL AND o.lost_at IS NULL
+         AND o.close_date >= DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '${qtrInterval}')
+         AND o.close_date < DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '${qtrInterval}') + INTERVAL '3 months'
+         AND ${this.inlineOwnerFilter(ownerFilter, schema)}
+       GROUP BY o.forecast_category, a.id, a.name
+       ORDER BY o.forecast_category ASC, total_amount DESC`,
+      params,
+    );
+
+    // ── 3. Flat table: one row per account with aggregate totals ──
+    const flatTable = await this.dataSource.query(
+      `SELECT
+         a.id as account_id,
+         a.name as account_name,
+         a.industry,
+         a.website,
+         COUNT(*) as deal_count,
+         COALESCE(SUM(o.amount), 0) as total_amount,
+         COALESCE(SUM(o.weighted_amount), 0) as weighted_amount,
+         COALESCE(AVG(o.probability), 0) as avg_probability,
+         MODE() WITHIN GROUP (ORDER BY o.forecast_category) as dominant_forecast,
+         COALESCE(SUM(o.amount) FILTER (WHERE o.forecast_category = 'commit'), 0) as commit_amount,
+         COALESCE(SUM(o.amount) FILTER (WHERE o.forecast_category = 'best_case'), 0) as best_case_amount,
+         COALESCE(SUM(o.amount) FILTER (WHERE o.forecast_category = 'pipeline'), 0) as pipeline_amount,
+         COALESCE(SUM(o.amount) FILTER (WHERE o.forecast_category = 'upside'), 0) as upside_amount,
+         u.first_name as owner_first, u.last_name as owner_last
+       FROM "${schema}".opportunities o
+       INNER JOIN "${schema}".accounts a ON o.account_id = a.id AND a.deleted_at IS NULL
+       LEFT JOIN "${schema}".users u ON o.owner_id = u.id
+       WHERE o.deleted_at IS NULL
+         AND o.won_at IS NULL AND o.lost_at IS NULL
+         AND o.close_date >= DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '${qtrInterval}')
+         AND o.close_date < DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '${qtrInterval}') + INTERVAL '3 months'
+         AND ${this.inlineOwnerFilter(ownerFilter, schema)}
+       GROUP BY a.id, a.name, a.industry, a.website, u.first_name, u.last_name
+       ORDER BY total_amount DESC`,
+      params,
+    );
+
+    // ── 4. Summary totals ──
+    const [summary] = await this.dataSource.query(
+      `SELECT
+         COUNT(DISTINCT a.id) as total_accounts,
+         COUNT(*) as total_deals,
+         COALESCE(SUM(o.amount), 0) as total_amount,
+         COALESCE(SUM(o.weighted_amount), 0) as total_weighted,
+         COALESCE(AVG(o.probability), 0) as avg_probability,
+         COALESCE(SUM(o.amount) FILTER (WHERE o.forecast_category = 'commit'), 0) as commit_total,
+         COALESCE(SUM(o.amount) FILTER (WHERE o.forecast_category = 'best_case'), 0) as best_case_total,
+         COALESCE(SUM(o.amount) FILTER (WHERE o.forecast_category = 'pipeline'), 0) as pipeline_total,
+         COALESCE(SUM(o.amount) FILTER (WHERE o.forecast_category = 'upside'), 0) as upside_total,
+         DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '${qtrInterval}') as quarter_start,
+         DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '${qtrInterval}') + INTERVAL '3 months' - INTERVAL '1 day' as quarter_end
+       FROM "${schema}".opportunities o
+       INNER JOIN "${schema}".accounts a ON o.account_id = a.id AND a.deleted_at IS NULL
+       WHERE o.deleted_at IS NULL
+         AND o.won_at IS NULL AND o.lost_at IS NULL
+         AND o.close_date >= DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '${qtrInterval}')
+         AND o.close_date < DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '${qtrInterval}') + INTERVAL '3 months'
+         AND ${this.inlineOwnerFilter(ownerFilter, schema)}`,
+      params,
+    );
+
+    return {
+      byAccount: this.groupAccountForecast(byAccount),
+      byCategory: this.groupCategoryForecast(byCategory),
+      flatTable: flatTable.map((r: any) => ({
+        accountId: r.account_id,
+        accountName: r.account_name,
+        industry: r.industry,
+        website: r.website,
+        dealCount: parseInt(r.deal_count, 10),
+        totalAmount: parseFloat(r.total_amount) || 0,
+        weightedAmount: parseFloat(r.weighted_amount) || 0,
+        avgProbability: Math.round(parseFloat(r.avg_probability) || 0),
+        dominantForecast: r.dominant_forecast,
+        commitAmount: parseFloat(r.commit_amount) || 0,
+        bestCaseAmount: parseFloat(r.best_case_amount) || 0,
+        pipelineAmount: parseFloat(r.pipeline_amount) || 0,
+        upsideAmount: parseFloat(r.upside_amount) || 0,
+        owner: r.owner_first ? `${r.owner_first} ${r.owner_last || ''}`.trim() : null,
+      })),
+      summary: {
+        totalAccounts: parseInt(summary.total_accounts, 10),
+        totalDeals: parseInt(summary.total_deals, 10),
+        totalAmount: parseFloat(summary.total_amount) || 0,
+        totalWeighted: parseFloat(summary.total_weighted) || 0,
+        avgProbability: Math.round(parseFloat(summary.avg_probability) || 0),
+        commitTotal: parseFloat(summary.commit_total) || 0,
+        bestCaseTotal: parseFloat(summary.best_case_total) || 0,
+        pipelineTotal: parseFloat(summary.pipeline_total) || 0,
+        upsideTotal: parseFloat(summary.upside_total) || 0,
+        quarterStart: summary.quarter_start,
+        quarterEnd: summary.quarter_end,
+      },
+    };
+  }
+
+  // Helper: Group by-account data into nested structure
+  private groupAccountForecast(rows: any[]) {
+    const map = new Map<string, any>();
+    for (const r of rows) {
+      if (!map.has(r.account_id)) {
+        map.set(r.account_id, {
+          accountId: r.account_id,
+          accountName: r.account_name,
+          industry: r.industry,
+          categories: [],
+          totalAmount: 0,
+          totalWeighted: 0,
+          totalDeals: 0,
+        });
+      }
+      const acc = map.get(r.account_id)!;
+      const amount = parseFloat(r.total_amount) || 0;
+      const weighted = parseFloat(r.weighted_amount) || 0;
+      const count = parseInt(r.deal_count, 10);
+      acc.categories.push({
+        forecastCategory: r.forecast_category,
+        dealCount: count,
+        totalAmount: amount,
+        weightedAmount: weighted,
+        avgProbability: Math.round(parseFloat(r.avg_probability) || 0),
+      });
+      acc.totalAmount += amount;
+      acc.totalWeighted += weighted;
+      acc.totalDeals += count;
+    }
+    return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+  }
+
+  // Helper: Group by-category data into nested structure
+  private groupCategoryForecast(rows: any[]) {
+    const map = new Map<string, any>();
+    for (const r of rows) {
+      const cat = r.forecast_category || 'uncategorized';
+      if (!map.has(cat)) {
+        map.set(cat, {
+          forecastCategory: cat,
+          accounts: [],
+          totalAmount: 0,
+          totalWeighted: 0,
+          totalDeals: 0,
+        });
+      }
+      const c = map.get(cat)!;
+      const amount = parseFloat(r.total_amount) || 0;
+      const weighted = parseFloat(r.weighted_amount) || 0;
+      const count = parseInt(r.deal_count, 10);
+      c.accounts.push({
+        accountId: r.account_id,
+        accountName: r.account_name,
+        dealCount: count,
+        totalAmount: amount,
+        weightedAmount: weighted,
+      });
+      c.totalAmount += amount;
+      c.totalWeighted += weighted;
+      c.totalDeals += count;
+    }
+    return Array.from(map.values());
+  }
 }

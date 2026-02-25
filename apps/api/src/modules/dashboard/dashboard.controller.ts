@@ -229,4 +229,15 @@ export class DashboardController {
     const { schema, userId, teamId, scope } = this.parseParams(req, query);
     return this.dashboardService.getStuckDeals(schema, userId, teamId, scope, parseInt(query.days || '14', 10));
   }
+
+  // ── 18. Account Forecast ──
+  @Get('account-forecast')
+  async getAccountForecast(
+    @Request() req: { user: JwtPayload },
+    @Query() query: { scope?: string; quarter?: string },
+  ) {
+    const { schema, userId, teamId, scope } = this.parseParams(req, query);
+    const quarter = (query.quarter === 'current' ? 'current' : 'next') as 'current' | 'next';
+    return this.dashboardService.getAccountForecast(schema, userId, teamId, scope, quarter);
+  }
 }

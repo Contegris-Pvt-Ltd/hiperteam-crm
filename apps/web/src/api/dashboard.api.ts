@@ -172,6 +172,80 @@ interface DashboardQuery {
   to?: string;
 }
 
+// ── Account Forecast Types ──
+
+export interface AccountForecastCategoryEntry {
+  forecastCategory: string;
+  dealCount: number;
+  totalAmount: number;
+  weightedAmount: number;
+  avgProbability: number;
+}
+
+export interface AccountForecastByAccount {
+  accountId: string;
+  accountName: string;
+  industry: string | null;
+  categories: AccountForecastCategoryEntry[];
+  totalAmount: number;
+  totalWeighted: number;
+  totalDeals: number;
+}
+
+export interface CategoryForecastAccount {
+  accountId: string;
+  accountName: string;
+  dealCount: number;
+  totalAmount: number;
+  weightedAmount: number;
+}
+
+export interface AccountForecastByCategory {
+  forecastCategory: string;
+  accounts: CategoryForecastAccount[];
+  totalAmount: number;
+  totalWeighted: number;
+  totalDeals: number;
+}
+
+export interface AccountForecastFlat {
+  accountId: string;
+  accountName: string;
+  industry: string | null;
+  website: string | null;
+  dealCount: number;
+  totalAmount: number;
+  weightedAmount: number;
+  avgProbability: number;
+  dominantForecast: string;
+  commitAmount: number;
+  bestCaseAmount: number;
+  pipelineAmount: number;
+  upsideAmount: number;
+  owner: string | null;
+}
+
+export interface AccountForecastSummary {
+  totalAccounts: number;
+  totalDeals: number;
+  totalAmount: number;
+  totalWeighted: number;
+  avgProbability: number;
+  commitTotal: number;
+  bestCaseTotal: number;
+  pipelineTotal: number;
+  upsideTotal: number;
+  quarterStart: string;
+  quarterEnd: string;
+}
+
+export interface AccountForecastData {
+  byAccount: AccountForecastByAccount[];
+  byCategory: AccountForecastByCategory[];
+  flatTable: AccountForecastFlat[];
+  summary: AccountForecastSummary;
+}
+
 function buildParams(query: DashboardQuery & Record<string, any> = {}): string {
   const p = new URLSearchParams();
   Object.entries(query).forEach(([k, v]) => {
@@ -234,4 +308,7 @@ export const dashboardApi = {
 
   getStuckDeals: (q?: DashboardQuery & { days?: number }) =>
     api.get<StuckDeal[]>(`/dashboard/stuck-deals${buildParams(q)}`).then(r => r.data),
+
+  getAccountForecast: (q?: DashboardQuery & { quarter?: string }) =>
+    api.get<AccountForecastData>(`/dashboard/account-forecast${buildParams(q)}`).then(r => r.data),
 };

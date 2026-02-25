@@ -969,6 +969,60 @@ async function runTenantMigrations() {
             `,
           },
           {
+            name: '022_seed_account_forecast_reports',
+            sql: `
+              -- Ensure Revenue & Forecasting folder exists
+              INSERT INTO "${schema}".report_folders (name, is_system)
+              SELECT 'Revenue & Forecasting', true
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".report_folders
+                WHERE name = 'Revenue & Forecasting' AND is_system = true
+              );
+
+              -- 1. Account Forecast by Account
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Account Forecast by Account',
+                'Accounts ranked by total pipeline value with forecast category breakdown for open deals in the quarter',
+                'revenue', 'summary', 'table', 'opportunities',
+                '{"measures":[{"field":"amount","aggregate":"sum","label":"Total Pipeline","format":"currency"},{"field":"weighted_amount","aggregate":"sum","label":"Weighted Value","format":"currency"},{"field":"id","aggregate":"count","label":"Deals","format":"number"},{"field":"probability","aggregate":"avg","label":"Avg Probability","format":"percent"}],"dimensions":[{"field":"account_name","type":"field","label":"Account"},{"field":"forecast_category","type":"field","label":"Forecast Category"}],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null},{"field":"close_date","operator":"relative_date","value":null,"dateRelative":"next_quarter"}],"orderBy":[{"field":"amount_sum","direction":"DESC"}]}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Revenue & Forecasting' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Account Forecast by Account' AND is_system = true
+              );
+
+              -- 2. Account Forecast by Category
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Account Forecast by Category',
+                'Forecast category totals with account breakdown showing where next quarter revenue will come from',
+                'revenue', 'summary', 'bar', 'opportunities',
+                '{"measures":[{"field":"amount","aggregate":"sum","label":"Total Value","format":"currency"},{"field":"weighted_amount","aggregate":"sum","label":"Weighted","format":"currency"},{"field":"id","aggregate":"count","label":"Deals","format":"number"}],"dimensions":[{"field":"forecast_category","type":"field","label":"Category"},{"field":"account_name","type":"field","label":"Account"}],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null},{"field":"close_date","operator":"relative_date","value":null,"dateRelative":"next_quarter"}],"orderBy":[{"field":"amount_sum","direction":"DESC"}]}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Revenue & Forecasting' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Account Forecast by Category' AND is_system = true
+              );
+
+              -- 3. Account Pipeline Summary
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Account Pipeline Summary',
+                'Flat account list with total deals, pipeline value, weighted amount and dominant forecast category for next quarter',
+                'revenue', 'summary', 'table', 'opportunities',
+                '{"measures":[{"field":"id","aggregate":"count","label":"Deals","format":"number"},{"field":"amount","aggregate":"sum","label":"Pipeline Value","format":"currency"},{"field":"weighted_amount","aggregate":"sum","label":"Weighted Value","format":"currency"},{"field":"probability","aggregate":"avg","label":"Avg Prob %","format":"percent"}],"dimensions":[{"field":"account_name","type":"field","label":"Account"}],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null},{"field":"close_date","operator":"relative_date","value":null,"dateRelative":"next_quarter"}],"orderBy":[{"field":"amount_sum","direction":"DESC"}],"limit":50}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Revenue & Forecasting' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Account Pipeline Summary' AND is_system = true
+              );
+            `,
+          },
+          {
             name: '020_reports_migration',
             sql: buildReportsMigration(schema),
           },
@@ -3048,6 +3102,18 @@ function buildReportsMigration(schema: string): string {
 
     ('Revenue by Source', 'Closed-won revenue by lead source', 'revenue', 'summary', 'pie', 'opportunities',
      '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[{"field":"source","type":"field","label":"Source"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}]}',
+     'Revenue & Forecasting'),
+
+    ('Account Forecast by Account', 'Accounts ranked by total pipeline value with forecast category breakdown for open deals in the quarter', 'revenue', 'summary', 'table', 'opportunities',
+     '{"measures":[{"field":"amount","aggregate":"sum","label":"Total Pipeline","format":"currency"},{"field":"weighted_amount","aggregate":"sum","label":"Weighted Value","format":"currency"},{"field":"id","aggregate":"count","label":"Deals","format":"number"},{"field":"probability","aggregate":"avg","label":"Avg Probability","format":"percent"}],"dimensions":[{"field":"account_name","type":"field","label":"Account"},{"field":"forecast_category","type":"field","label":"Forecast Category"}],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null},{"field":"close_date","operator":"relative_date","value":null,"dateRelative":"next_quarter"}],"orderBy":[{"field":"amount_sum","direction":"DESC"}]}',
+     'Revenue & Forecasting'),
+
+    ('Account Forecast by Category', 'Forecast category totals with account breakdown showing where next quarter revenue will come from', 'revenue', 'summary', 'bar', 'opportunities',
+     '{"measures":[{"field":"amount","aggregate":"sum","label":"Total Value","format":"currency"},{"field":"weighted_amount","aggregate":"sum","label":"Weighted","format":"currency"},{"field":"id","aggregate":"count","label":"Deals","format":"number"}],"dimensions":[{"field":"forecast_category","type":"field","label":"Category"},{"field":"account_name","type":"field","label":"Account"}],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null},{"field":"close_date","operator":"relative_date","value":null,"dateRelative":"next_quarter"}],"orderBy":[{"field":"amount_sum","direction":"DESC"}]}',
+     'Revenue & Forecasting'),
+
+    ('Account Pipeline Summary', 'Flat account list with total deals, pipeline value, weighted amount and dominant forecast category for next quarter', 'revenue', 'summary', 'table', 'opportunities',
+     '{"measures":[{"field":"id","aggregate":"count","label":"Deals","format":"number"},{"field":"amount","aggregate":"sum","label":"Pipeline Value","format":"currency"},{"field":"weighted_amount","aggregate":"sum","label":"Weighted Value","format":"currency"},{"field":"probability","aggregate":"avg","label":"Avg Prob %","format":"percent"}],"dimensions":[{"field":"account_name","type":"field","label":"Account"}],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null},{"field":"close_date","operator":"relative_date","value":null,"dateRelative":"next_quarter"}],"orderBy":[{"field":"amount_sum","direction":"DESC"}],"limit":50}',
      'Revenue & Forecasting'),
 
     -- TARGETS & PERFORMANCE (3)
