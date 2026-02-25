@@ -596,7 +596,7 @@ function FlatTableView({ rows }: { rows: AccountForecastFlat[] }) {
           </thead>
           <tbody>
             {sorted.map(row => {
-              const style = getCategoryStyle(row.dominantForecast);
+              //const style = getCategoryStyle(row.dominantForecast);
               return (
                 <tr key={row.accountId} className="border-t border-gray-50 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/30">
                   <td className="px-3 py-2.5">

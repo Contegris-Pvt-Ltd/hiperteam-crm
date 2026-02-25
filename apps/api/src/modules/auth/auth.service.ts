@@ -234,6 +234,7 @@ export class AuthService {
 
       return { ...tokens };
     } catch (err) {
+      console.error('Error refreshing token:', err);
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
   }

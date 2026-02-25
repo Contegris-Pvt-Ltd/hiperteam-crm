@@ -13,7 +13,7 @@ import {
   Loader2, DollarSign, TrendingUp, ExternalLink,
 } from 'lucide-react';
 import { dashboardApi } from '../../api/dashboard.api';
-import type { AccountForecastData, AccountForecastFlat } from '../../api/dashboard.api';
+import type { AccountForecastData } from '../../api/dashboard.api';
 
 // ── Forecast Category Colors ──
 const CAT_COLORS: Record<string, { dot: string; text: string }> = {
