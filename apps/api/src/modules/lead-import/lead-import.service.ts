@@ -81,7 +81,8 @@ export class LeadImportService {
   // ============================================================
   // UPLOAD & PARSE
   // ============================================================
-  async uploadAndParse(file: Express.Multer.File, schemaName: string, _userId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async uploadAndParse(file: Express.Multer.File, schemaName: string, userId: string) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
