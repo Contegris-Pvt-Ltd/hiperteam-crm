@@ -86,7 +86,7 @@ export class LeadImportService {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
-
+    console.log(userId);
     const ext = path.extname(file.originalname).toLowerCase();
     if (!['.xlsx', '.xls', '.csv'].includes(ext)) {
       throw new BadRequestException('Unsupported file format. Please upload .xlsx, .xls, or .csv');
