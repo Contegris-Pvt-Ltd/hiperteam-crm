@@ -37,3 +37,5 @@ coverage/
 # Misc
 *.tgz
 .cache/
+
+apps/api/uploads/

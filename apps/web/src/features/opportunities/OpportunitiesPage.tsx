@@ -16,6 +16,8 @@ import type {
 import { opportunitiesApi, opportunitySettingsApi } from '../../api/opportunities.api';
 import { OpportunityKanbanBoard } from './components/OpportunityKanbanBoard';
 import { usePermissions } from '../../hooks/usePermissions';
+import { teamsApi } from '../../api/teams.api';
+import type { TeamLookupItem } from '../../api/teams.api';
 import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
 
 // Priority icon map
@@ -46,6 +48,7 @@ export function OpportunitiesPage() {
   const [priorities, setPriorities] = useState<OpportunityPriority[]>([]);
   const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [teams, setTeams] = useState<TeamLookupItem[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
 
   // Query state
@@ -88,11 +91,13 @@ export function OpportunitiesPage() {
       opportunitySettingsApi.getStages(),
       opportunitySettingsApi.getPriorities(),
       opportunitySettingsApi.getSources(),
-    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData]) => {
+      teamsApi.getLookup().catch(() => []),
+    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData, teamsData]) => {
       setPipelines(pipelinesData);
       setStages(stagesData);
       setPriorities(prioritiesData);
       setSources(sourcesData);
+      setTeams((teamsData as TeamLookupItem[]).filter(t => t.isActive));
       const defaultPl = pipelinesData.find((p: Pipeline) => p.isDefault);
       if (defaultPl) setSelectedPipelineId(defaultPl.id);
     }).catch(console.error);
@@ -229,9 +234,9 @@ export function OpportunitiesPage() {
   };
 
   // Active filter count
-  const activeFilterCount = [query.stageId, query.priorityId, query.source, query.type, query.status, query.forecastCategory].filter(Boolean).length;
+  const activeFilterCount = [query.stageId, query.priorityId, query.source, query.type, query.status, query.forecastCategory, query.teamId].filter(Boolean).length;
   const clearFilters = () => {
-    setQuery({ ...query, stageId: undefined, priorityId: undefined, source: undefined, type: undefined, status: undefined, forecastCategory: undefined, page: 1 });
+    setQuery({ ...query, stageId: undefined, priorityId: undefined, source: undefined, type: undefined, status: undefined, forecastCategory: undefined, teamId: undefined, page: 1 });
   };
 
   return (
@@ -413,6 +418,20 @@ export function OpportunitiesPage() {
               <option value="Renewal">Renewal</option>
               <option value="Upsell">Upsell</option>
             </select>
+
+            {/* Team filter */}
+            {teams.length > 0 && (
+              <select
+                value={query.teamId || ''}
+                onChange={(e) => setQuery({ ...query, teamId: e.target.value || undefined, page: 1 })}
+                className="border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200"
+              >
+                <option value="">All Teams</option>
+                {teams.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
       )}

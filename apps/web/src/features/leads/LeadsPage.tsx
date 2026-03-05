@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Search,
+  Plus, Search, Upload,
   Eye, Pencil, Trash2, LayoutList, LayoutGrid,
   Flame, Thermometer, Snowflake, Sun, Minus,
   Filter, X, Building2, Package,
@@ -12,11 +12,15 @@ import {
 } from 'lucide-react';
 import type { Lead, LeadsQuery, LeadStage, LeadPriority, KanbanStageData, Pipeline } from '../../api/leads.api';
 import { leadsApi, leadSettingsApi } from '../../api/leads.api';
+import { teamsApi } from '../../api/teams.api';
+import type { TeamLookupItem } from '../../api/teams.api';
 import { KanbanBoard } from './components/KanbanBoard';
 import { usePermissions } from '../../hooks/usePermissions';
 import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
 import { api } from '../../api/contacts.api';
 import { SlaInlineBadge } from './components/SlaIndicator';
+import ImportWizardModal from './components/ImportWizardModal';
+import BulkUpdateModal from './components/BulkUpdateModal';
 
 // Priority icon map
 const PRIORITY_ICONS: Record<string, any> = {
@@ -29,7 +33,7 @@ const PRIORITY_ICONS: Record<string, any> = {
 
 export function LeadsPage() {
   const navigate = useNavigate();
-  const { canCreate, canEdit, canDelete } = usePermissions();
+  const { canCreate, canEdit, canDelete, canImport } = usePermissions();
   const { allColumns, defaultVisibleKeys, loading: columnsLoading } = useTableColumns('leads');
   const tablePrefs = useTablePreferences('leads', allColumns, defaultVisibleKeys);
 
@@ -48,6 +52,7 @@ export function LeadsPage() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
 
+  const [teams, setTeams] = useState<TeamLookupItem[]>([]);
   const [productOptions, setProductOptions] = useState<{ id: string; name: string; code: string | null }[]>([]);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [showProductFilter, setShowProductFilter] = useState(false);
@@ -57,6 +62,14 @@ export function LeadsPage() {
   const [searchInput, setSearchInput] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [showImportWizard, setShowImportWizard] = useState(false);
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectAllMode, setSelectAllMode] = useState(false);
+  const [showBulkUpdate, setShowBulkUpdate] = useState(false);
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // ── Sync table preferences into query once loaded ──
   useEffect(() => {
@@ -92,11 +105,13 @@ export function LeadsPage() {
       leadSettingsApi.getStages(),
       leadSettingsApi.getPriorities(),
       leadSettingsApi.getSources(),
-    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData]) => {
+      teamsApi.getLookup(),
+    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData, teamsData]) => {
       setPipelines(pipelinesData);
       setStages(stagesData);
       setPriorities(prioritiesData);
       setSources(sourcesData);
+      setTeams((teamsData as TeamLookupItem[]).filter((t: TeamLookupItem) => t.isActive));
       // Auto-select default pipeline
       const defaultPl = pipelinesData.find((p: Pipeline) => p.isDefault);
       if (defaultPl) setSelectedPipelineId(defaultPl.id);
@@ -119,6 +134,9 @@ export function LeadsPage() {
   useEffect(() => {
     if (tablePrefs.loading) return;
     fetchLeads();
+    // Clear selection when page/filters change
+    setSelectedIds(new Set());
+    setSelectAllMode(false);
   }, [query, tablePrefs.loading]);
 
   // Sync product filter into query
@@ -274,7 +292,7 @@ export function LeadsPage() {
   };
 
   const activeFilterCount = [
-    query.stageId, query.priorityId, query.source, query.ownerId,
+    query.stageId, query.priorityId, query.source, query.ownerId, query.teamId,
     query.tag, query.scoreMin, query.scoreMax, query.convertedStatus,
     selectedProductIds.length > 0 ? true : undefined,
   ].filter(Boolean).length;
@@ -320,6 +338,15 @@ export function LeadsPage() {
                 <option key={p.id} value={p.id}>{p.name}{p.isDefault ? ' (Default)' : ''}</option>
               ))}
             </select>
+          )}
+          {canImport('leads') && (
+            <button
+              onClick={() => setShowImportWizard(true)}
+              className="flex items-center gap-2 border border-emerald-600 text-emerald-600 dark:text-emerald-400 px-4 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+            >
+              <Upload size={18} />
+              Import
+            </button>
           )}
           {canCreate('leads') && (
             <button
@@ -448,6 +475,20 @@ export function LeadsPage() {
               <option value="disqualified">Disqualified</option>
             </select>
 
+            {/* Team filter */}
+            {teams.length > 0 && (
+              <select
+                value={query.teamId || ''}
+                onChange={(e) => setQuery({ ...query, teamId: e.target.value || undefined, page: 1 })}
+                className="border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200"
+              >
+                <option value="">All Teams</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            )}
+
             {/* Product filter */}
             {productOptions.length > 0 && (
               <div className="relative col-span-2 md:col-span-4">
@@ -551,6 +592,57 @@ export function LeadsPage() {
         />
       ) : (
         <>
+          {/* ── Selection Toolbar ── */}
+          {(selectedIds.size > 0 || selectAllMode) && (
+            <div className="mb-3 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center justify-between">
+              <div className="flex items-center gap-3 text-sm">
+                {selectAllMode ? (
+                  <span className="font-medium text-blue-700 dark:text-blue-300">
+                    All {meta.total.toLocaleString()} leads selected
+                  </span>
+                ) : (
+                  <>
+                    <span className="font-medium text-blue-700 dark:text-blue-300">
+                      {selectedIds.size} selected
+                    </span>
+                    {meta.total > leads.length && (
+                      <button
+                        onClick={() => { setSelectAllMode(true); setSelectedIds(new Set()); }}
+                        className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                      >
+                        Select all {meta.total.toLocaleString()} leads
+                      </button>
+                    )}
+                  </>
+                )}
+                <button
+                  onClick={() => { setSelectedIds(new Set()); setSelectAllMode(false); }}
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                {canEdit('leads') && (
+                  <button
+                    onClick={() => setShowBulkUpdate(true)}
+                    className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Bulk Update
+                  </button>
+                )}
+                {canDelete('leads') && (
+                  <button
+                    onClick={() => setShowBulkDelete(true)}
+                    className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── LIST VIEW (DataTable) ── */}
           <DataTable
             module="leads"
@@ -564,6 +656,8 @@ export function LeadsPage() {
             sortOrder={query.sortOrder || 'DESC'}
             pageSize={query.limit || 20}
             columnWidths={tablePrefs.columnWidths}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
             onSort={(col, order) => {
               setQuery(prev => ({ ...prev, sortBy: col, sortOrder: order, page: 1 }));
               tablePrefs.setSortColumn(col);
@@ -875,6 +969,90 @@ export function LeadsPage() {
               >
                 {kanbanSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 {kanbanSubmitting ? 'Moving...' : `Move to ${kanbanFieldsModal.stageName}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Wizard Modal */}
+      {showImportWizard && (
+        <ImportWizardModal onClose={() => { setShowImportWizard(false); fetchLeads(); }} />
+      )}
+
+      {/* Bulk Update Modal */}
+      {showBulkUpdate && (
+        <BulkUpdateModal
+          selectedIds={Array.from(selectedIds)}
+          selectAllMode={selectAllMode}
+          filters={selectAllMode ? { ...query, pipelineId: selectedPipelineId || undefined } : undefined}
+          totalCount={selectAllMode ? meta.total : selectedIds.size}
+          stages={stages}
+          priorities={priorities}
+          sources={sources}
+          pipelines={pipelines}
+          teams={teams}
+          onClose={() => setShowBulkUpdate(false)}
+          onComplete={() => {
+            setShowBulkUpdate(false);
+            setSelectedIds(new Set());
+            setSelectAllMode(false);
+            fetchLeads();
+          }}
+        />
+      )}
+
+      {/* Bulk Delete Confirmation */}
+      {showBulkDelete && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Delete Leads</h2>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Are you sure you want to delete{' '}
+                <span className="font-semibold text-red-600 dark:text-red-400">
+                  {(selectAllMode ? meta.total : selectedIds.size).toLocaleString()}
+                </span>{' '}
+                lead{(selectAllMode ? meta.total : selectedIds.size) !== 1 ? 's' : ''}? This action can be undone by an administrator.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowBulkDelete(false)}
+                disabled={bulkDeleting}
+                className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setBulkDeleting(true);
+                  try {
+                    const payload: any = {};
+                    if (selectAllMode) {
+                      payload.selectAll = true;
+                      const { page, limit, view, sortBy, sortOrder, ...filterOnly } = { ...query, pipelineId: selectedPipelineId || undefined };
+                      payload.filters = filterOnly;
+                    } else {
+                      payload.leadIds = Array.from(selectedIds);
+                    }
+                    await leadsApi.bulkDelete(payload);
+                    setShowBulkDelete(false);
+                    setSelectedIds(new Set());
+                    setSelectAllMode(false);
+                    fetchLeads();
+                  } catch (err: any) {
+                    alert(err.response?.data?.message || 'Failed to delete leads');
+                  }
+                  setBulkDeleting(false);
+                }}
+                disabled={bulkDeleting}
+                className="flex items-center gap-2 px-5 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {bulkDeleting && <Loader2 size={16} className="animate-spin" />}
+                {bulkDeleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

@@ -8,7 +8,7 @@ import { DataSource } from 'typeorm';
 export interface AuditLogEntry {
   entityType: string;
   entityId: string;
-  action: 'create' | 'update' | 'delete' | 'login' | 'logout' | 'invite' | 'password_reset' | 'status_change' | 'member_add' | 'member_remove';
+  action: 'create' | 'update' | 'delete' | 'bulk_update' | 'login' | 'logout' | 'invite' | 'password_reset' | 'status_change' | 'member_add' | 'member_remove';
   changes: Record<string, { from: unknown; to: unknown }>;
   previousValues?: Record<string, unknown>;
   newValues?: Record<string, unknown>;

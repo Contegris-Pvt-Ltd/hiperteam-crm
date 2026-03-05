@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { leadsApi, leadSettingsApi } from '../../api/leads.api';
 import type { CreateLeadData, LeadStage, LeadPriority, QualificationField, DuplicateMatch, Pipeline } from '../../api/leads.api';
+import { teamsApi } from '../../api/teams.api';
+import type { TeamLookupItem } from '../../api/teams.api';
 import { adminApi } from '../../api/admin.api';
 import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.api';
 import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
@@ -53,6 +55,7 @@ export function LeadEditPage() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [qualificationFields, setQualificationFields] = useState<QualificationField[]>([]);
   const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
+  const [teams, setTeams] = useState<TeamLookupItem[]>([]);
 
   // Custom fields, tabs, groups
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -108,6 +111,7 @@ export function LeadEditPage() {
     doNotEmail: false,
     doNotCall: false,
     ownerId: '',
+    teamId: '',
   });
 
   const [tagInput, setTagInput] = useState('');
@@ -121,16 +125,18 @@ export function LeadEditPage() {
       leadSettingsApi.getSources(),
       leadSettingsApi.getQualificationFrameworks(),
       fetchUsers(),
+      teamsApi.getLookup(),
       adminApi.getCustomFields('leads'),
       adminApi.getTabs('leads'),
       adminApi.getGroups({ module: 'leads' }),
       // Load field validation rules
       moduleSettingsApi.getFieldValidation('leads'),
-    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData, frameworks, , fieldsData, tabsData, groupsData, validationConfig]) => {
+    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData, frameworks, , teamsData, fieldsData, tabsData, groupsData, validationConfig]) => {
       setPipelines(pipelinesData);
       setStages(stagesData.filter((s: LeadStage) => s.isActive));
       setPriorities(prioritiesData.filter((p: any) => p.isActive !== false));
       setSources(sourcesData);
+      setTeams((teamsData as TeamLookupItem[]).filter((t: TeamLookupItem) => t.isActive));
       setCustomFields(fieldsData.filter((f: CustomField) => f.isActive));
       setCustomTabs(tabsData.filter((t: CustomTab) => t.isActive));
       setCustomGroups(groupsData.filter((g: CustomFieldGroup) => g.isActive));
@@ -213,6 +219,7 @@ export function LeadEditPage() {
         doNotEmail: data.doNotEmail || false,
         doNotCall: data.doNotCall || false,
         ownerId: data.ownerId || '',
+        teamId: data.teamId || '',
         socialProfiles: data.socialProfiles || {},
       });
 
@@ -436,7 +443,7 @@ export function LeadEditPage() {
     try {
       // Strip empty strings from UUID fields so backend validation passes
       const dataToSave: Record<string, any> = { ...formData };
-      ['ownerId', 'priorityId', 'qualificationFrameworkId'].forEach(key => {
+      ['ownerId', 'teamId', 'priorityId', 'qualificationFrameworkId'].forEach(key => {
         if (!dataToSave[key]) delete dataToSave[key];
       });
 
@@ -747,6 +754,15 @@ export function LeadEditPage() {
                   <option value="">Auto-assign (me)</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Team</label>
+                <select value={formData.teamId || ''} onChange={(e) => handleChange('teamId', e.target.value)} className={inputClass}>
+                  <option value="">No team</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
               </div>

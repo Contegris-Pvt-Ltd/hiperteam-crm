@@ -83,17 +83,18 @@ export class OpportunitiesService {
     // 4. Auto-set forecast category from probability if not provided
     const forecastCategory = dto.forecastCategory || this.probabilityToForecast(probability);
 
-    // 5. Owner
+    // 5. Owner & Team
     const ownerId = dto.ownerId || userId;
+    const teamId = dto.teamId || null;
 
     // 6. Insert
     const [opp] = await this.dataSource.query(
       `INSERT INTO "${schemaName}".opportunities
        (name, pipeline_id, stage_id, amount, currency, close_date, probability,
-        forecast_category, owner_id, account_id, primary_contact_id, priority_id,
+        forecast_category, owner_id, team_id, account_id, primary_contact_id, priority_id,
         type, source, lead_id, next_step, description, tags, custom_fields,
         stage_entered_at, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), $20, $20)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW(), $21, $21)
        RETURNING *`,
       [
         dto.name,
@@ -105,6 +106,7 @@ export class OpportunitiesService {
         probability,
         forecastCategory,
         ownerId,
+        teamId,
         dto.accountId || null,
         dto.primaryContactId || null,
         dto.priorityId || null,
@@ -154,7 +156,7 @@ export class OpportunitiesService {
   // ============================================================
   async findAll(schemaName: string, query: QueryOpportunitiesDto, userId?: string) {
     const {
-      search, pipelineId, stageId, ownerId, accountId, priorityId,
+      search, pipelineId, stageId, ownerId, teamId, accountId, priorityId,
       type, source, forecastCategory, minAmount, maxAmount,
       closeDateFrom, closeDateTo, tag, isOpen, ownership,
       page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC', view,
@@ -185,6 +187,12 @@ export class OpportunitiesService {
     if (ownerId) {
       whereClause += ` AND o.owner_id = $${paramIndex}`;
       params.push(ownerId);
+      paramIndex++;
+    }
+
+    if (teamId) {
+      whereClause += ` AND o.team_id = $${paramIndex}`;
+      params.push(teamId);
       paramIndex++;
     }
 
@@ -300,6 +308,7 @@ export class OpportunitiesService {
     const opps = await this.dataSource.query(
       `SELECT o.*,
               u.first_name as owner_first_name, u.last_name as owner_last_name, u.avatar_url as owner_avatar,
+              t.name as team_name,
               ps.name as stage_name, ps.slug as stage_slug, ps.color as stage_color,
               ps.sort_order as stage_sort_order, ps.is_won as stage_is_won, ps.is_lost as stage_is_lost,
               ps.probability as stage_probability,
@@ -311,6 +320,7 @@ export class OpportunitiesService {
               cu.first_name as created_by_first_name, cu.last_name as created_by_last_name
        FROM "${schemaName}".opportunities o
        LEFT JOIN "${schemaName}".users u ON o.owner_id = u.id
+       LEFT JOIN "${schemaName}".teams t ON o.team_id = t.id
        LEFT JOIN "${schemaName}".pipeline_stages ps ON o.stage_id = ps.id
        LEFT JOIN "${schemaName}".pipelines pl ON o.pipeline_id = pl.id
        LEFT JOIN "${schemaName}".opportunity_priorities op ON o.priority_id = op.id
@@ -362,6 +372,7 @@ export class OpportunitiesService {
       const opps = await this.dataSource.query(
         `SELECT o.*,
                 u.first_name as owner_first_name, u.last_name as owner_last_name, u.avatar_url as owner_avatar,
+                t.name as team_name,
                 ps.name as stage_name, ps.slug as stage_slug, ps.color as stage_color,
                 ps.sort_order as stage_sort_order, ps.is_won as stage_is_won, ps.is_lost as stage_is_lost,
                 op.name as priority_name, op.color as priority_color, op.icon as priority_icon,
@@ -369,6 +380,7 @@ export class OpportunitiesService {
                 c.first_name as contact_first_name, c.last_name as contact_last_name
          FROM "${schemaName}".opportunities o
          LEFT JOIN "${schemaName}".users u ON o.owner_id = u.id
+         LEFT JOIN "${schemaName}".teams t ON o.team_id = t.id
          LEFT JOIN "${schemaName}".pipeline_stages ps ON o.stage_id = ps.id
          LEFT JOIN "${schemaName}".opportunity_priorities op ON o.priority_id = op.id
          LEFT JOIN "${schemaName}".accounts a ON o.account_id = a.id
@@ -464,6 +476,7 @@ export class OpportunitiesService {
       `SELECT o.*,
               u.first_name as owner_first_name, u.last_name as owner_last_name,
               u.email as owner_email, u.avatar_url as owner_avatar,
+              t.name as team_name,
               ps.name as stage_name, ps.slug as stage_slug, ps.color as stage_color,
               ps.sort_order as stage_sort_order, ps.is_won as stage_is_won, ps.is_lost as stage_is_lost,
               ps.probability as stage_probability,
@@ -475,6 +488,7 @@ export class OpportunitiesService {
               cu.first_name as created_by_first_name, cu.last_name as created_by_last_name
        FROM "${schemaName}".opportunities o
        LEFT JOIN "${schemaName}".users u ON o.owner_id = u.id
+       LEFT JOIN "${schemaName}".teams t ON o.team_id = t.id
        LEFT JOIN "${schemaName}".pipeline_stages ps ON o.stage_id = ps.id
        LEFT JOIN "${schemaName}".pipelines pl ON o.pipeline_id = pl.id
        LEFT JOIN "${schemaName}".opportunity_priorities op ON o.priority_id = op.id
@@ -506,6 +520,7 @@ export class OpportunitiesService {
       probability: 'probability',
       forecastCategory: 'forecast_category',
       ownerId: 'owner_id',
+      teamId: 'team_id',
       accountId: 'account_id',
       primaryContactId: 'primary_contact_id',
       priorityId: 'priority_id',
@@ -2231,6 +2246,8 @@ export class OpportunitiesService {
         lastName: o.owner_last_name,
         avatarUrl: o.owner_avatar,
       } : null,
+      teamId: o.team_id || null,
+      team: o.team_name ? { id: o.team_id, name: o.team_name } : null,
       accountId: o.account_id,
       account: o.account_name ? {
         id: o.account_id,

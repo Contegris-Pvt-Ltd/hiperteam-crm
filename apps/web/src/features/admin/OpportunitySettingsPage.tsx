@@ -11,6 +11,7 @@ import {
   ArrowLeft, Loader2, Plus, Trash2, X, Check, Pencil,
   Flame, Thermometer, Sun, Snowflake, Minus,
   Trophy, XCircle, Briefcase, BarChart3, Route, Target, Globe,
+  GripVertical,
 } from 'lucide-react';
 import { opportunitySettingsApi } from '../../api/opportunities.api';
 import type { OpportunityCloseReason, OpportunityStage, Pipeline } from '../../api/opportunities.api';
@@ -404,10 +405,26 @@ function StagesTab({
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({ name: '', color: '#3B82F6' });
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const sorted = [...stages].sort((a, b) => a.sortOrder - b.sortOrder);
   const openStages = sorted.filter(s => !s.isWon && !s.isLost);
   const terminalStages = sorted.filter(s => s.isWon || s.isLost);
+
+  const handleReorder = async (dragIdx: number, dropIdx: number) => {
+    if (dragIdx === dropIdx) return;
+    const reordered = [...openStages];
+    const [moved] = reordered.splice(dragIdx, 1);
+    reordered.splice(dropIdx, 0, moved);
+    // Combine reordered open stages with terminal stages for full order
+    const orderedIds = [...reordered, ...terminalStages].map(s => s.id);
+    try {
+      await opportunitySettingsApi.reorderStages(orderedIds);
+      onReload();
+    } catch (err) {
+      console.error('Failed to reorder:', err);
+    }
+  };
 
   const handleCreate = async () => {
     if (!formData.name.trim() || !selectedPipelineId) return;
@@ -518,11 +535,34 @@ function StagesTab({
       <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Open Stages</h3>
       <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden mb-6">
         {openStages.map((stage, idx) => (
-          <div key={stage.id} className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-gray-100 dark:border-slate-800' : ''}`}>
+          <div
+            key={stage.id}
+            className={`flex items-center gap-3 px-4 py-3 transition-colors ${idx > 0 ? 'border-t border-gray-100 dark:border-slate-800' : ''} ${dragOverIdx === idx ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('text/plain', String(idx));
+              e.dataTransfer.effectAllowed = 'move';
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              setDragOverIdx(idx);
+            }}
+            onDragLeave={() => setDragOverIdx(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOverIdx(null);
+              const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+              handleReorder(fromIdx, idx);
+            }}
+            onDragEnd={() => setDragOverIdx(null)}
+          >
+            <span className="cursor-grab text-gray-400 hover:text-gray-600" title="Drag to reorder">
+              <GripVertical className="w-4 h-4" />
+            </span>
             <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
             <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">{stage.name}</span>
             <span className="text-xs text-gray-400 dark:text-slate-500">{stage.probability}%</span>
-            <span className="text-xs text-gray-400 dark:text-slate-500 font-mono">#{stage.sortOrder}</span>
             {!stage.isWon && !stage.isLost && (
               <button onClick={() => handleDelete(stage.id)} className="p-1 text-gray-400 hover:text-red-600">
                 <Trash2 className="w-4 h-4" />
@@ -565,10 +605,35 @@ function StagesTab({
 function PrioritiesTab({ priorities, onReload }: { priorities: Priority[]; onReload: () => void }) {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', color: '', icon: '' });
   const [form, setForm] = useState({ name: '', color: '#3B82F6', icon: 'minus' });
 
   const sorted = [...priorities].sort((a, b) => a.sortOrder - b.sortOrder);
   const iconOptions = ['flame', 'thermometer', 'sun', 'snowflake', 'minus'];
+
+  const startEdit = (p: Priority) => {
+    setEditingId(p.id);
+    setEditForm({ name: p.name, color: p.color, icon: p.icon });
+  };
+
+  const handleUpdate = async () => {
+    if (!editingId || !editForm.name.trim()) return;
+    setSaving(true);
+    try {
+      await opportunitySettingsApi.updatePriority(editingId, {
+        name: editForm.name,
+        color: editForm.color,
+        icon: editForm.icon,
+      });
+      setEditingId(null);
+      onReload();
+    } catch (err) {
+      console.error('Failed to update priority:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleCreate = async () => {
     if (!form.name.trim()) return;
@@ -680,19 +745,44 @@ function PrioritiesTab({ priorities, onReload }: { priorities: Priority[]; onRel
           <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
             {sorted.map((p) => {
               const Icon = PRIORITY_ICONS[p.icon] || Minus;
+              const isEditing = editingId === p.id;
               return (
                 <tr key={p.id} className={`hover:bg-gray-50 dark:hover:bg-slate-800/30 ${!p.isActive ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color }} />
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">{p.name}</span>
-                      {p.isSystem && (
-                        <span className="px-2 py-0.5 bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 rounded text-xs">System</span>
-                      )}
-                    </div>
+                    {isEditing ? (
+                      <div className="flex items-center gap-2">
+                        <input type="color" value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} className="w-6 h-6 rounded cursor-pointer border-0" />
+                        <input
+                          type="text"
+                          value={editForm.name}
+                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                          className="px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                          autoFocus
+                          onKeyDown={(e) => e.key === 'Enter' && handleUpdate()}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color }} />
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{p.name}</span>
+                        {p.isSystem && (
+                          <span className="px-2 py-0.5 bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 rounded text-xs">System</span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
-                    <Icon className="w-4 h-4" style={{ color: p.color }} />
+                    {isEditing ? (
+                      <select
+                        value={editForm.icon}
+                        onChange={(e) => setEditForm({ ...editForm, icon: e.target.value })}
+                        className="px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      >
+                        {iconOptions.map(ic => <option key={ic} value={ic}>{ic}</option>)}
+                      </select>
+                    ) : (
+                      <Icon className="w-4 h-4" style={{ color: p.color }} />
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
                     {p.isDefault ? (
@@ -716,10 +806,26 @@ function PrioritiesTab({ priorities, onReload }: { priorities: Priority[]; onRel
                     </button>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {!p.isSystem && (
-                      <button onClick={() => handleDelete(p.id)} className="p-1 text-gray-400 hover:text-red-600">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    {isEditing ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={handleUpdate} disabled={saving} className="p-1 text-green-600 hover:text-green-700">
+                          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                        </button>
+                        <button onClick={() => setEditingId(null)} className="p-1 text-gray-400 hover:text-gray-600">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => startEdit(p)} className="p-1 text-gray-400 hover:text-blue-600">
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        {!p.isSystem && (
+                          <button onClick={() => handleDelete(p.id)} className="p-1 text-gray-400 hover:text-red-600">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>

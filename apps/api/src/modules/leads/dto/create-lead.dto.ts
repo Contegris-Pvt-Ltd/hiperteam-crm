@@ -322,6 +322,11 @@ export class CreateLeadDto {
   @IsOptional()
   ownerId?: string;
 
+  @ApiPropertyOptional({ description: 'Team ID to assign this lead to' })
+  @IsUUID()
+  @IsOptional()
+  teamId?: string;
+
   @ApiPropertyOptional({ description: 'Product IDs to link to this lead' })
   @IsArray()
   @IsUUID('4', { each: true })

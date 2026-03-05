@@ -76,6 +76,11 @@ export class ConvertLeadDto {
   @IsOptional()
   newOwnerId?: string;
 
+  @ApiPropertyOptional({ description: 'Team ID for the converted opportunity' })
+  @IsUUID()
+  @IsOptional()
+  teamId?: string;
+
   // ── Notes ──
   @ApiPropertyOptional({ description: 'Conversion notes' })
   @IsString()

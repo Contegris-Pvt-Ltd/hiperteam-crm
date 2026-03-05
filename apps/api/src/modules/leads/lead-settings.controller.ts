@@ -104,6 +104,13 @@ export class LeadSettingsController {
     return this.settingsService.createStage(req.user.tenantSchema, body, req.user.sub);
   }
 
+  @Put('stages/reorder')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Reorder stages' })
+  async reorderStages(@Request() req: { user: JwtPayload }, @Body() body: { orderedIds: string[] }) {
+    return this.settingsService.reorderStages(req.user.tenantSchema, body.orderedIds);
+  }
+
   @Put('stages/:id')
   @AdminOnly()
   @ApiOperation({ summary: 'Update a stage' })
@@ -113,13 +120,6 @@ export class LeadSettingsController {
     @Body() body: any,
   ) {
     return this.settingsService.updateStage(req.user.tenantSchema, id, body, req.user.sub);
-  }
-
-  @Put('stages/reorder')
-  @AdminOnly()
-  @ApiOperation({ summary: 'Reorder stages' })
-  async reorderStages(@Request() req: { user: JwtPayload }, @Body() body: { orderedIds: string[] }) {
-    return this.settingsService.reorderStages(req.user.tenantSchema, body.orderedIds);
   }
 
   @Delete('stages/:id')

@@ -346,6 +346,7 @@ export function OpportunityDetailPage() {
               <DetailRow label="Account" value={opp.account?.name} link={opp.accountId ? `/accounts/${opp.accountId}` : undefined} />
               <DetailRow label="Primary Contact" value={opp.primaryContact ? `${opp.primaryContact.firstName} ${opp.primaryContact.lastName}` : null} link={opp.primaryContactId ? `/contacts/${opp.primaryContactId}` : undefined} />
               <DetailRow label="Owner" value={opp.owner ? `${opp.owner.firstName} ${opp.owner.lastName}` : null} />
+              <DetailRow label="Team" value={opp.team?.name ?? null} />
               <DetailRow label="Created" value={new Date(opp.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} />
               <DetailRow label="Last Activity" value={opp.lastActivityAt ? new Date(opp.lastActivityAt).toLocaleDateString() : null} />
               {opp.closeNotes && <DetailRow label="Close Notes" value={opp.closeNotes} />}
@@ -489,6 +490,14 @@ export function OpportunityDetailPage() {
               <p className="text-sm text-gray-400">No owner assigned</p>
             )}
           </div>
+
+          {/* Team */}
+          {opp.team && (
+            <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Team</h3>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{opp.team.name}</p>
+            </div>
+          )}
 
           {/* Record Team */}
           <RecordTeamSection

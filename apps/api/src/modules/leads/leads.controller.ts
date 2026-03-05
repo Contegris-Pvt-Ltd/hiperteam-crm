@@ -9,6 +9,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { LeadsService } from './leads.service';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadsDto, ConvertLeadDto, ChangeStageDto } from './dto';
 import { DisqualifyLeadDto } from './dto/change-stage.dto';
+import { BulkUpdateDto, BulkDeleteDto } from './dto/bulk-update.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { PermissionGuard, RequirePermission } from '../../common/guards/permissions.guard';
@@ -72,6 +73,34 @@ export class LeadsController {
     return this.leadsService.findDuplicates(
       req.user.tenantSchema, email || null, phone || null, excludeId && excludeId.trim() ? excludeId : null,
     );
+  }
+
+  // ============================================================
+  // BULK UPDATE
+  // ============================================================
+
+  @Put('bulk-update')
+  @RequirePermission('leads', 'edit')
+  @ApiOperation({ summary: 'Bulk update leads by IDs or filters' })
+  async bulkUpdate(
+    @Request() req: { user: JwtPayload },
+    @Body() dto: BulkUpdateDto,
+  ) {
+    return this.leadsService.bulkUpdate(req.user.tenantSchema, req.user.sub, dto);
+  }
+
+  // ============================================================
+  // BULK DELETE
+  // ============================================================
+
+  @Post('bulk-delete')
+  @RequirePermission('leads', 'delete')
+  @ApiOperation({ summary: 'Bulk soft-delete leads by IDs or filters' })
+  async bulkDelete(
+    @Request() req: { user: JwtPayload },
+    @Body() dto: BulkDeleteDto,
+  ) {
+    return this.leadsService.bulkDelete(req.user.tenantSchema, req.user.sub, dto);
   }
 
   @Get(':id')

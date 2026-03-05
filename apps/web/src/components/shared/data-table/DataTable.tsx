@@ -63,6 +63,11 @@ export interface DataTableProps<T = any> {
   searchValue?: string;
   onSearchChange?: (value: string) => void;
   onSearchSubmit?: () => void;
+
+  /** Optional: row selection support */
+  selectedIds?: Set<string>;
+  onSelectionChange?: (ids: Set<string>) => void;
+  idKey?: string;
 }
 
 // ============================================================
@@ -100,9 +105,37 @@ export function DataTable<T>({
   onRowClick, renderCell, renderActions,
   emptyMessage = 'No records found',
   searchValue, onSearchChange, onSearchSubmit,
+  selectedIds, onSelectionChange, idKey = 'id',
 }: DataTableProps<T>) {
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const isMobile = useIsMobile();
+  const selectable = !!selectedIds && !!onSelectionChange;
+
+  const toggleRow = useCallback((rowId: string) => {
+    if (!selectedIds || !onSelectionChange) return;
+    const next = new Set(selectedIds);
+    if (next.has(rowId)) next.delete(rowId);
+    else next.add(rowId);
+    onSelectionChange(next);
+  }, [selectedIds, onSelectionChange]);
+
+  const togglePageAll = useCallback(() => {
+    if (!selectedIds || !onSelectionChange) return;
+    const pageIds = data.map(r => String((r as Record<string, unknown>)[idKey]));
+    const allSelected = pageIds.every(id => selectedIds.has(id));
+    const next = new Set(selectedIds);
+    if (allSelected) {
+      pageIds.forEach(id => next.delete(id));
+    } else {
+      pageIds.forEach(id => next.add(id));
+    }
+    onSelectionChange(next);
+  }, [selectedIds, onSelectionChange, data, idKey]);
+
+  const pageAllChecked = useMemo(() => {
+    if (!selectable || data.length === 0) return false;
+    return data.every(r => selectedIds!.has(String((r as Record<string, unknown>)[idKey])));
+  }, [selectable, selectedIds, data, idKey]);
 
   const colMap = useMemo(() => new Map(allColumns.map(c => [c.key, c])), [allColumns]);
 
@@ -263,6 +296,8 @@ export function DataTable<T>({
         <div className="divide-y divide-gray-100 dark:divide-slate-800">
           {data.map((row, rowIndex) => {
             const rowObj = row as Record<string, unknown>;
+            const mobileRowId = String(rowObj[idKey] || rowIndex);
+            const mobileIsSelected = selectable && selectedIds!.has(mobileRowId);
 
             // Frozen column value = card header
             const headerValue = frozenCol ? getNestedValue(rowObj, frozenCol.key) : null;
@@ -270,22 +305,36 @@ export function DataTable<T>({
 
             return (
               <div
-                key={String(rowObj.id || rowIndex)}
+                key={mobileRowId}
                 onClick={() => onRowClick?.(row)}
                 className={`px-4 py-3 ${
+                  mobileIsSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                } ${
                   onRowClick ? 'cursor-pointer active:bg-blue-50 dark:active:bg-slate-800' : ''
                 }`}
               >
-                {/* Card header — frozen column (name/title) + actions */}
+                {/* Card header — checkbox + frozen column (name/title) + actions */}
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    {headerCustom !== undefined ? (
-                      headerCustom
-                    ) : frozenCol ? (
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {headerValue != null ? String(headerValue) : '—'}
-                      </p>
-                    ) : null}
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {selectable && (
+                      <div onClick={e => e.stopPropagation()} className="flex-shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={mobileIsSelected}
+                          onChange={() => toggleRow(mobileRowId)}
+                          className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      {headerCustom !== undefined ? (
+                        headerCustom
+                      ) : frozenCol ? (
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {headerValue != null ? String(headerValue) : '—'}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
                   {renderActions && (
                     <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -331,6 +380,16 @@ export function DataTable<T>({
             {/* Header */}
             <thead>
               <tr className="border-b border-gray-100 dark:border-slate-800">
+                {selectable && (
+                  <th className="px-3 py-3 w-10 sticky left-0 z-10 bg-white dark:bg-slate-900">
+                    <input
+                      type="checkbox"
+                      checked={pageAllChecked}
+                      onChange={togglePageAll}
+                      className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                  </th>
+                )}
                 {columns.map((col, index) => {
                   const sortKey = col.sortKey || col.key;
                   const isSorted = sortColumn === sortKey;
@@ -347,10 +406,10 @@ export function DataTable<T>({
                       onClick={() => isSortable && handleSort(col)}
                       className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider select-none whitespace-nowrap ${
                         isSortable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50' : ''
-                      } ${col.frozen ? 'sticky left-0 z-10 bg-white dark:bg-slate-900' : ''} ${
+                      } ${col.frozen ? 'sticky z-10 bg-white dark:bg-slate-900' : ''} ${
                         !col.frozen ? 'cursor-grab active:cursor-grabbing' : ''
                       } ${isSorted ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400'}`}
-                      style={col.frozen ? { width, minWidth: width } : { width, minWidth: 80 }}
+                      style={col.frozen ? { width, minWidth: width, left: selectable ? 40 : 0 } : { width, minWidth: 80 }}
                       title={isSortable ? `Sort by ${col.label}` : col.label}
                     >
                       <div className={`flex items-center gap-1 ${col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : ''}`}>
@@ -378,14 +437,29 @@ export function DataTable<T>({
 
             {/* Body */}
             <tbody className="divide-y divide-gray-50 dark:divide-slate-800/50">
-              {data.map((row, rowIndex) => (
+              {data.map((row, rowIndex) => {
+                const rowId = String((row as Record<string, unknown>)[idKey] || rowIndex);
+                const isSelected = selectable && selectedIds!.has(rowId);
+                return (
                 <tr
-                  key={String((row as Record<string, unknown>).id || rowIndex)}
+                  key={rowId}
                   onClick={() => onRowClick?.(row)}
                   className={`transition-colors ${
+                    isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                  } ${
                     onRowClick ? 'cursor-pointer hover:bg-blue-50/50 dark:hover:bg-slate-800/50' : 'hover:bg-gray-50/50 dark:hover:bg-slate-800/30'
                   }`}
                 >
+                  {selectable && (
+                    <td className="px-3 py-3 w-10 sticky left-0 z-10 bg-white dark:bg-slate-900" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleRow(rowId)}
+                        className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
+                  )}
                   {columns.map((col) => {
                     const value = getNestedValue(row as Record<string, unknown>, col.key);
                     // Check for custom render override
@@ -395,8 +469,8 @@ export function DataTable<T>({
                       return (
                         <td
                           key={col.key}
-                          className={`px-4 py-3 text-sm ${col.frozen ? 'sticky left-0 z-10 bg-white dark:bg-slate-900' : ''}`}
-                          style={col.frozen ? { width: w, minWidth: w } : { width: w }}
+                          className={`px-4 py-3 text-sm ${col.frozen ? 'sticky z-10 bg-white dark:bg-slate-900' : ''}`}
+                          style={col.frozen ? { width: w, minWidth: w, left: selectable ? 40 : 0 } : { width: w }}
                         >
                           {custom}
                         </td>
@@ -406,8 +480,8 @@ export function DataTable<T>({
                     return (
                       <td
                         key={col.key}
-                        className={`px-4 py-3 text-sm ${col.frozen ? 'sticky left-0 z-10 bg-white dark:bg-slate-900' : ''} ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : ''}`}
-                        style={col.frozen ? { width: columnWidths[col.key] || col.defaultWidth || 150, minWidth: columnWidths[col.key] || col.defaultWidth || 150 } : { width: columnWidths[col.key] || col.defaultWidth || 150 }}
+                        className={`px-4 py-3 text-sm ${col.frozen ? 'sticky z-10 bg-white dark:bg-slate-900' : ''} ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : ''}`}
+                        style={col.frozen ? { width: columnWidths[col.key] || col.defaultWidth || 150, minWidth: columnWidths[col.key] || col.defaultWidth || 150, left: selectable ? 40 : 0 } : { width: columnWidths[col.key] || col.defaultWidth || 150 }}
                       >
                         <CellRenderer column={col} value={value} />
                       </td>
@@ -419,7 +493,8 @@ export function DataTable<T>({
                     </td>
                   )}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

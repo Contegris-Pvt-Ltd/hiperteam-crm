@@ -4,6 +4,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadsDto, ConvertLeadDto, ChangeStageDto, DisqualifyLeadDto } from './dto';
+import { BulkUpdateDto } from './dto/bulk-update.dto';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
 import { LeadScoringService } from './lead-scoring.service';
@@ -54,13 +55,25 @@ export class LeadsService {
 
     // 2. Get default stage if not provided
     let stageId = dto.stageId;
+    let pipelineId = dto.pipelineId;
     if (!stageId) {
-      const [defaultStage] = await this.dataSource.query(
-        `SELECT id FROM "${schemaName}".pipeline_stages 
-         WHERE is_active = true AND is_won = false AND is_lost = false
-         ORDER BY sort_order ASC LIMIT 1`,
-      );
-      stageId = defaultStage?.id;
+      // Resolve pipeline first, then get its first open stage
+      if (!pipelineId) {
+        const [defaultPl] = await this.dataSource.query(
+          `SELECT id FROM "${schemaName}".pipelines WHERE is_default = true AND is_active = true LIMIT 1`,
+        );
+        pipelineId = defaultPl?.id;
+      }
+      if (pipelineId) {
+        const [defaultStage] = await this.dataSource.query(
+          `SELECT id FROM "${schemaName}".pipeline_stages
+           WHERE pipeline_id = $1 AND module = 'leads'
+             AND is_active = true AND is_won = false AND is_lost = false
+           ORDER BY sort_order ASC LIMIT 1`,
+          [pipelineId],
+        );
+        stageId = defaultStage?.id;
+      }
     }
 
     // 3. Get default priority if not provided
@@ -90,11 +103,15 @@ export class LeadsService {
       }
     }
 
-    // 5. Determine owner (routing or explicit or creator)
+    // 5. Determine owner and team (routing or explicit or creator)
     let ownerId = dto.ownerId || userId;
-    const routedOwner = await this.runRoutingRules(schemaName, dto);
-    if (routedOwner) {
-      ownerId = routedOwner;
+    let teamId = dto.teamId || null;
+    const routingResult = await this.runRoutingRules(schemaName, dto);
+    if (routingResult) {
+      ownerId = routingResult.userId;
+      if (routingResult.teamId) {
+        teamId = routingResult.teamId;
+      }
     }
 
     // 6. Insert lead
@@ -109,7 +126,7 @@ export class LeadsService {
         qualification, qualification_framework_id,
         do_not_contact, do_not_email, do_not_call,
         tags, custom_fields,
-        owner_id, created_by, updated_by,
+        owner_id, team_id, created_by, updated_by,
         stage_entered_at, stage_history
       ) VALUES (
         $1, $2, $3, $4, $5,
@@ -121,8 +138,8 @@ export class LeadsService {
         $24, $25,
         $26, $27, $28,
         $29, $30,
-        $31, $32, $32,
-        NOW(), $33
+        $31, $32, $33, $33,
+        NOW(), $34
       ) RETURNING *`,
       [
         dto.firstName || null,
@@ -145,7 +162,7 @@ export class LeadsService {
         JSON.stringify(dto.socialProfiles || {}),
         dto.source || null,
         JSON.stringify(dto.sourceDetails || {}),
-        dto.pipelineId || null,
+        pipelineId || null,
         stageId || null,
         priorityId || null,
         JSON.stringify(dto.qualification || {}),
@@ -156,6 +173,7 @@ export class LeadsService {
         dto.tags || [],
         JSON.stringify(dto.customFields || {}),
         ownerId,
+        teamId,
         userId,
         JSON.stringify([{ stageId, enteredAt: new Date().toISOString(), enteredBy: userId }]),
       ],
@@ -217,77 +235,87 @@ export class LeadsService {
   // ============================================================
   // FIND ALL (List + Kanban)
   // ============================================================
-  async findAll(schemaName: string, query: QueryLeadsDto, userId?: string) {
-    const {
-      search, stageId, stageSlug, priorityId, source, ownerId, tag, company,
-      productIds, scoreMin, scoreMax, convertedStatus, ownership, view,
-      page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC',
-    } = query;
-
+  private buildFilterConditions(
+    schemaName: string,
+    query: { search?: string; stageId?: string; stageSlug?: string; priorityId?: string; source?: string; ownerId?: string; teamId?: string; tag?: string; company?: string; productIds?: string; scoreMin?: number; scoreMax?: number; convertedStatus?: string; ownership?: string; pipelineId?: string },
+    userId?: string,
+    startParamIndex = 1,
+  ): { conditions: string[]; params: unknown[]; paramIndex: number } {
     const conditions: string[] = ['l.deleted_at IS NULL'];
     const params: unknown[] = [];
-    let paramIndex = 1;
+    let paramIndex = startParamIndex;
 
-    // Search (name, email, company, phone)
-    if (search) {
+    if (query.search) {
       conditions.push(`(
         l.first_name ILIKE $${paramIndex} OR l.last_name ILIKE $${paramIndex}
         OR l.email ILIKE $${paramIndex} OR l.company ILIKE $${paramIndex}
         OR l.phone ILIKE $${paramIndex}
         OR CONCAT(l.first_name, ' ', l.last_name) ILIKE $${paramIndex}
       )`);
-      params.push(`%${search}%`);
+      params.push(`%${query.search}%`);
       paramIndex++;
     }
 
-    if (stageId) {
+    if (query.pipelineId) {
+      conditions.push(`l.pipeline_id = $${paramIndex}`);
+      params.push(query.pipelineId);
+      paramIndex++;
+    }
+
+    if (query.stageId) {
       conditions.push(`l.stage_id = $${paramIndex}`);
-      params.push(stageId);
+      params.push(query.stageId);
       paramIndex++;
     }
 
-    if (stageSlug) {
+    if (query.stageSlug) {
       conditions.push(`ls.slug = $${paramIndex}`);
-      params.push(stageSlug);
+      params.push(query.stageSlug);
       paramIndex++;
     }
 
-    if (priorityId) {
+    if (query.priorityId) {
       conditions.push(`l.priority_id = $${paramIndex}`);
-      params.push(priorityId);
+      params.push(query.priorityId);
       paramIndex++;
     }
 
-    if (source) {
+    if (query.source) {
       conditions.push(`l.source = $${paramIndex}`);
-      params.push(source);
+      params.push(query.source);
       paramIndex++;
     }
 
-    if (ownerId) {
+    if (query.ownerId) {
       conditions.push(`l.owner_id = $${paramIndex}`);
-      params.push(ownerId);
+      params.push(query.ownerId);
       paramIndex++;
     }
 
-    if (tag) {
+    if (query.teamId) {
+      conditions.push(`l.team_id = $${paramIndex}`);
+      params.push(query.teamId);
+      paramIndex++;
+    }
+
+    if (query.tag) {
       conditions.push(`$${paramIndex} = ANY(l.tags)`);
-      params.push(tag);
+      params.push(query.tag);
       paramIndex++;
     }
 
-    if (company) {
+    if (query.company) {
       conditions.push(`l.company ILIKE $${paramIndex}`);
-      params.push(`%${company}%`);
+      params.push(`%${query.company}%`);
       paramIndex++;
     }
 
-    if (productIds) {
-      const productIdList = productIds.split(',').map(id => id.trim()).filter(Boolean);
+    if (query.productIds) {
+      const productIdList = query.productIds.split(',').map(id => id.trim()).filter(Boolean);
       if (productIdList.length > 0) {
         const placeholders = productIdList.map((_, i) => `$${paramIndex + i}`).join(',');
         conditions.push(`l.id IN (
-          SELECT lp.lead_id FROM "${schemaName}".lead_products lp 
+          SELECT lp.lead_id FROM "${schemaName}".lead_products lp
           WHERE lp.product_id IN (${placeholders})
         )`);
         params.push(...productIdList);
@@ -295,36 +323,35 @@ export class LeadsService {
       }
     }
 
-    if (scoreMin !== undefined) {
+    if (query.scoreMin !== undefined) {
       conditions.push(`l.score >= $${paramIndex}`);
-      params.push(scoreMin);
+      params.push(query.scoreMin);
       paramIndex++;
     }
 
-    if (scoreMax !== undefined) {
+    if (query.scoreMax !== undefined) {
       conditions.push(`l.score <= $${paramIndex}`);
-      params.push(scoreMax);
+      params.push(query.scoreMax);
       paramIndex++;
     }
 
-    if (convertedStatus === 'converted') {
+    if (query.convertedStatus === 'converted') {
       conditions.push(`l.converted_at IS NOT NULL`);
-    } else if (convertedStatus === 'disqualified') {
+    } else if (query.convertedStatus === 'disqualified') {
       conditions.push(`l.disqualified_at IS NOT NULL`);
-    } else if (convertedStatus === 'active') {
+    } else if (query.convertedStatus === 'active') {
       conditions.push(`l.converted_at IS NULL AND l.disqualified_at IS NULL`);
     }
 
-    // Ownership filter (record access)
-    if (ownership === 'my_leads' && userId) {
+    if (query.ownership === 'my_leads' && userId) {
       conditions.push(`l.owner_id = $${paramIndex}`);
       params.push(userId);
       paramIndex++;
-    } else if (ownership === 'created_by_me' && userId) {
+    } else if (query.ownership === 'created_by_me' && userId) {
       conditions.push(`l.created_by = $${paramIndex}`);
       params.push(userId);
       paramIndex++;
-    } else if (ownership === 'my_team' && userId) {
+    } else if (query.ownership === 'my_team' && userId) {
       conditions.push(`(
         l.owner_id = $${paramIndex}
         OR l.created_by = $${paramIndex}
@@ -337,6 +364,16 @@ export class LeadsService {
       paramIndex++;
     }
 
+    return { conditions, params, paramIndex };
+  }
+
+  async findAll(schemaName: string, query: QueryLeadsDto, userId?: string) {
+    const {
+      view,
+      page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC',
+    } = query;
+
+    const { conditions, params, paramIndex } = this.buildFilterConditions(schemaName, query, userId);
     const whereClause = conditions.join(' AND ');
 
     // Sort mapping
@@ -374,6 +411,7 @@ export class LeadsService {
     const leads = await this.dataSource.query(
       `SELECT l.*,
         u.first_name as owner_first_name, u.last_name as owner_last_name,
+        t.name as team_name,
         ls.name as stage_name, ls.slug as stage_slug, ls.color as stage_color,
         ls.sort_order as stage_sort_order, ls.is_won as stage_is_won, ls.is_lost as stage_is_lost,
         lp.name as priority_name, lp.color as priority_color, lp.icon as priority_icon,
@@ -381,6 +419,7 @@ export class LeadsService {
         (SELECT COUNT(*) FROM "${schemaName}".lead_products lprod WHERE lprod.lead_id = l.id) as products_count
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
+       LEFT JOIN "${schemaName}".teams t ON l.team_id = t.id
        LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
        LEFT JOIN "${schemaName}".lead_priorities lp ON l.priority_id = lp.id
        LEFT JOIN "${schemaName}".users cu ON l.created_by = cu.id
@@ -455,11 +494,13 @@ export class LeadsService {
     const leads = await this.dataSource.query(
       `SELECT l.*,
               u.first_name as owner_first_name, u.last_name as owner_last_name,
+              t.name as team_name,
               ls.name as stage_name, ls.slug as stage_slug, ls.color as stage_color,
               ls.sort_order as stage_sort_order, ls.is_won as stage_is_won, ls.is_lost as stage_is_lost,
               lp.name as priority_name, lp.color as priority_color, lp.icon as priority_icon
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
+       LEFT JOIN "${schemaName}".teams t ON l.team_id = t.id
        LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
        LEFT JOIN "${schemaName}".lead_priorities lp ON l.priority_id = lp.id
        WHERE ${whereClause}
@@ -539,14 +580,20 @@ export class LeadsService {
     }
 
     // Get all stages for journey bar
+    // Resolve pipeline: lead's pipeline (only if it has leads stages) → stage's pipeline → default pipeline → any pipeline with leads stages
     const pipelineIdForStages = formatted.pipelineId;
-    const allStages = await this.dataSource.query(
+    let allStages = await this.dataSource.query(
       `SELECT id, name, slug, color, sort_order, is_won, is_lost, required_fields, lock_previous_fields
        FROM "${schemaName}".pipeline_stages
        WHERE is_active = true AND module = 'leads'
-         AND pipeline_id = COALESCE($1, (SELECT id FROM "${schemaName}".pipelines WHERE is_default = true LIMIT 1))
+         AND pipeline_id = COALESCE(
+           (SELECT $1::uuid WHERE EXISTS (SELECT 1 FROM "${schemaName}".pipeline_stages WHERE pipeline_id = $1::uuid AND module = 'leads' AND is_active = true)),
+           (SELECT pipeline_id FROM "${schemaName}".pipeline_stages WHERE id = $2 AND module = 'leads' LIMIT 1),
+           (SELECT id FROM "${schemaName}".pipelines WHERE is_default = true LIMIT 1),
+           (SELECT DISTINCT pipeline_id FROM "${schemaName}".pipeline_stages WHERE module = 'leads' AND is_active = true LIMIT 1)
+         )
        ORDER BY sort_order ASC`,
-      [pipelineIdForStages || null],
+      [pipelineIdForStages || null, formatted.stageId || null],
     );
 
     // Get stage settings
@@ -599,6 +646,7 @@ export class LeadsService {
     const [lead] = await this.dataSource.query(
       `SELECT l.*,
               u.first_name as owner_first_name, u.last_name as owner_last_name,
+              t.name as team_name,
               ls.name as stage_name, ls.slug as stage_slug, ls.color as stage_color,
               ls.sort_order as stage_sort_order, ls.is_won as stage_is_won, ls.is_lost as stage_is_lost,
               ls.lock_previous_fields as stage_lock_previous,
@@ -609,6 +657,7 @@ export class LeadsService {
               dr.name as disqualification_reason_name
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
+       LEFT JOIN "${schemaName}".teams t ON l.team_id = t.id
        LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
        LEFT JOIN "${schemaName}".lead_priorities lp ON l.priority_id = lp.id
        LEFT JOIN "${schemaName}".pipelines pl ON l.pipeline_id = pl.id
@@ -679,6 +728,7 @@ export class LeadsService {
       doNotEmail: 'do_not_email',
       doNotCall: 'do_not_call',
       ownerId: 'owner_id',
+      teamId: 'team_id',
     };
 
     for (const [key, value] of Object.entries(dto)) {
@@ -1269,6 +1319,7 @@ export class LeadsService {
     }
 
     const ownerId = dto.newOwnerId || lead.ownerId || userId;
+    const teamId = dto.teamId || lead.teamId || null;
     let contactId: string | null = null;
     let accountId: string | null = null;
     let opportunityId: string | null = null;
@@ -1373,16 +1424,17 @@ export class LeadsService {
 
         const [opp] = await this.dataSource.query(
           `INSERT INTO "${schemaName}".opportunities (
-            name, account_id, primary_contact_id, owner_id, amount, close_date,
+            name, account_id, primary_contact_id, owner_id, team_id, amount, close_date,
             pipeline_id, stage_id, probability, forecast_category,
             type, source, lead_id, created_by, stage_entered_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
           RETURNING id`,
           [
             dto.opportunityName || `${lead.company || lead.lastName} - Opportunity`,
             accountId,
             contactId,
             ownerId,
+            teamId,
             dto.amount || null,
             dto.closeDate || null,
             oppPipelineId,
@@ -1786,9 +1838,9 @@ export class LeadsService {
   // ============================================================
   // ROUTING RULES ENGINE
   // ============================================================
-  private async runRoutingRules(schemaName: string, dto: CreateLeadDto): Promise<string | null> {
+  private async runRoutingRules(schemaName: string, dto: CreateLeadDto): Promise<{ userId: string; teamId: string | null } | null> {
     const rules = await this.dataSource.query(
-      `SELECT * FROM "${schemaName}".lead_routing_rules 
+      `SELECT * FROM "${schemaName}".lead_routing_rules
        WHERE is_active = true ORDER BY priority DESC`,
     );
 
@@ -1799,7 +1851,8 @@ export class LeadsService {
       if (match) {
         if (rule.assignment_type === 'specific_user') {
           const users = rule.assigned_to || [];
-          return users[0] || null;
+          const uid = users[0] || null;
+          return uid ? { userId: uid, teamId: null } : null;
         }
 
         if (rule.assignment_type === 'round_robin') {
@@ -1815,7 +1868,7 @@ export class LeadsService {
             [index + 1, rule.id],
           );
 
-          return assignedUser;
+          return { userId: assignedUser, teamId: null };
         }
 
         if (rule.assignment_type === 'team') {
@@ -1835,7 +1888,7 @@ export class LeadsService {
             [index + 1, rule.id],
           );
 
-          return members[index].user_id;
+          return { userId: members[index].user_id, teamId };
         }
       }
     }
@@ -2063,6 +2116,11 @@ export class LeadsService {
         firstName: lead.owner_first_name,
         lastName: lead.owner_last_name,
       } : null,
+      teamId: lead.team_id || null,
+      team: lead.team_name ? {
+        id: lead.team_id,
+        name: lead.team_name,
+      } : null,
       createdBy: lead.created_by,
       createdByUser: lead.created_by_first_name ? {
         id: lead.created_by,
@@ -2203,5 +2261,200 @@ export class LeadsService {
     );
 
     return { message: 'Notes updated successfully' };
+  }
+
+  // ============================================================
+  // BULK UPDATE
+  // ============================================================
+  async bulkUpdate(schemaName: string, userId: string, dto: BulkUpdateDto) {
+    // 1. Determine target leads
+    let idSubquery: string;
+    let filterParams: unknown[];
+
+    if (dto.selectAll && dto.filters) {
+      const { conditions, params } = this.buildFilterConditions(schemaName, dto.filters, userId);
+      const whereClause = conditions.join(' AND ');
+      // Build subquery that selects IDs matching filters
+      idSubquery = `SELECT l.id FROM "${schemaName}".leads l
+        LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
+        WHERE ${whereClause}`;
+      filterParams = params;
+    } else if (dto.leadIds?.length) {
+      idSubquery = `SELECT unnest($1::uuid[])`;
+      filterParams = [dto.leadIds];
+    } else {
+      throw new BadRequestException('No leads selected');
+    }
+
+    // 2. Build SET clause
+    const updates: string[] = [];
+    const setParams: unknown[] = [];
+    // Start param index after filter params
+    let paramIndex = filterParams.length + 1;
+
+    const fieldMap: Record<string, string> = {
+      ownerId: 'owner_id',
+      teamId: 'team_id',
+      stageId: 'stage_id',
+      pipelineId: 'pipeline_id',
+      priorityId: 'priority_id',
+      source: 'source',
+      company: 'company',
+      jobTitle: 'job_title',
+      website: 'website',
+      addressLine1: 'address_line1',
+      addressLine2: 'address_line2',
+      city: 'city',
+      state: 'state',
+      postalCode: 'postal_code',
+      country: 'country',
+      doNotContact: 'do_not_contact',
+      doNotEmail: 'do_not_email',
+      doNotCall: 'do_not_call',
+    };
+
+    const u = dto.updates;
+    for (const [key, col] of Object.entries(fieldMap)) {
+      const val = (u as Record<string, any>)[key];
+      if (val !== undefined) {
+        updates.push(`${col} = $${paramIndex}`);
+        setParams.push(val);
+        paramIndex++;
+      }
+    }
+
+    // Tags handling
+    if (u.tags !== undefined && u.tags.length > 0) {
+      if (u.tagMode === 'add') {
+        // Append tags (deduplicate with ARRAY(SELECT DISTINCT ...))
+        updates.push(`tags = ARRAY(SELECT DISTINCT unnest(COALESCE(tags, ARRAY[]::text[]) || $${paramIndex}::text[]))`);
+      } else {
+        updates.push(`tags = $${paramIndex}`);
+      }
+      setParams.push(u.tags);
+      paramIndex++;
+    }
+
+    // Qualification (JSONB merge — merges into existing qualification object)
+    if (u.qualification !== undefined && Object.keys(u.qualification).length > 0) {
+      updates.push(`qualification = COALESCE(qualification, '{}'::jsonb) || $${paramIndex}::jsonb`);
+      setParams.push(JSON.stringify(u.qualification));
+      paramIndex++;
+    }
+
+    // Custom fields (JSONB merge — merges into existing custom_fields object)
+    if (u.customFields !== undefined && Object.keys(u.customFields).length > 0) {
+      updates.push(`custom_fields = COALESCE(custom_fields, '{}'::jsonb) || $${paramIndex}::jsonb`);
+      setParams.push(JSON.stringify(u.customFields));
+      paramIndex++;
+    }
+
+    if (updates.length === 0) {
+      throw new BadRequestException('No fields to update');
+    }
+
+    // Add updated_by and updated_at
+    updates.push(`updated_by = $${paramIndex}`);
+    setParams.push(userId);
+    paramIndex++;
+    updates.push(`updated_at = NOW()`);
+
+    // 3. Execute single UPDATE
+    const allParams = [...filterParams, ...setParams];
+    const result = await this.dataSource.query(
+      `UPDATE "${schemaName}".leads
+       SET ${updates.join(', ')}
+       WHERE id IN (${idSubquery}) AND deleted_at IS NULL`,
+      allParams,
+    );
+
+    const updatedCount = result[1] || 0;
+
+    // 4. Audit
+    const updatedFields = Object.entries(dto.updates)
+      .filter(([, v]) => v !== undefined)
+      .map(([k]) => k);
+
+    const nilUuid = '00000000-0000-0000-0000-000000000000';
+
+    await this.auditService.log(schemaName, {
+      entityType: 'leads',
+      entityId: nilUuid,
+      action: 'bulk_update',
+      changes: {},
+      newValues: { updatedFields, updatedCount, selectAll: dto.selectAll || false },
+      performedBy: userId,
+    });
+
+    await this.activityService.create(schemaName, {
+      entityType: 'leads',
+      entityId: nilUuid,
+      activityType: 'bulk_updated',
+      title: 'Bulk lead update',
+      description: `Updated ${updatedCount} leads: ${updatedFields.join(', ')}`,
+      metadata: { updatedFields, updatedCount },
+      performedBy: userId,
+    });
+
+    return { updatedCount };
+  }
+
+  // ============================================================
+  // BULK DELETE (soft)
+  // ============================================================
+  async bulkDelete(schemaName: string, userId: string, dto: { leadIds?: string[]; selectAll?: boolean; filters?: any }) {
+    // 1. Determine target leads
+    let idSubquery: string;
+    let filterParams: unknown[];
+
+    if (dto.selectAll && dto.filters) {
+      const { conditions, params } = this.buildFilterConditions(schemaName, dto.filters, userId);
+      const whereClause = conditions.join(' AND ');
+      idSubquery = `SELECT l.id FROM "${schemaName}".leads l
+        LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
+        WHERE ${whereClause}`;
+      filterParams = params;
+    } else if (dto.leadIds?.length) {
+      idSubquery = `SELECT unnest($1::uuid[])`;
+      filterParams = [dto.leadIds];
+    } else {
+      throw new BadRequestException('No leads selected');
+    }
+
+    // 2. Soft delete
+    let paramIndex = filterParams.length + 1;
+    const allParams = [...filterParams, userId];
+    const result = await this.dataSource.query(
+      `UPDATE "${schemaName}".leads
+       SET deleted_at = NOW(), updated_by = $${paramIndex}
+       WHERE id IN (${idSubquery}) AND deleted_at IS NULL`,
+      allParams,
+    );
+
+    const deletedCount = result[1] || 0;
+
+    // 3. Audit + activity
+    const nilUuid = '00000000-0000-0000-0000-000000000000';
+
+    await this.auditService.log(schemaName, {
+      entityType: 'leads',
+      entityId: nilUuid,
+      action: 'delete',
+      changes: {},
+      newValues: { deletedCount, selectAll: dto.selectAll || false },
+      performedBy: userId,
+    });
+
+    await this.activityService.create(schemaName, {
+      entityType: 'leads',
+      entityId: nilUuid,
+      activityType: 'deleted',
+      title: 'Bulk lead delete',
+      description: `Deleted ${deletedCount} leads`,
+      metadata: { deletedCount },
+      performedBy: userId,
+    });
+
+    return { deletedCount };
   }
 }

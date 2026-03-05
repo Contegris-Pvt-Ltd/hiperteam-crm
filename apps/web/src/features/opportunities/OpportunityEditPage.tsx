@@ -19,6 +19,8 @@ import { adminApi } from '../../api/admin.api';
 import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.api';
 import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
 import { useModuleLayout } from '../../hooks/useModuleLayout';
+import { teamsApi } from '../../api/teams.api';
+import type { TeamLookupItem } from '../../api/teams.api';
 
 type TabType = 'basic' | 'deal-details' | 'address' | 'other' | string;
 
@@ -46,6 +48,7 @@ export function OpportunityEditPage() {
   const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
+  const [teams, setTeams] = useState<TeamLookupItem[]>([]);
 
   // Account/contact search
   const [accountSearch, setAccountSearch] = useState('');
@@ -98,6 +101,7 @@ export function OpportunityEditPage() {
     accountId: '',
     primaryContactId: '',
     ownerId: '',
+    teamId: '',
   });
 
   const [tagInput, setTagInput] = useState('');
@@ -115,7 +119,8 @@ export function OpportunityEditPage() {
       fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/users?limit=100`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
       }).then(r => r.json()).then(d => d.data || []).catch(() => []),
-    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData, cfData, ctData, cgData, usersData]) => {
+      teamsApi.getLookup().catch(() => []),
+    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData, cfData, ctData, cgData, usersData, teamsData]) => {
       setPipelines(pipelinesData);
       setPriorities(prioritiesData);
       setSources(sourcesData);
@@ -123,6 +128,7 @@ export function OpportunityEditPage() {
       setCustomTabs(ctData);
       setCustomGroups(cgData);
       setUsers(usersData);
+      setTeams((teamsData as TeamLookupItem[]).filter(t => t.isActive));
 
       if (isNew) {
         const defaultPl = pipelinesData.find((p: Pipeline) => p.isDefault);
@@ -169,6 +175,7 @@ export function OpportunityEditPage() {
           accountId: opp.accountId || '',
           primaryContactId: opp.primaryContactId || '',
           ownerId: opp.ownerId || '',
+          teamId: opp.teamId || '',
         });
         setCustomFieldValues(opp.customFields || {});
         if (opp.account) setSelectedAccount({ id: opp.account.id, name: opp.account.name });
@@ -363,7 +370,7 @@ export function OpportunityEditPage() {
     try {
       const dataToSave: Record<string, any> = { ...formData };
       // Strip empty strings from UUID fields
-      ['ownerId', 'priorityId', 'accountId', 'primaryContactId'].forEach(key => {
+      ['ownerId', 'teamId', 'priorityId', 'accountId', 'primaryContactId'].forEach(key => {
         if (!dataToSave[key]) delete dataToSave[key];
       });
       // Strip empty optional fields
@@ -656,6 +663,23 @@ export function OpportunityEditPage() {
                   ))}
                 </select>
               </div>
+
+              {/* Team */}
+              {teams.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Team</label>
+                  <select
+                    value={formData.teamId || ''}
+                    onChange={(e) => handleChange('teamId', e.target.value)}
+                    className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800"
+                  >
+                    <option value="">No team</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Type */}
               <div>

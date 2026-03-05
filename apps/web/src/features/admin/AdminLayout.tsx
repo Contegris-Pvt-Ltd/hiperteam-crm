@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Settings, ListPlus, BarChart3, Users, Building2, Shield,
   Target, Briefcase, LayoutGrid, ArrowLeft, LayoutTemplate, ClipboardList,
-  CheckSquare, Bell, Award
+  CheckSquare, Bell, Award, FileSpreadsheet
 } from 'lucide-react';
 
 const adminNavItems = [
@@ -94,6 +94,12 @@ const adminNavItems = [
     label: 'Notification Settings',
     icon: Bell,
     description: 'Channels, templates & preferences'
+  },
+  {
+    path: '/admin/batch-jobs',
+    label: 'Batch Jobs',
+    icon: FileSpreadsheet,
+    description: 'View import & export job history'
   },
 ];
 

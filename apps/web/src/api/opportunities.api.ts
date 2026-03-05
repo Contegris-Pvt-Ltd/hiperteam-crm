@@ -164,6 +164,8 @@ export interface Opportunity {
   primaryContact: { id: string; firstName: string; lastName: string } | null;
   ownerId: string | null;
   owner: OpportunityOwner | null;
+  teamId: string | null;
+  team: { id: string; name: string } | null;
   closeReasonId: string | null;
   closeReason: OpportunityCloseReason | null;
   closeNotes: string | null;
@@ -218,6 +220,7 @@ export interface OpportunitiesQuery {
   type?: string;
   accountId?: string;
   ownerId?: string;
+  teamId?: string;
   tag?: string;
   amountMin?: number;
   amountMax?: number;
@@ -252,6 +255,7 @@ export interface CreateOpportunityData {
   accountId?: string;
   primaryContactId?: string;
   ownerId?: string;
+  teamId?: string;
 }
 
 // ============================================================

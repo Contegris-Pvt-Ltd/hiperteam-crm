@@ -165,6 +165,8 @@ export interface Lead {
   customFields: Record<string, any>;
   ownerId: string | null;
   owner: LeadOwner | null;
+  teamId: string | null;
+  team: { id: string; name: string } | null;
   createdBy: string;
   createdByUser: LeadOwner | null;
   lastActivityAt: string | null;
@@ -195,6 +197,7 @@ export interface LeadsQuery {
   priorityId?: string;
   source?: string;
   ownerId?: string;
+  teamId?: string;
   tag?: string;
   company?: string;
   scoreMin?: number;
@@ -254,6 +257,7 @@ export interface CreateLeadData {
   tags?: string[];
   customFields?: Record<string, any>;
   ownerId?: string;
+  teamId?: string;
   productIds?: string[];
 }
 
@@ -270,6 +274,7 @@ export interface ConvertLeadData {
   amount?: number;
   closeDate?: string;
   newOwnerId?: string;
+  teamId?: string;
   notes?: string;
 }
 
@@ -316,6 +321,36 @@ export interface SlaConfig {
   excludeWeekends: boolean;
 }
 
+export interface BulkUpdateData {
+  leadIds?: string[];
+  selectAll?: boolean;
+  filters?: LeadsQuery;
+  updates: {
+    ownerId?: string;
+    teamId?: string;
+    stageId?: string;
+    pipelineId?: string;
+    priorityId?: string;
+    source?: string;
+    tags?: string[];
+    tagMode?: 'add' | 'replace';
+    doNotContact?: boolean;
+    doNotEmail?: boolean;
+    doNotCall?: boolean;
+    company?: string;
+    jobTitle?: string;
+    website?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+    qualification?: Record<string, any>;
+    customFields?: Record<string, any>;
+  };
+}
+
 // ============================================================
 // LEADS API
 // ============================================================
@@ -350,6 +385,18 @@ export const leadsApi = {
 
   delete: async (id: string) => {
     const { data } = await api.delete(`/leads/${id}`);
+    return data;
+  },
+
+  // Bulk update
+  bulkUpdate: async (payload: BulkUpdateData): Promise<{ updatedCount: number }> => {
+    const { data } = await api.put('/leads/bulk-update', payload);
+    return data;
+  },
+
+  // Bulk delete
+  bulkDelete: async (payload: { leadIds?: string[]; selectAll?: boolean; filters?: LeadsQuery }): Promise<{ deletedCount: number }> => {
+    const { data } = await api.post('/leads/bulk-delete', payload);
     return data;
   },
 

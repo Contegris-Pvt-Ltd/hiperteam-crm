@@ -120,4 +120,9 @@ export class CreateOpportunityDto {
   @IsUUID()
   @IsOptional()
   ownerId?: string;
+
+  @ApiPropertyOptional({ description: 'Team ID' })
+  @IsUUID()
+  @IsOptional()
+  teamId?: string;
 }

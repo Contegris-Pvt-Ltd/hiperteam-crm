@@ -20,6 +20,8 @@ import { leadsApi } from '../../../api/leads.api';
 import { contactsApi } from '../../../api/contacts.api';
 import { accountsApi } from '../../../api/accounts.api';
 import type { Lead, ConvertLeadData } from '../../../api/leads.api';
+import { teamsApi } from '../../../api/teams.api';
+import type { TeamLookupItem } from '../../../api/teams.api';
 
 interface ConvertLeadModalProps {
   lead: Lead;
@@ -90,7 +92,13 @@ export function ConvertLeadModal({ lead, onClose, onConverted }: ConvertLeadModa
   );
   const [amount, setAmount] = useState<number | undefined>();
   const [closeDate, setCloseDate] = useState('');
+  const [newOwnerId, setNewOwnerId] = useState(lead.ownerId || '');
+  const [teamId, setTeamId] = useState(lead.teamId || '');
   const [notes, setNotes] = useState('');
+
+  // Lookups for owner/team
+  const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
+  const [teams, setTeams] = useState<TeamLookupItem[]>([]);
 
   // ============================================================
   // DUPLICATE CHECK ON MOUNT
@@ -138,6 +146,19 @@ export function ConvertLeadModal({ lead, onClose, onConverted }: ConvertLeadModa
     };
     checkDuplicates();
   }, [lead.id]);
+
+  // Load users & teams for owner/team dropdowns
+  useEffect(() => {
+    Promise.all([
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/users?limit=100`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
+      }).then(r => r.json()).then(d => d.data || []).catch(() => []),
+      teamsApi.getLookup().catch(() => []),
+    ]).then(([usersData, teamsData]) => {
+      setUsers(usersData);
+      setTeams((teamsData as TeamLookupItem[]).filter(t => t.isActive));
+    });
+  }, []);
 
   // ============================================================
   // MANUAL SEARCH (for when user wants to search beyond auto-detected)
@@ -231,6 +252,8 @@ export function ConvertLeadModal({ lead, onClose, onConverted }: ConvertLeadModa
         opportunityName: createOpportunity ? opportunityName : undefined,
         amount: createOpportunity ? amount : undefined,
         closeDate: createOpportunity ? closeDate : undefined,
+        newOwnerId: newOwnerId || undefined,
+        teamId: teamId || undefined,
         notes: notes || undefined,
       };
 
@@ -698,6 +721,34 @@ export function ConvertLeadModal({ lead, onClose, onConverted }: ConvertLeadModa
                         className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-slate-800"
                       />
                     </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Owner</label>
+                      <select
+                        value={newOwnerId}
+                        onChange={(e) => setNewOwnerId(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-slate-800"
+                      >
+                        <option value="">Inherit from lead</option>
+                        {users.map(u => (
+                          <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {teams.length > 0 && (
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Team</label>
+                        <select
+                          value={teamId}
+                          onChange={(e) => setTeamId(e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-slate-800"
+                        >
+                          <option value="">Inherit from lead</option>
+                          {teams.map(t => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

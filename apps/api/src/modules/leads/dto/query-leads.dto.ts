@@ -41,6 +41,11 @@ export class QueryLeadsDto {
   @IsOptional()
   ownerId?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by team ID' })
+  @IsUUID()
+  @IsOptional()
+  teamId?: string;
+
   @ApiPropertyOptional({ example: 'enterprise' })
   @IsString()
   @IsOptional()

@@ -1048,6 +1048,24 @@ async function runTenantMigrations() {
                 ('opportunities', 'fieldValidation', '{"rules":[{"id":"default-opps-1","fields":["name"],"type":"required","label":"Opportunity Name","message":"Opportunity name is required","isActive":true}]}')
               ON CONFLICT (module, setting_key) DO NOTHING;
             `,
+          },
+          {
+            name: '022_lead_import',
+            sql: buildLeadImportMigration(schema),
+          },
+          {
+            name: '023_lead_team_id',
+            sql: `
+              ALTER TABLE "${schema}".leads ADD COLUMN IF NOT EXISTS team_id UUID REFERENCES "${schema}".teams(id) ON DELETE SET NULL;
+              CREATE INDEX IF NOT EXISTS idx_leads_team ON "${schema}".leads(team_id);
+            `,
+          },
+          {
+            name: '024_opportunity_team_id',
+            sql: `
+              ALTER TABLE "${schema}".opportunities ADD COLUMN IF NOT EXISTS team_id UUID REFERENCES "${schema}".teams(id) ON DELETE SET NULL;
+              CREATE INDEX IF NOT EXISTS idx_opportunities_team ON "${schema}".opportunities(team_id) WHERE deleted_at IS NULL;
+            `,
           }
         ];
 
@@ -1719,6 +1737,7 @@ function buildLeadsMigration(schema: string): string {
       do_not_contact BOOLEAN DEFAULT false, do_not_email BOOLEAN DEFAULT false, do_not_call BOOLEAN DEFAULT false,
       tags TEXT[] DEFAULT '{}', custom_fields JSONB DEFAULT '{}',
       owner_id UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+      team_id UUID REFERENCES "${schema}".teams(id) ON DELETE SET NULL,
       created_by UUID REFERENCES "${schema}".users(id),
       updated_by UUID REFERENCES "${schema}".users(id),
       last_activity_at TIMESTAMPTZ,
@@ -1733,6 +1752,7 @@ function buildLeadsMigration(schema: string): string {
     CREATE INDEX IF NOT EXISTS idx_leads_source ON "${schema}".leads(source);
     CREATE INDEX IF NOT EXISTS idx_leads_score ON "${schema}".leads(score);
     CREATE INDEX IF NOT EXISTS idx_leads_owner ON "${schema}".leads(owner_id);
+    CREATE INDEX IF NOT EXISTS idx_leads_team ON "${schema}".leads(team_id);
     CREATE INDEX IF NOT EXISTS idx_leads_created_by ON "${schema}".leads(created_by);
     CREATE INDEX IF NOT EXISTS idx_leads_deleted ON "${schema}".leads(deleted_at);
   `;
@@ -1816,6 +1836,7 @@ function buildOpportunitiesMigration(schema: string): string {
       weighted_amount DECIMAL(15,2) GENERATED ALWAYS AS (amount * probability / 100) STORED,
       forecast_category VARCHAR(50),
       owner_id UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+      team_id UUID REFERENCES "${schema}".teams(id) ON DELETE SET NULL,
       account_id UUID,
       primary_contact_id UUID,
       priority_id UUID REFERENCES "${schema}".opportunity_priorities(id) ON DELETE SET NULL,
@@ -1843,6 +1864,7 @@ function buildOpportunitiesMigration(schema: string): string {
     CREATE INDEX IF NOT EXISTS idx_opportunities_pipeline ON "${schema}".opportunities(pipeline_id) WHERE deleted_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_opportunities_stage ON "${schema}".opportunities(stage_id) WHERE deleted_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_opportunities_owner ON "${schema}".opportunities(owner_id) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_opportunities_team ON "${schema}".opportunities(team_id) WHERE deleted_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_opportunities_account ON "${schema}".opportunities(account_id) WHERE deleted_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_opportunities_priority ON "${schema}".opportunities(priority_id) WHERE deleted_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_opportunities_close_date ON "${schema}".opportunities(close_date) WHERE deleted_at IS NULL;
@@ -3135,6 +3157,54 @@ function buildReportsMigration(schema: string): string {
   -- Permissions
   GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app;
   GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app;
+  `;
+}
+
+function buildLeadImportMigration(schema: string): string {
+  return `
+    CREATE TABLE IF NOT EXISTS "${schema}".import_jobs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      type VARCHAR(50) NOT NULL DEFAULT 'leads',
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      file_name VARCHAR(500) NOT NULL,
+      file_path VARCHAR(1000) NOT NULL,
+      file_size INTEGER,
+      total_records INTEGER DEFAULT 0,
+      processed_records INTEGER DEFAULT 0,
+      imported_records INTEGER DEFAULT 0,
+      skipped_records INTEGER DEFAULT 0,
+      failed_records INTEGER DEFAULT 0,
+      duplicate_records INTEGER DEFAULT 0,
+      column_mapping JSONB NOT NULL DEFAULT '{}',
+      settings JSONB NOT NULL DEFAULT '{}',
+      failed_rows JSONB DEFAULT '[]',
+      error_message TEXT,
+      result_file_path VARCHAR(1000),
+      started_at TIMESTAMP,
+      completed_at TIMESTAMP,
+      created_by UUID NOT NULL REFERENCES "${schema}".users(id),
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_import_jobs_status ON "${schema}".import_jobs(status);
+    CREATE INDEX IF NOT EXISTS idx_import_jobs_created_by ON "${schema}".import_jobs(created_by);
+    CREATE INDEX IF NOT EXISTS idx_import_jobs_type ON "${schema}".import_jobs(type);
+
+    CREATE TABLE IF NOT EXISTS "${schema}".import_mapping_templates (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) NOT NULL,
+      type VARCHAR(50) NOT NULL DEFAULT 'leads',
+      column_mapping JSONB NOT NULL DEFAULT '{}',
+      file_headers TEXT[] DEFAULT '{}',
+      settings JSONB DEFAULT '{}',
+      is_default BOOLEAN DEFAULT false,
+      created_by UUID NOT NULL REFERENCES "${schema}".users(id),
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_import_mapping_templates_type ON "${schema}".import_mapping_templates(type);
   `;
 }
 

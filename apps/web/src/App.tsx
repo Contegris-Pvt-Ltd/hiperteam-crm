@@ -42,6 +42,7 @@ import { ReportsPage } from './features/reports/ReportsPage';
 import { ReportViewerPage } from './features/reports/ReportViewerPage';
 import { ReportBuilderPage } from './features/reports/ReportBuilderPage';
 import { AccountForecastPage } from './features/reports/AccountForecastPage';
+import { BatchJobsPage } from './features/batch-jobs/BatchJobsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -143,6 +144,7 @@ function App() {
           <Route path="task-settings" element={<TaskSettingsPage />} />
           <Route path="notification-settings" element={<NotificationPreferencesPage />} />
           <Route path="targets" element={<TargetsSettingsPage />} />
+          <Route path="batch-jobs" element={<BatchJobsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

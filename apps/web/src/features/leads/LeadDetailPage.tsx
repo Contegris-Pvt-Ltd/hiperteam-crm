@@ -584,6 +584,13 @@ export function LeadDetailPage() {
               <p className="text-sm text-gray-400">No owner assigned</p>
             )}
 
+            {lead.team && (
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Team</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{lead.team.name}</p>
+              </div>
+            )}
+
             {/* Record Team */}
             <RecordTeamPanel
               leadId={id!}
