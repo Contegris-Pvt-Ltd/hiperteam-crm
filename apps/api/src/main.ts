@@ -9,6 +9,7 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  
   // Security
   app.use(helmet());
   app.use(compression());
