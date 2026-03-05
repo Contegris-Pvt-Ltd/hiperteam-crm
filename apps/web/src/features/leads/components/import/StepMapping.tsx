@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Save, FileDown, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 import { leadImportApi } from '../../../../api/lead-import.api';
 import type { LeadFieldOption, MappingTemplate, SaveTemplateData } from '../../../../api/lead-import.api';
@@ -22,7 +22,7 @@ export default function StepMapping({
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [saving, setSaving] = useState(false);
-  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [_loadingTemplates, setLoadingTemplates] = useState(false);
   const [allTemplates, setAllTemplates] = useState<MappingTemplate[] | null>(null);
 
   const handleFieldChange = (header: string, value: string) => {

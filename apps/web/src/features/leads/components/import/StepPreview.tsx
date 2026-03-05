@@ -1,4 +1,4 @@
-import React from 'react';
+// React import not needed with JSX transform
 import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 
 interface StepPreviewProps {

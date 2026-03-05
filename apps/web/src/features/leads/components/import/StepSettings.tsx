@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { leadSettingsApi } from '../../../../api/leads.api';
 import type { Pipeline, LeadStage, LeadPriority } from '../../../../api/leads.api';
 import { teamsApi } from '../../../../api/teams.api';

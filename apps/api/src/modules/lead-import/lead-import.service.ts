@@ -81,7 +81,7 @@ export class LeadImportService {
   // ============================================================
   // UPLOAD & PARSE
   // ============================================================
-  async uploadAndParse(file: Express.Multer.File, schemaName: string, userId: string) {
+  async uploadAndParse(file: Express.Multer.File, schemaName: string, _userId: string) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }

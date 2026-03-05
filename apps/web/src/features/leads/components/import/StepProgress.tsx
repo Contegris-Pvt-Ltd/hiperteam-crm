@@ -1,11 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { CheckCircle2, XCircle, AlertTriangle, Download, ArrowRight, Loader2 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { leadImportApi } from '../../../../api/lead-import.api';
 import type { ImportProgressEvent } from '../../../../api/lead-import.api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-const WS_URL = API_URL.replace('/api', '').replace('http', 'ws').replace(':3000/api', ':3000');
 
 interface StepProgressProps {
   jobId: string;
