@@ -45,6 +45,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
     "compression": "^1.8.1",
+    "docusign-esign": "^8.6.0",
     "handlebars": "^4.7.8",
     "helmet": "^8.1.0",
     "ioredis": "^5.9.2",
@@ -53,6 +54,7 @@
     "nodemailer": "^8.0.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pdfkit": "^0.17.2",
     "pg": "^8.18.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1",
@@ -62,6 +64,7 @@
     "typeorm": "^0.3.28",
     "uuid": "^13.0.0",
     "web-push": "^3.6.7",
+    "xero-node": "^14.0.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -76,6 +79,7 @@
     "@types/node": "^20.3.1",
     "@types/nodemailer": "^7.0.11",
     "@types/passport-jwt": "^4.0.1",
+    "@types/pdfkit": "^0.17.5",
     "@types/supertest": "^6.0.0",
     "@types/web-push": "^3.6.4",
     "@typescript-eslint/eslint-plugin": "^8.0.0",

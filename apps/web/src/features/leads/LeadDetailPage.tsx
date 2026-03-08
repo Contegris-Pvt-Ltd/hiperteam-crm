@@ -14,7 +14,7 @@ import {
 import { formatDistanceToNow, format } from 'date-fns';
 import { SlaCard } from './components/SlaIndicator';
 import type { LeadSlaStatus } from '../../api/leads.api';
-import { leadsApi } from '../../api/leads.api';
+import { leadsApi, leadSettingsApi } from '../../api/leads.api';
 import type { Lead } from '../../api/leads.api';
 import { StageJourneyBar } from './components/StageJourneyBar';
 import { ConvertLeadModal } from './components/ConvertLeadModal';
@@ -29,6 +29,7 @@ import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.a
 import { usePermissions } from '../../hooks/usePermissions';
 import { LeadProductsTab } from './components/LeadProductsTab';
 import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
+import { StageAssignmentModal } from '../../components/shared/StageAssignmentModal';
 
 type TabType = 'products' | 'activity' | 'notes' | 'documents' | 'history' | 'tasks';
 
@@ -52,6 +53,16 @@ export function LeadDetailPage() {
   const [showDisqualifyModal, setShowDisqualifyModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [stageAssignmentModal, setStageAssignmentModal] = useState<{
+    isOpen: boolean;
+    stageId: string;
+    stageName: string;
+    defaultOwnerType: 'inherit' | 'user' | 'team_lead' | 'auto_assign';
+    defaultUserId?: string | null;
+    defaultTeamId?: string | null;
+    stageFields?: Record<string, any>;
+    unlockReason?: string;
+  } | null>(null);
 
   // Custom fields
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -61,6 +72,11 @@ export function LeadDetailPage() {
 
   const [slaData, setSlaData] = useState<LeadSlaStatus | null>(null);
   const [slaLoading, setSlaLoading] = useState(false);
+  const [stageOwnership, setStageOwnership] = useState<{
+    stageOwnerType: 'inherit' | 'user' | 'team_lead' | 'auto_assign';
+    stageOwnerUser: { id: string; firstName: string; lastName: string } | null;
+    stageOwnerTeam: { id: string; name: string } | null;
+  } | null>(null);
 
   // ── Fetch Lead ──
   useEffect(() => {
@@ -110,12 +126,22 @@ export function LeadDetailPage() {
     loadCustomConfig();
   }, []);
 
+  const loadStageOwnership = async (stageId: string) => {
+    try {
+      const ownership = await leadSettingsApi.getStageOwnership(stageId);
+      setStageOwnership(ownership);
+    } catch {
+      setStageOwnership(null);
+    }
+  };
+
   const fetchLead = async () => {
     if (!id) return;
     setLoading(true);
     try {
       const data = await leadsApi.getOne(id);
       setLead(data);
+      if (data.stageId) loadStageOwnership(data.stageId);
     } catch (error) {
       console.error('Failed to fetch lead:', error);
       navigate('/leads');
@@ -142,10 +168,55 @@ export function LeadDetailPage() {
     }
   };
 
-  const handleStageChange = async (stageId: string, stageFields?: Record<string, any>, unlockReason?: string) => {
+  const handleStageChange = async (
+    stageId: string,
+    stageFields?: Record<string, any>,
+    unlockReason?: string,
+  ) => {
     if (!id) return;
-    await leadsApi.changeStage(id, stageId, stageFields, unlockReason);
+    try {
+      const ownership = await leadSettingsApi.getStageOwnership(stageId);
+
+      // Skip modal if stage inherits ownership — just change stage silently
+      if (ownership.stageOwnerType === 'inherit') {
+        await leadsApi.changeStage(id, stageId, stageFields, unlockReason);
+        await fetchLead();
+        return;
+      }
+
+      const stage = (lead?.allStages || []).find((s: any) => s.id === stageId);
+      setStageAssignmentModal({
+        isOpen: true,
+        stageId,
+        stageName: stage?.name || 'New Stage',
+        defaultOwnerType: ownership.stageOwnerType,
+        defaultUserId: ownership.stageOwnerUser?.id || null,
+        defaultTeamId: ownership.stageOwnerTeam?.id || null,
+        stageFields,
+        unlockReason,
+      });
+    } catch {
+      // fallback: proceed without modal if ownership fetch fails
+      await leadsApi.changeStage(id, stageId, stageFields, unlockReason);
+      await fetchLead();
+    }
+  };
+
+  const handleStageAssignmentConfirm = async (assignment: {
+    ownerType: 'inherit' | 'user' | 'team_lead' | 'auto_assign';
+    userId?: string | null;
+    teamId?: string | null;
+  }) => {
+    if (!stageAssignmentModal || !id) return;
+    await leadsApi.changeStage(
+      id,
+      stageAssignmentModal.stageId,
+      stageAssignmentModal.stageFields,
+      stageAssignmentModal.unlockReason,
+    );
+    setStageAssignmentModal(null);
     await fetchLead();
+    if (stageAssignmentModal.stageId) loadStageOwnership(stageAssignmentModal.stageId);
   };
 
   const handleDelete = async () => {
@@ -584,6 +655,32 @@ export function LeadDetailPage() {
               <p className="text-sm text-gray-400">No owner assigned</p>
             )}
 
+            {stageOwnership && stageOwnership.stageOwnerType !== 'inherit' && (
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Stage Assignment Rule</p>
+                {stageOwnership.stageOwnerType === 'user' && stageOwnership.stageOwnerUser && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-xs font-medium text-purple-600">
+                      {stageOwnership.stageOwnerUser.firstName?.[0]}{stageOwnership.stageOwnerUser.lastName?.[0]}
+                    </div>
+                    <p className="text-sm text-gray-700 dark:text-slate-300">
+                      {stageOwnership.stageOwnerUser.firstName} {stageOwnership.stageOwnerUser.lastName}
+                    </p>
+                  </div>
+                )}
+                {stageOwnership.stageOwnerType === 'team_lead' && stageOwnership.stageOwnerTeam && (
+                  <p className="text-sm text-gray-700 dark:text-slate-300">
+                    Team lead of {stageOwnership.stageOwnerTeam.name}
+                  </p>
+                )}
+                {stageOwnership.stageOwnerType === 'auto_assign' && (
+                  <p className="text-sm text-gray-700 dark:text-slate-300">
+                    Auto-assigned by routing rules
+                  </p>
+                )}
+              </div>
+            )}
+
             {lead.team && (
               <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
                 <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Team</p>
@@ -713,6 +810,18 @@ export function LeadDetailPage() {
           leadId={id!}
           onClose={() => setShowDisqualifyModal(false)}
           onDisqualified={fetchLead}
+        />
+      )}
+
+      {stageAssignmentModal && (
+        <StageAssignmentModal
+          isOpen={stageAssignmentModal.isOpen}
+          onClose={() => setStageAssignmentModal(null)}
+          stageName={stageAssignmentModal.stageName}
+          defaultOwnerType={stageAssignmentModal.defaultOwnerType}
+          defaultUserId={stageAssignmentModal.defaultUserId}
+          defaultTeamId={stageAssignmentModal.defaultTeamId}
+          onConfirm={handleStageAssignmentConfirm}
         />
       )}
 

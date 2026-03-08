@@ -14,6 +14,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { DataSource } from 'typeorm';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
+import { ApprovalService } from '../shared/approval.service';
 import {
   CreateOpportunityDto,
   UpdateOpportunityDto,
@@ -39,6 +40,7 @@ export class OpportunitiesService {
     private dataSource: DataSource,
     private auditService: AuditService,
     private activityService: ActivityService,
+    private approvalService: ApprovalService,
   ) {}
 
   // ============================================================
@@ -314,7 +316,7 @@ export class OpportunitiesService {
               ps.probability as stage_probability,
               pl.name as pipeline_name,
               op.name as priority_name, op.color as priority_color, op.icon as priority_icon,
-              a.name as account_name, a.logo_url as account_logo,
+              a.name as account_name, a.logo_url as account_logo, a.emails->0->>'value' as account_email,
               c.first_name as contact_first_name, c.last_name as contact_last_name,
               cr.name as close_reason_name,
               cu.first_name as created_by_first_name, cu.last_name as created_by_last_name
@@ -376,7 +378,7 @@ export class OpportunitiesService {
                 ps.name as stage_name, ps.slug as stage_slug, ps.color as stage_color,
                 ps.sort_order as stage_sort_order, ps.is_won as stage_is_won, ps.is_lost as stage_is_lost,
                 op.name as priority_name, op.color as priority_color, op.icon as priority_icon,
-                a.name as account_name, a.logo_url as account_logo,
+                a.name as account_name, a.logo_url as account_logo, a.emails->0->>'value' as account_email,
                 c.first_name as contact_first_name, c.last_name as contact_last_name
          FROM "${schemaName}".opportunities o
          LEFT JOIN "${schemaName}".users u ON o.owner_id = u.id
@@ -482,7 +484,7 @@ export class OpportunitiesService {
               ps.probability as stage_probability,
               pl.name as pipeline_name,
               op.name as priority_name, op.color as priority_color, op.icon as priority_icon,
-              a.name as account_name, a.logo_url as account_logo,
+              a.name as account_name, a.logo_url as account_logo, a.emails->0->>'value' as account_email,
               c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email,
               cr.name as close_reason_name, cr.type as close_reason_type,
               cu.first_name as created_by_first_name, cu.last_name as created_by_last_name
@@ -711,6 +713,18 @@ export class OpportunitiesService {
 
     if (opp.wonAt) throw new BadRequestException('Opportunity is already closed as Won');
     if (opp.lostAt) throw new BadRequestException('Opportunity is closed as Lost. Reopen it first.');
+
+    // Approval gate — if a rule exists, block and return the request
+    const approvalRequest = await this.approvalService.createRequest(
+      schemaName, 'opportunities', id, 'close_won', userId,
+    );
+    if (approvalRequest !== null) {
+      return {
+        approvalRequired: true,
+        approvalRequest,
+        message: 'Opportunity submitted for approval before closing as Won',
+      };
+    }
 
     // Get the Won stage
     const [wonStage] = await this.dataSource.query(
@@ -2216,6 +2230,13 @@ export class OpportunitiesService {
     return missing;
   }
 
+  // ============================================================
+  // APPROVAL STATUS
+  // ============================================================
+  async getApprovalStatus(schemaName: string, opportunityId: string, triggerEvent?: string) {
+    return this.approvalService.getEntityRequest(schemaName, 'opportunities', opportunityId, triggerEvent);
+  }
+
   private formatOpportunity(o: Record<string, any>) {
     return {
       id: o.id,
@@ -2253,6 +2274,7 @@ export class OpportunitiesService {
         id: o.account_id,
         name: o.account_name,
         logoUrl: o.account_logo,
+        email: o.account_email || null,
       } : null,
       primaryContactId: o.primary_contact_id,
       primaryContact: o.contact_first_name ? {

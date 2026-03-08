@@ -1049,6 +1049,18 @@ export class LeadsService {
       performedBy: userId,
     });
 
+    // Record stage assignment for stage ownership tracking
+    try {
+      await this.dataSource.query(
+        `INSERT INTO "${schemaName}".record_stage_assignments
+           (entity_type, entity_id, stage_id, assigned_to, assigned_by)
+         VALUES ($1, $2, $3, $4, $5)`,
+        ['leads', id, dto.stageId, lead.ownerId || null, userId],
+      );
+    } catch (err) {
+      this.logger.warn(`Failed to record stage assignment: ${err}`);
+    }
+
     return this.findOne(schemaName, id);
   }
 

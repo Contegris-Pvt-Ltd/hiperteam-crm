@@ -225,6 +225,18 @@ export const adminApi = {
     return response.data;
   },
 
+  // ==================== INTEGRATIONS ====================
+
+  getIntegrations: async (): Promise<{ provider: string; isEnabled: boolean; config: Record<string, string> }[]> => {
+    const response = await api.get('/admin/integrations');
+    return response.data;
+  },
+
+  updateIntegration: async (provider: string, body: { isEnabled: boolean; config: Record<string, string> }): Promise<{ success: boolean }> => {
+    const response = await api.put(`/admin/integrations/${provider}`, body);
+    return response.data;
+  },
+
   // ==================== MODULE LAYOUT SETTINGS ====================
 
   getModuleLayoutSettings: async (): Promise<ModuleLayoutSetting[]> => {

@@ -11,10 +11,13 @@ import {
   ArrowLeft, Loader2, Plus, Trash2, X, Check, Pencil,
   Flame, Thermometer, Sun, Snowflake, Minus,
   Trophy, XCircle, Briefcase, BarChart3, Route, Target, Globe,
-  GripVertical,
+  GripVertical, Users,
 } from 'lucide-react';
 import { opportunitySettingsApi } from '../../api/opportunities.api';
 import type { OpportunityCloseReason, OpportunityStage, Pipeline } from '../../api/opportunities.api';
+import { leadSettingsApi } from '../../api/leads.api';
+import { usersApi } from '../../api/users.api';
+import { teamsApi } from '../../api/teams.api';
 
 // ============================================================
 // TYPES
@@ -43,6 +46,7 @@ interface LeadSource {
 const TABS = [
   { id: 'pipelines', label: 'Pipelines', icon: Route },
   { id: 'stages', label: 'Stages', icon: Target },
+  { id: 'stage-ownership', label: 'Stage Ownership', icon: Users },
   { id: 'priorities', label: 'Priorities', icon: Flame },
   { id: 'close-reasons', label: 'Close Reasons', icon: Trophy },
   { id: 'types', label: 'Types', icon: Briefcase },
@@ -88,6 +92,18 @@ export function OpportunitySettingsPage() {
           const pipeId = selectedPipelineId || pls.find(p => p.isDefault)?.id || pls[0]?.id || '';
           setSelectedPipelineId(pipeId);
           if (pipeId) setStages(await opportunitySettingsApi.getStages(pipeId));
+          break;
+        }
+        case 'stage-ownership': {
+          if (pipelines.length === 0) {
+            const pls = await opportunitySettingsApi.getPipelines();
+            setPipelines(pls);
+            const pipeId = selectedPipelineId || pls.find(p => p.isDefault)?.id || pls[0]?.id || '';
+            setSelectedPipelineId(pipeId);
+            if (pipeId && stages.length === 0) setStages(await opportunitySettingsApi.getStages(pipeId));
+          } else if (stages.length === 0 && selectedPipelineId) {
+            setStages(await opportunitySettingsApi.getStages(selectedPipelineId));
+          }
           break;
         }
         case 'priorities':
@@ -176,6 +192,17 @@ export function OpportunitySettingsPage() {
                 opportunitySettingsApi.getStages(id).then(setStages);
               }}
               onReload={() => loadTabData('stages')}
+            />
+          )}
+          {activeTab === 'stage-ownership' && (
+            <OppStageOwnershipTab
+              stages={stages}
+              pipelines={pipelines}
+              selectedPipelineId={selectedPipelineId}
+              onPipelineChange={(id) => {
+                setSelectedPipelineId(id);
+                opportunitySettingsApi.getStages(id).then(setStages);
+              }}
             />
           )}
           {activeTab === 'priorities' && <PrioritiesTab priorities={priorities} onReload={() => loadTabData('priorities')} />}
@@ -1360,6 +1387,270 @@ function ForecastTab({ categories, onReload }: { categories: ForecastCategory[];
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ============================================================
+// TAB: STAGE OWNERSHIP (for opportunities)
+// ============================================================
+const OPP_OWNER_TYPE_LABELS: Record<string, string> = {
+  inherit: 'Inherit from pipeline',
+  user: 'Specific User',
+  team_lead: 'Team Lead',
+  auto_assign: 'Auto Assign',
+};
+
+const OPP_OWNER_TYPE_COLORS: Record<string, string> = {
+  inherit: 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400',
+  user: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+  team_lead: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
+  auto_assign: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+};
+
+function OppStageOwnershipTab({
+  stages, pipelines, selectedPipelineId, onPipelineChange,
+}: {
+  stages: OpportunityStage[];
+  pipelines: Pipeline[];
+  selectedPipelineId: string;
+  onPipelineChange: (id: string) => void;
+}) {
+  const [ownershipData, setOwnershipData] = useState<Record<string, any>>({});
+  const [loadingOwnership, setLoadingOwnership] = useState(false);
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const [formOwnerType, setFormOwnerType] = useState<'inherit' | 'user' | 'team_lead' | 'auto_assign'>('inherit');
+  const [formUserId, setFormUserId] = useState<string>('');
+  const [formTeamId, setFormTeamId] = useState<string>('');
+
+  const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+  const [lookupLoaded, setLookupLoaded] = useState(false);
+
+  const sorted = [...stages].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  useEffect(() => {
+    if (selectedPipelineId) loadOwnershipByPipeline(selectedPipelineId);
+  }, [selectedPipelineId]);
+
+  const loadOwnershipByPipeline = async (pipelineId: string) => {
+    setLoadingOwnership(true);
+    try {
+      const rows = await leadSettingsApi.getStageOwnershipByPipeline(pipelineId);
+      const results: Record<string, any> = {};
+      for (const row of rows) {
+        results[row.id] = row;
+      }
+      setOwnershipData(results);
+    } catch (err) {
+      console.error('Failed to load ownership data:', err);
+    } finally {
+      setLoadingOwnership(false);
+    }
+  };
+
+  const loadLookups = async () => {
+    if (lookupLoaded) return;
+    try {
+      const [usersRes, teamsRes] = await Promise.all([
+        usersApi.getAll({ limit: 500 }),
+        teamsApi.getAll({ limit: 500 }),
+      ]);
+      setUsers(usersRes.data.map((u: any) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName })));
+      setTeams(teamsRes.data.map((t: any) => ({ id: t.id, name: t.name })));
+      setLookupLoaded(true);
+    } catch (err) {
+      console.error('Failed to load users/teams:', err);
+    }
+  };
+
+  const startEdit = (stage: OpportunityStage) => {
+    const data = ownershipData[stage.id] || {};
+    setEditingStageId(stage.id);
+    setFormOwnerType(data.stageOwnerType || 'inherit');
+    setFormUserId(data.stageOwnerUser?.id || '');
+    setFormTeamId(data.stageOwnerTeam?.id || '');
+    loadLookups();
+  };
+
+  const cancelEdit = () => {
+    setEditingStageId(null);
+  };
+
+  const handleSave = async () => {
+    if (!editingStageId) return;
+    setSaving(true);
+    try {
+      const dto: any = {
+        stageOwnerType: formOwnerType,
+        stageOwnerUserId: formOwnerType === 'user' ? formUserId || null : null,
+        stageOwnerTeamId: formOwnerType === 'team_lead' ? formTeamId || null : null,
+        stageOwnerRoleId: null,
+      };
+      const updated = await leadSettingsApi.updateStageOwnership(editingStageId, dto);
+      setOwnershipData((prev) => ({ ...prev, [editingStageId]: updated }));
+      setEditingStageId(null);
+    } catch (err) {
+      console.error('Failed to update stage ownership:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      {pipelines.length > 1 && (
+        <div className="mb-4 flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Pipeline:</label>
+          <select
+            value={selectedPipelineId}
+            onChange={(e) => onPipelineChange(e.target.value)}
+            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800"
+          >
+            {pipelines.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.name} {p.isDefault ? '(Default)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Stage Ownership</h2>
+          <p className="text-sm text-gray-500 dark:text-slate-400">
+            Configure who owns each stage — when an opportunity moves to a stage, ownership can change automatically
+          </p>
+        </div>
+      </div>
+
+      {loadingOwnership ? (
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
+          {sorted.length === 0 ? (
+            <div className="px-4 py-8 text-center text-gray-400 dark:text-slate-500">
+              No stages configured for this pipeline
+            </div>
+          ) : (
+            sorted.map((stage, idx) => {
+              const ownership = ownershipData[stage.id] || {};
+              const ownerType = ownership.stageOwnerType || 'inherit';
+              const isEditing = editingStageId === stage.id;
+
+              return (
+                <div key={stage.id}>
+                  <div
+                    className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-gray-100 dark:border-slate-800' : ''} ${isEditing ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+                  >
+                    <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
+                    <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">{stage.name}</span>
+
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${OPP_OWNER_TYPE_COLORS[ownerType] || OPP_OWNER_TYPE_COLORS.inherit}`}>
+                      {OPP_OWNER_TYPE_LABELS[ownerType] || ownerType}
+                    </span>
+
+                    {ownership.stageOwnerUser && (
+                      <span className="text-xs text-gray-500 dark:text-slate-400">
+                        {ownership.stageOwnerUser.firstName} {ownership.stageOwnerUser.lastName}
+                      </span>
+                    )}
+                    {ownership.stageOwnerTeam && (
+                      <span className="text-xs text-gray-500 dark:text-slate-400">
+                        {ownership.stageOwnerTeam.name}
+                      </span>
+                    )}
+
+                    {!isEditing && (
+                      <button
+                        onClick={() => startEdit(stage)}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+                        title="Edit ownership"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {isEditing && (
+                    <div className="px-4 py-3 bg-blue-50 dark:bg-blue-900/10 border-t border-blue-100 dark:border-blue-800/30">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Owner Type</label>
+                          <select
+                            value={formOwnerType}
+                            onChange={(e) => setFormOwnerType(e.target.value as any)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                          >
+                            <option value="inherit">Inherit from pipeline</option>
+                            <option value="user">Specific User</option>
+                            <option value="team_lead">Team Lead</option>
+                            <option value="auto_assign">Auto Assign</option>
+                          </select>
+                        </div>
+
+                        {formOwnerType === 'user' && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">User</label>
+                            <select
+                              value={formUserId}
+                              onChange={(e) => setFormUserId(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                            >
+                              <option value="">Select a user...</option>
+                              {users.map(u => (
+                                <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {formOwnerType === 'team_lead' && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Team</label>
+                            <select
+                              value={formTeamId}
+                              onChange={(e) => setFormTeamId(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                            >
+                              <option value="">Select a team...</option>
+                              {teams.map(t => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200 text-sm"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 }

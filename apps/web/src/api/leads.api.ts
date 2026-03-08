@@ -580,6 +580,34 @@ export const leadSettingsApi = {
     return data;
   },
 
+  // Stage Ownership
+  getStageOwnershipByPipeline: async (pipelineId: string) => {
+    const { data } = await api.get('/lead-settings/stage-ownership', { params: { pipelineId } });
+    return data;
+  },
+  getStageOwnership: async (stageId: string) => {
+    const { data } = await api.get(`/lead-settings/stage-ownership/${stageId}`);
+    return data;
+  },
+  updateStageOwnership: async (stageId: string, dto: {
+    stageOwnerType: 'inherit' | 'user' | 'team_lead' | 'auto_assign';
+    stageOwnerUserId?: string | null;
+    stageOwnerTeamId?: string | null;
+    stageOwnerRoleId?: string | null;
+    fieldVisibility?: Record<string, 'hidden' | 'read_only' | 'editable'>;
+  }) => {
+    const { data } = await api.put(`/lead-settings/stage-ownership/${stageId}`, dto);
+    return data;
+  },
+  getFieldVisibility: async (stageId: string) => {
+    const { data } = await api.get(`/lead-settings/field-visibility/${stageId}`);
+    return data;
+  },
+  updateFieldVisibility: async (stageId: string, fieldVisibility: Record<string, 'hidden' | 'read_only' | 'editable'>) => {
+    const { data } = await api.put(`/lead-settings/field-visibility/${stageId}`, { fieldVisibility });
+    return data;
+  },
+
   // Priorities
   getPriorities: async (): Promise<LeadPriority[]> => {
     const { data } = await api.get('/lead-settings/priorities');

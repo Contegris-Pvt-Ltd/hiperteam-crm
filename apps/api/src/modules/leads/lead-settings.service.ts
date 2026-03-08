@@ -15,6 +15,14 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { DataSource } from 'typeorm';
 import { AuditService } from '../shared/audit.service';
 
+export interface UpdateStageOwnershipDto {
+  stageOwnerType: 'inherit' | 'user' | 'team_lead' | 'auto_assign';
+  stageOwnerUserId?: string | null;
+  stageOwnerTeamId?: string | null;
+  stageOwnerRoleId?: string | null;
+  fieldVisibility?: Record<string, 'hidden' | 'read_only' | 'editable'>;
+}
+
 @Injectable()
 export class LeadSettingsService {
   private readonly logger = new Logger(LeadSettingsService.name);
@@ -367,6 +375,186 @@ export class LeadSettingsService {
       if (first) return this.getStages(schemaName, first.pipeline_id, first.module);
     }
     return [];
+  }
+
+  // ============================================================
+  // STAGE OWNERSHIP
+  // ============================================================
+  async getStageOwnership(schemaName: string, stageId: string) {
+    const [row] = await this.dataSource.query(
+      `SELECT ps.id,
+              ps.stage_owner_type,
+              ps.stage_owner_user_id,
+              ps.stage_owner_team_id,
+              ps.stage_owner_role_id,
+              ps.field_visibility,
+              u.first_name AS owner_first_name,
+              u.last_name AS owner_last_name,
+              t.name AS team_name,
+              r.name AS role_name
+       FROM "${schemaName}".pipeline_stages ps
+       LEFT JOIN "${schemaName}".users u ON u.id = ps.stage_owner_user_id
+       LEFT JOIN "${schemaName}".teams t ON t.id = ps.stage_owner_team_id
+       LEFT JOIN "${schemaName}".roles r ON r.id = ps.stage_owner_role_id
+       WHERE ps.id = $1`,
+      [stageId],
+    );
+    if (!row) throw new NotFoundException('Stage not found');
+
+    return {
+      id: row.id,
+      stageOwnerType: row.stage_owner_type,
+      stageOwnerUser: row.stage_owner_user_id
+        ? { id: row.stage_owner_user_id, firstName: row.owner_first_name, lastName: row.owner_last_name }
+        : null,
+      stageOwnerTeam: row.stage_owner_team_id
+        ? { id: row.stage_owner_team_id, name: row.team_name }
+        : null,
+      stageOwnerRole: row.stage_owner_role_id
+        ? { id: row.stage_owner_role_id, name: row.role_name }
+        : null,
+      fieldVisibility: row.field_visibility || {},
+    };
+  }
+
+  async updateStageOwnership(
+    schemaName: string,
+    stageId: string,
+    userId: string,
+    dto: UpdateStageOwnershipDto,
+  ) {
+    const [existing] = await this.dataSource.query(
+      `SELECT id FROM "${schemaName}".pipeline_stages WHERE id = $1`,
+      [stageId],
+    );
+    if (!existing) throw new NotFoundException('Stage not found');
+
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".pipeline_stages
+       SET stage_owner_type = $1,
+           stage_owner_user_id = $2,
+           stage_owner_team_id = $3,
+           stage_owner_role_id = $4,
+           field_visibility = $5,
+           updated_at = NOW()
+       WHERE id = $6`,
+      [
+        dto.stageOwnerType,
+        dto.stageOwnerUserId || null,
+        dto.stageOwnerTeamId || null,
+        dto.stageOwnerRoleId || null,
+        JSON.stringify(dto.fieldVisibility || {}),
+        stageId,
+      ],
+    );
+
+    await this.auditService.log(schemaName, {
+      entityType: 'pipeline_stages',
+      entityId: stageId,
+      action: 'update',
+      changes: {},
+      newValues: dto as unknown as Record<string, unknown>,
+      performedBy: userId,
+    });
+
+    return this.getStageOwnership(schemaName, stageId);
+  }
+
+  async getStageOwnershipByPipeline(schemaName: string, pipelineId: string) {
+    const rows = await this.dataSource.query(
+      `SELECT ps.id,
+              ps.name,
+              ps.slug,
+              ps.color,
+              ps.sort_order,
+              ps.is_won,
+              ps.is_lost,
+              ps.stage_owner_type,
+              ps.stage_owner_user_id,
+              ps.stage_owner_team_id,
+              ps.stage_owner_role_id,
+              ps.field_visibility,
+              u.first_name AS owner_first_name,
+              u.last_name AS owner_last_name,
+              t.name AS team_name,
+              r.name AS role_name
+       FROM "${schemaName}".pipeline_stages ps
+       LEFT JOIN "${schemaName}".users u ON u.id = ps.stage_owner_user_id
+       LEFT JOIN "${schemaName}".teams t ON t.id = ps.stage_owner_team_id
+       LEFT JOIN "${schemaName}".roles r ON r.id = ps.stage_owner_role_id
+       WHERE ps.pipeline_id = $1
+         AND ps.deleted_at IS NULL
+       ORDER BY ps.sort_order ASC`,
+      [pipelineId],
+    );
+
+    return rows.map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      color: row.color,
+      sortOrder: row.sort_order,
+      isWon: row.is_won,
+      isLost: row.is_lost,
+      stageOwnerType: row.stage_owner_type,
+      stageOwnerUser: row.stage_owner_user_id
+        ? { id: row.stage_owner_user_id, firstName: row.owner_first_name, lastName: row.owner_last_name }
+        : null,
+      stageOwnerTeam: row.stage_owner_team_id
+        ? { id: row.stage_owner_team_id, name: row.team_name }
+        : null,
+      stageOwnerRole: row.stage_owner_role_id
+        ? { id: row.stage_owner_role_id, name: row.role_name }
+        : null,
+      fieldVisibility: row.field_visibility || {},
+    }));
+  }
+
+  async getFieldVisibility(schemaName: string, stageId: string) {
+    const [row] = await this.dataSource.query(
+      `SELECT id, field_visibility FROM "${schemaName}".pipeline_stages WHERE id = $1`,
+      [stageId],
+    );
+    if (!row) throw new NotFoundException('Stage not found');
+
+    return {
+      id: row.id,
+      fieldVisibility: row.field_visibility || {},
+    };
+  }
+
+  async updateFieldVisibility(
+    schemaName: string,
+    stageId: string,
+    userId: string,
+    fieldVisibility: Record<string, 'hidden' | 'read_only' | 'editable'>,
+  ) {
+    const [existing] = await this.dataSource.query(
+      `SELECT id FROM "${schemaName}".pipeline_stages WHERE id = $1`,
+      [stageId],
+    );
+    if (!existing) throw new NotFoundException('Stage not found');
+
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".pipeline_stages
+       SET field_visibility = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [JSON.stringify(fieldVisibility), stageId],
+    );
+
+    await this.auditService.log(schemaName, {
+      entityType: 'pipeline_stages',
+      entityId: stageId,
+      action: 'update',
+      changes: {},
+      newValues: { fieldVisibility },
+      performedBy: userId,
+    });
+
+    return {
+      id: stageId,
+      fieldVisibility,
+    };
   }
 
   // ============================================================

@@ -21,6 +21,7 @@ import { api } from '../../api/contacts.api';
 import { SlaInlineBadge } from './components/SlaIndicator';
 import ImportWizardModal from './components/ImportWizardModal';
 import BulkUpdateModal from './components/BulkUpdateModal';
+import { StageAssignmentModal } from '../../components/shared/StageAssignmentModal';
 
 // Priority icon map
 const PRIORITY_ICONS: Record<string, any> = {
@@ -97,6 +98,18 @@ export function LeadsPage() {
   const [kanbanFieldValues, setKanbanFieldValues] = useState<Record<string, any>>({});
   const [kanbanFieldErrors, setKanbanFieldErrors] = useState<Record<string, string>>({});
   const [kanbanSubmitting, setKanbanSubmitting] = useState(false);
+
+  // Stage assignment modal (ownership)
+  const [stageAssignmentModal, setStageAssignmentModal] = useState<{
+    isOpen: boolean;
+    leadId: string;
+    stageId: string;
+    stageName: string;
+    defaultOwnerType: 'inherit' | 'user' | 'team_lead' | 'auto_assign';
+    defaultUserId?: string | null;
+    defaultTeamId?: string | null;
+    stageFields?: Record<string, any>;
+  } | null>(null);
 
   // ── Fetch lookups on mount ──
   useEffect(() => {
@@ -186,6 +199,54 @@ export function LeadsPage() {
     }
   };
 
+  const openStageAssignmentModal = async (
+    leadId: string,
+    stageId: string,
+    stageFields?: Record<string, any>,
+  ) => {
+    try {
+      const ownership = await leadSettingsApi.getStageOwnership(stageId);
+
+      // Skip modal if inherit — change stage silently
+      if (ownership.stageOwnerType === 'inherit') {
+        await leadsApi.changeStage(leadId, stageId, stageFields);
+        fetchLeads();
+        return;
+      }
+
+      const stage = stages.find((s) => s.id === stageId);
+      setStageAssignmentModal({
+        isOpen: true,
+        leadId,
+        stageId,
+        stageName: stage?.name || 'New Stage',
+        defaultOwnerType: ownership.stageOwnerType,
+        defaultUserId: ownership.stageOwnerUser?.id || null,
+        defaultTeamId: ownership.stageOwnerTeam?.id || null,
+        stageFields,
+      });
+    } catch {
+      // fallback: change stage silently if ownership fetch fails
+      await leadsApi.changeStage(leadId, stageId, stageFields);
+      fetchLeads();
+    }
+  };
+
+  const handleStageAssignmentConfirm = async (assignment: {
+    ownerType: 'inherit' | 'user' | 'team_lead' | 'auto_assign';
+    userId?: string | null;
+    teamId?: string | null;
+  }) => {
+    if (!stageAssignmentModal) return;
+    await leadsApi.changeStage(
+      stageAssignmentModal.leadId,
+      stageAssignmentModal.stageId,
+      stageAssignmentModal.stageFields,
+    );
+    setStageAssignmentModal(null);
+    fetchLeads();
+  };
+
   const handleKanbanStageDrop = async (leadId: string, newStageId: string) => {
     try {
       // 1. Fetch required fields for the target stage
@@ -193,9 +254,8 @@ export function LeadsPage() {
       const requiredFields = (Array.isArray(stageFields) ? stageFields : []).filter((f: any) => f.isRequired);
 
       if (requiredFields.length === 0) {
-        // No required fields — move directly
-        await leadsApi.changeStage(leadId, newStageId);
-        fetchLeads();
+        // No required fields — check ownership then move
+        await openStageAssignmentModal(leadId, newStageId);
         return;
       }
 
@@ -214,9 +274,8 @@ export function LeadsPage() {
       });
 
       if (missing.length === 0) {
-        // All filled — move directly
-        await leadsApi.changeStage(leadId, newStageId);
-        fetchLeads();
+        // All filled — check ownership then move
+        await openStageAssignmentModal(leadId, newStageId);
         return;
       }
 
@@ -262,9 +321,8 @@ export function LeadsPage() {
 
     setKanbanSubmitting(true);
     try {
-      await leadsApi.changeStage(kanbanFieldsModal.leadId, kanbanFieldsModal.stageId, kanbanFieldValues);
       setKanbanFieldsModal(null);
-      fetchLeads();
+      await openStageAssignmentModal(kanbanFieldsModal.leadId, kanbanFieldsModal.stageId, kanbanFieldValues);
     } catch (error: any) {
       const msg = error.response?.data?.message || 'Failed to change stage';
       alert(msg);
@@ -999,6 +1057,19 @@ export function LeadsPage() {
             setSelectAllMode(false);
             fetchLeads();
           }}
+        />
+      )}
+
+      {/* Stage Assignment Modal */}
+      {stageAssignmentModal && (
+        <StageAssignmentModal
+          isOpen={stageAssignmentModal.isOpen}
+          onClose={() => setStageAssignmentModal(null)}
+          stageName={stageAssignmentModal.stageName}
+          defaultOwnerType={stageAssignmentModal.defaultOwnerType}
+          defaultUserId={stageAssignmentModal.defaultUserId}
+          defaultTeamId={stageAssignmentModal.defaultTeamId}
+          onConfirm={handleStageAssignmentConfirm}
         />
       )}
 

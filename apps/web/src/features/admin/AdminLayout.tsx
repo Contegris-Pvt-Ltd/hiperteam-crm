@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Settings, ListPlus, BarChart3, Users, Building2, Shield,
+import { Settings, ListPlus, BarChart3, Users, Building2, Shield, ShieldCheck,
   Target, Briefcase, LayoutGrid, ArrowLeft, LayoutTemplate, ClipboardList,
-  CheckSquare, Bell, Award, FileSpreadsheet
+  CheckSquare, Bell, Award, FileSpreadsheet, Plug, FolderKanban
 } from 'lucide-react';
 
 const adminNavItems = [
@@ -90,6 +90,12 @@ const adminNavItems = [
     description: 'Types, statuses & priorities'
   },
   {
+    path: '/admin/project-settings',
+    label: 'Project Settings',
+    icon: FolderKanban,
+    description: 'Statuses, task statuses & templates'
+  },
+  {
     path: '/admin/notification-settings',
     label: 'Notification Settings',
     icon: Bell,
@@ -100,6 +106,18 @@ const adminNavItems = [
     label: 'Batch Jobs',
     icon: FileSpreadsheet,
     description: 'View import & export job history'
+  },
+  {
+    path: '/admin/approval-rules',
+    label: 'Approval Rules',
+    icon: ShieldCheck,
+    description: 'Multi-step approval workflows'
+  },
+  {
+    path: '/admin/integrations',
+    label: 'Integrations',
+    icon: Plug,
+    description: 'Connect third-party services'
   },
 ];
 

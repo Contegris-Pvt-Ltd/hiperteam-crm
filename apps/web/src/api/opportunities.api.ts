@@ -159,9 +159,9 @@ export interface Opportunity {
   priorityId: string | null;
   priority: OpportunityPriority | null;
   accountId: string | null;
-  account: { id: string; name: string } | null;
+  account: { id: string; name: string; email?: string | null } | null;
   primaryContactId: string | null;
-  primaryContact: { id: string; firstName: string; lastName: string } | null;
+  primaryContact: { id: string; firstName: string; lastName: string; email?: string | null } | null;
   ownerId: string | null;
   owner: OpportunityOwner | null;
   teamId: string | null;

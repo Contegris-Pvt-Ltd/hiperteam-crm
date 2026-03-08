@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CustomFieldsService, CreateCustomFieldDto } from './custom-fields.service';
@@ -16,9 +17,11 @@ import { ProfileCompletionService } from './profile-completion.service';
 import { CustomTabsService, CreateCustomTabDto, UpdateCustomTabDto } from './custom-tabs.service';
 import { CustomFieldGroupsService, CreateCustomFieldGroupDto, UpdateCustomFieldGroupDto } from './custom-field-groups.service';
 import { AuditService } from '../shared/audit.service';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Request } from 'express';
+import { DataSource } from 'typeorm';
 import { MigrationRunnerService } from '../../database/migration-runner.service';
+import { XeroService } from '../opportunities/xero.service';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -42,6 +45,8 @@ export class AdminController {
     private readonly customFieldGroupsService: CustomFieldGroupsService,
     private readonly migrationRunner: MigrationRunnerService,
     private readonly auditService: AuditService,
+    private readonly dataSource: DataSource,
+    private readonly xeroService: XeroService,
   ) {}
 
   // ==================== CUSTOM FIELDS ====================
@@ -272,6 +277,103 @@ export class AdminController {
   @UseGuards(JwtAuthGuard)
   async getMigrationStatus() {
     return this.migrationRunner.getMigrationStatus();
+  }
+
+  // ==================== INTEGRATIONS ====================
+
+  @Get('integrations')
+  async getIntegrations(@Req() req: AuthenticatedRequest) {
+    const rows = await this.dataSource.query(
+      `SELECT provider, is_enabled, config
+       FROM public.tenant_integrations
+       WHERE tenant_id = $1
+       ORDER BY provider`,
+      [req.user.tenantId],
+    );
+    return rows.map((r: any) => ({
+      provider: r.provider,
+      isEnabled: r.is_enabled,
+      config: typeof r.config === 'string' ? JSON.parse(r.config) : r.config,
+    }));
+  }
+
+  @Put('integrations/:provider')
+  async updateIntegration(
+    @Req() req: AuthenticatedRequest,
+    @Param('provider') provider: string,
+    @Body() body: { isEnabled: boolean; config: Record<string, string> },
+  ) {
+    const allowedProviders = ['docusign', 'xero', 'twilio', 'sendgrid', 'stripe', 'slack'];
+    if (!allowedProviders.includes(provider)) {
+      throw new BadRequestException(`Invalid provider: ${provider}`);
+    }
+
+    await this.dataSource.query(
+      `INSERT INTO public.tenant_integrations (tenant_id, provider, is_enabled, config, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (tenant_id, provider)
+       DO UPDATE SET is_enabled = $3, config = $4, updated_at = NOW()`,
+      [req.user.tenantId, provider, body.isEnabled, JSON.stringify(body.config || {})],
+    );
+
+    await this.auditService.log(req.user.tenantSchema, {
+      entityType: 'integration',
+      entityId: provider,
+      action: 'update',
+      changes: {},
+      newValues: { provider, isEnabled: body.isEnabled },
+      performedBy: req.user.sub,
+    });
+
+    return { success: true, provider, isEnabled: body.isEnabled };
+  }
+
+  // ==================== XERO INTEGRATION ====================
+
+  @Get('xero/auth-url')
+  @ApiOperation({ summary: 'Get Xero OAuth2 consent URL' })
+  async getXeroAuthUrl(@Req() req: AuthenticatedRequest) {
+    const integration = await this.dataSource.query(
+      `SELECT config FROM public.tenant_integrations
+       WHERE tenant_id = $1 AND provider = 'xero'`,
+      [req.user.tenantId],
+    );
+    if (!integration.length) {
+      throw new BadRequestException('Xero integration not configured');
+    }
+    const cfg = typeof integration[0].config === 'string'
+      ? JSON.parse(integration[0].config)
+      : integration[0].config;
+    return { url: await this.xeroService.getAuthUrl(req.user.tenantId, cfg.clientId, cfg.clientSecret) };
+  }
+
+  @Get('xero/callback')
+  @ApiOperation({ summary: 'Handle Xero OAuth2 callback' })
+  async handleXeroCallback(
+    @Req() req: AuthenticatedRequest,
+    @Query('url') url: string,
+  ) {
+    if (!url) throw new BadRequestException('Missing url query parameter');
+    await this.xeroService.handleCallback(req.user.tenantId, url);
+    return { success: true };
+  }
+
+  @Get('xero/sync-contacts')
+  @ApiOperation({ summary: 'Sync CRM contacts/accounts with Xero contacts' })
+  async syncXeroContacts(@Req() req: AuthenticatedRequest) {
+    return this.xeroService.syncContacts(req.user.tenantId, req.user.tenantSchema);
+  }
+
+  @Post('xero/link-contact')
+  @ApiOperation({ summary: 'Manually link a CRM record to a Xero contact' })
+  async linkXeroContact(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { crmType: 'account' | 'contact'; crmId: string; xeroContactId: string },
+  ) {
+    await this.xeroService.linkContact(
+      req.user.tenantSchema, body.crmType, body.crmId, body.xeroContactId,
+    );
+    return { success: true };
   }
 
   // ==================== D8: AUDIT LOGS ====================

@@ -43,6 +43,18 @@ import { ReportViewerPage } from './features/reports/ReportViewerPage';
 import { ReportBuilderPage } from './features/reports/ReportBuilderPage';
 import { AccountForecastPage } from './features/reports/AccountForecastPage';
 import { BatchJobsPage } from './features/batch-jobs/BatchJobsPage';
+import { ApprovalRulesPage } from './features/admin/ApprovalRulesPage';
+import { IntegrationsPage } from './features/admin/IntegrationsPage';
+import { XeroContactMatchingPage } from './features/admin/XeroContactMatchingPage';
+import { ApprovalsQueuePage } from './features/approvals/ApprovalsQueuePage';
+import { ProposalPublicPage } from './features/proposals/ProposalPublicPage';
+import { ContractSignPage } from './features/contracts/ContractSignPage';
+import { InvoicesPage } from './features/invoices/InvoicesPage';
+import { XeroCallbackPage } from './features/admin/XeroCallbackPage';
+import ProjectSettingsPage from './features/admin/ProjectSettingsPage';
+import { ProjectsPage } from './features/projects/ProjectsPage';
+import { ProjectDetailPage } from './features/projects/ProjectDetailPage';
+import { ClientPortalPage } from './features/projects/ClientPortalPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -73,6 +85,9 @@ function App() {
         <Route path="invite/accept" element={<InviteAcceptPage />} />
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
         <Route path="reset-password" element={<ResetPasswordPage />} />
+        <Route path="/proposals/public/:tenantId/:token" element={<ProposalPublicPage />} />
+        <Route path="/contracts/sign/:token" element={<ContractSignPage />} />
+        <Route path="/portal/:tenantSlug/:token" element={<ClientPortalPage />} />
 
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<DashboardPage />} />
@@ -109,6 +124,9 @@ function App() {
           <Route path="products/:id/edit" element={<ProductEditPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:id" element={<TaskDetailPage />} />
+          <Route path="invoices" element={<InvoicesPage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/:id" element={<ProjectDetailPage />} />
 
           {/* Reports */}
           <Route path="reports" element={<ReportsPage />} />
@@ -125,6 +143,7 @@ function App() {
           <Route path="teams" element={<TeamsPage />} />
           <Route path="roles" element={<RolesPage />} />
           <Route path="notifications" element={<NotificationCenter />} />
+          <Route path="approvals" element={<ApprovalsQueuePage />} />
         </Route>
 
         {/* Admin Routes - Outside main layout */}
@@ -142,9 +161,14 @@ function App() {
           <Route path="opportunity-settings" element={<OpportunitySettingsPage />} />
           <Route path="field-validation" element={<FieldValidationPage />} />
           <Route path="task-settings" element={<TaskSettingsPage />} />
+          <Route path="project-settings" element={<ProjectSettingsPage />} />
           <Route path="notification-settings" element={<NotificationPreferencesPage />} />
           <Route path="targets" element={<TargetsSettingsPage />} />
           <Route path="batch-jobs" element={<BatchJobsPage />} />
+          <Route path="approval-rules" element={<ApprovalRulesPage />} />
+          <Route path="integrations" element={<IntegrationsPage />} />
+          <Route path="xero-matching" element={<XeroContactMatchingPage />} />
+          <Route path="xero/callback" element={<XeroCallbackPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

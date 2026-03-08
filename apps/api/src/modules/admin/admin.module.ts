@@ -9,9 +9,10 @@ import { PageLayoutController } from './page-layout.controller';
 import { ModuleLayoutSettingsService } from './module-layout-settings.service';
 import { ModuleLayoutSettingsController } from './module-layout-settings.controller';
 import { SharedModule } from '../shared/shared.module';
+import { OpportunitiesModule } from '../opportunities/opportunities.module';
 
 @Module({
-  imports: [SharedModule],
+  imports: [SharedModule, OpportunitiesModule],
   controllers: [
     AdminController,
     PageLayoutController,

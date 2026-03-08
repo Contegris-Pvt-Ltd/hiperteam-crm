@@ -4,9 +4,16 @@ import * as nodemailer from 'nodemailer';
 
 export interface SendEmailOptions {
   to: string;
+  cc?: string | string[];
+  bcc?: string | string[];
   subject: string;
   html: string;
   text?: string;
+  attachments?: Array<{
+    filename: string;
+    content: Buffer;
+    contentType: string;
+  }>;
 }
 
 @Injectable()
@@ -50,9 +57,16 @@ export class EmailService {
       const result = await this.transporter.sendMail({
         from: `"${this.fromName}" <${this.fromEmail}>`,
         to: options.to,
+        cc: options.cc,
+        bcc: options.bcc,
         subject: options.subject,
         html: options.html,
         text: options.text || this.stripHtml(options.html),
+        attachments: options.attachments?.map(a => ({
+          filename: a.filename,
+          content: a.content,
+          contentType: a.contentType,
+        })),
       });
 
       this.logger.log(`Email sent to ${options.to}: ${result.messageId}`);

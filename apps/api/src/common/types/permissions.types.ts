@@ -85,6 +85,7 @@ export const CRM_MODULES = [
   'opportunities',
   'deals',
   'tasks',
+  'projects',
   'reports',
   'users',
   'roles',
@@ -118,6 +119,7 @@ export function getModuleActions(module: CrmModule): ModuleAction[] {
     case 'targets':
     case 'gamification':
     case 'notifications':
+    case 'projects':
       return ['view', 'create', 'edit', 'delete'] as ModuleAction[];
     default:
       return DATA_MODULE_ACTIONS;
@@ -135,6 +137,7 @@ export const RECORD_SCOPED_MODULES: CrmModule[] = [
   'opportunities',
   'deals',
   'tasks',
+  'projects',
   'reports',
 ];
 

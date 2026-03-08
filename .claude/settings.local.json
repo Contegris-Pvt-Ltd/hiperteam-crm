@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__intellicon-db__query",
+      "Bash(npx ts-node apps/api/src/scripts/run-tenant-migrations.ts)",
+      "Bash(npm install docusign-esign)",
+      "Bash(npx tsc --noEmit --pretty)",
+      "Bash(npm install xero-node)"
+    ]
+  }
+}

@@ -28,6 +28,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { TargetsModule } from './modules/targets/targets.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { LeadImportModule } from './modules/lead-import/lead-import.module';
+import { ProjectsModule } from './modules/projects/projects.module';
 
 @Module({
   imports: [
@@ -72,7 +73,8 @@ import { LeadImportModule } from './modules/lead-import/lead-import.module';
     NotificationModule,
     TargetsModule,
     ReportsModule,
-    LeadImportModule
+    LeadImportModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

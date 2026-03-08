@@ -1066,7 +1066,1017 @@ async function runTenantMigrations() {
               ALTER TABLE "${schema}".opportunities ADD COLUMN IF NOT EXISTS team_id UUID REFERENCES "${schema}".teams(id) ON DELETE SET NULL;
               CREATE INDEX IF NOT EXISTS idx_opportunities_team ON "${schema}".opportunities(team_id) WHERE deleted_at IS NULL;
             `,
-          }
+          },
+          {
+            name: '025_stage_ownership',
+            sql: `
+              -- PART 1: Add stage ownership columns to pipeline_stages
+              ALTER TABLE "${schema}".pipeline_stages
+                ADD COLUMN IF NOT EXISTS stage_owner_type VARCHAR(20) NOT NULL DEFAULT 'inherit';
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint
+                  WHERE conname = 'chk_stage_owner_type'
+                ) THEN
+                  ALTER TABLE "${schema}".pipeline_stages
+                    ADD CONSTRAINT chk_stage_owner_type
+                    CHECK (stage_owner_type IN ('inherit','user','team_lead','auto_assign'));
+                END IF;
+              END $$;
+
+              ALTER TABLE "${schema}".pipeline_stages
+                ADD COLUMN IF NOT EXISTS stage_owner_user_id UUID;
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint
+                  WHERE conname = 'fk_ps_stage_owner_user'
+                ) THEN
+                  ALTER TABLE "${schema}".pipeline_stages
+                    ADD CONSTRAINT fk_ps_stage_owner_user
+                    FOREIGN KEY (stage_owner_user_id)
+                    REFERENCES "${schema}".users(id) ON DELETE SET NULL;
+                END IF;
+              END $$;
+
+              ALTER TABLE "${schema}".pipeline_stages
+                ADD COLUMN IF NOT EXISTS stage_owner_team_id UUID;
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint
+                  WHERE conname = 'fk_ps_stage_owner_team'
+                ) THEN
+                  ALTER TABLE "${schema}".pipeline_stages
+                    ADD CONSTRAINT fk_ps_stage_owner_team
+                    FOREIGN KEY (stage_owner_team_id)
+                    REFERENCES "${schema}".teams(id) ON DELETE SET NULL;
+                END IF;
+              END $$;
+
+              ALTER TABLE "${schema}".pipeline_stages
+                ADD COLUMN IF NOT EXISTS stage_owner_role_id UUID;
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint
+                  WHERE conname = 'fk_ps_stage_owner_role'
+                ) THEN
+                  ALTER TABLE "${schema}".pipeline_stages
+                    ADD CONSTRAINT fk_ps_stage_owner_role
+                    FOREIGN KEY (stage_owner_role_id)
+                    REFERENCES "${schema}".roles(id) ON DELETE SET NULL;
+                END IF;
+              END $$;
+
+              ALTER TABLE "${schema}".pipeline_stages
+                ADD COLUMN IF NOT EXISTS field_visibility JSONB NOT NULL DEFAULT '{}';
+
+              -- PART 2: Create record_stage_assignments table
+              CREATE TABLE IF NOT EXISTS "${schema}".record_stage_assignments (
+                id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                entity_type     VARCHAR(50) NOT NULL,
+                entity_id       UUID NOT NULL,
+                stage_id        UUID NOT NULL REFERENCES "${schema}".pipeline_stages(id) ON DELETE CASCADE,
+                assigned_to     UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                assigned_by     UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                assigned_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                completed_at    TIMESTAMPTZ,
+                stage_data      JSONB NOT NULL DEFAULT '{}',
+                notes           TEXT,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_rsa_entity
+                ON "${schema}".record_stage_assignments(entity_type, entity_id);
+
+              CREATE INDEX IF NOT EXISTS idx_rsa_stage
+                ON "${schema}".record_stage_assignments(stage_id);
+            `,
+          },
+          {
+            name: '026_proposals',
+            sql: `
+              -- proposals table
+              CREATE TABLE IF NOT EXISTS "${schema}".proposals (
+                id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                opportunity_id    UUID NOT NULL REFERENCES "${schema}".opportunities(id) ON DELETE CASCADE,
+                title             VARCHAR(255) NOT NULL,
+                cover_message     TEXT,
+                terms             TEXT,
+                valid_until       DATE,
+                status            VARCHAR(20) NOT NULL DEFAULT 'draft',
+                public_token      UUID UNIQUE DEFAULT gen_random_uuid(),
+                currency          VARCHAR(10) NOT NULL DEFAULT 'USD',
+                total_amount      NUMERIC(15,2) NOT NULL DEFAULT 0,
+                sent_at           TIMESTAMPTZ,
+                viewed_at         TIMESTAMPTZ,
+                accepted_at       TIMESTAMPTZ,
+                declined_at       TIMESTAMPTZ,
+                created_by        UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                deleted_at        TIMESTAMPTZ
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint
+                  WHERE conname = 'chk_proposal_status'
+                ) THEN
+                  ALTER TABLE "${schema}".proposals
+                    ADD CONSTRAINT chk_proposal_status
+                    CHECK (status IN ('draft','sent','viewed','accepted','declined','expired'));
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_proposals_opportunity_id
+                ON "${schema}".proposals(opportunity_id);
+              CREATE INDEX IF NOT EXISTS idx_proposals_public_token
+                ON "${schema}".proposals(public_token);
+              CREATE INDEX IF NOT EXISTS idx_proposals_status
+                ON "${schema}".proposals(status);
+
+              -- proposal_line_items table
+              CREATE TABLE IF NOT EXISTS "${schema}".proposal_line_items (
+                id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                proposal_id     UUID NOT NULL REFERENCES "${schema}".proposals(id) ON DELETE CASCADE,
+                product_id      UUID REFERENCES "${schema}".products(id) ON DELETE SET NULL,
+                description     VARCHAR(500) NOT NULL,
+                quantity        NUMERIC(10,2) NOT NULL DEFAULT 1,
+                unit_price      NUMERIC(15,2) NOT NULL DEFAULT 0,
+                discount        NUMERIC(10,2) NOT NULL DEFAULT 0,
+                discount_type   VARCHAR(10) NOT NULL DEFAULT 'percentage',
+                total           NUMERIC(15,2) NOT NULL DEFAULT 0,
+                sort_order      INTEGER NOT NULL DEFAULT 0,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint
+                  WHERE conname = 'chk_proposal_line_discount_type'
+                ) THEN
+                  ALTER TABLE "${schema}".proposal_line_items
+                    ADD CONSTRAINT chk_proposal_line_discount_type
+                    CHECK (discount_type IN ('percentage','fixed'));
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_proposal_line_items_proposal
+                ON "${schema}".proposal_line_items(proposal_id);
+
+              -- proposal_views table
+              CREATE TABLE IF NOT EXISTS "${schema}".proposal_views (
+                id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                proposal_id  UUID NOT NULL REFERENCES "${schema}".proposals(id) ON DELETE CASCADE,
+                viewed_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                ip_address   VARCHAR(45),
+                user_agent   TEXT
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_proposal_views_proposal
+                ON "${schema}".proposal_views(proposal_id);
+            `,
+          },
+          {
+            name: '027_proposals_tenant_id',
+            sql: `
+              ALTER TABLE "${schema}".proposals
+                ADD COLUMN IF NOT EXISTS tenant_id UUID;
+            `,
+          },
+          {
+            name: '028_proposals_published_status',
+            sql: `
+              -- Add 'published' to the allowed proposal status values
+              ALTER TABLE "${schema}".proposals
+                DROP CONSTRAINT IF EXISTS chk_proposal_status;
+              ALTER TABLE "${schema}".proposals
+                ADD CONSTRAINT chk_proposal_status
+                CHECK (status IN ('draft','published','sent','viewed','accepted','declined','expired'));
+
+              -- Track when a proposal was published
+              ALTER TABLE "${schema}".proposals
+                ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
+              ALTER TABLE "${schema}".proposals
+                ADD COLUMN IF NOT EXISTS published_by UUID;
+            `,
+          },
+
+          // ── Sprint 3: Approval Engine ──────────────────────────────
+          {
+            name: '029_approval_engine',
+            sql: `
+              -- 1. approval_rules
+              CREATE TABLE IF NOT EXISTS "${schema}".approval_rules (
+                id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name          VARCHAR(255) NOT NULL,
+                entity_type   VARCHAR(50)  NOT NULL,
+                trigger_event VARCHAR(50)  NOT NULL,
+                is_active     BOOLEAN      NOT NULL DEFAULT true,
+                conditions    JSONB,
+                created_by    UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                deleted_at    TIMESTAMPTZ
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_approval_rule_entity'
+                ) THEN
+                  ALTER TABLE "${schema}".approval_rules
+                    ADD CONSTRAINT chk_approval_rule_entity
+                    CHECK (entity_type IN ('proposals','opportunities','deals','leads','custom'));
+                END IF;
+              END $$;
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_approval_rule_trigger'
+                ) THEN
+                  ALTER TABLE "${schema}".approval_rules
+                    ADD CONSTRAINT chk_approval_rule_trigger
+                    CHECK (trigger_event IN ('publish','close_won','discount_threshold','manual'));
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_approval_rules_entity
+                ON "${schema}".approval_rules(entity_type);
+              CREATE INDEX IF NOT EXISTS idx_approval_rules_trigger
+                ON "${schema}".approval_rules(trigger_event);
+              CREATE INDEX IF NOT EXISTS idx_approval_rules_active
+                ON "${schema}".approval_rules(is_active) WHERE deleted_at IS NULL;
+
+              -- 2. approval_rule_steps
+              CREATE TABLE IF NOT EXISTS "${schema}".approval_rule_steps (
+                id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                rule_id          UUID NOT NULL REFERENCES "${schema}".approval_rules(id) ON DELETE CASCADE,
+                step_order       INTEGER NOT NULL,
+                approver_type    VARCHAR(20) NOT NULL DEFAULT 'user',
+                approver_user_id UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                approver_role_id UUID REFERENCES "${schema}".roles(id) ON DELETE SET NULL,
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_approval_step_approver_type'
+                ) THEN
+                  ALTER TABLE "${schema}".approval_rule_steps
+                    ADD CONSTRAINT chk_approval_step_approver_type
+                    CHECK (approver_type IN ('user','role'));
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_approval_rule_steps_rule
+                ON "${schema}".approval_rule_steps(rule_id);
+
+              -- 3. approval_requests
+              CREATE TABLE IF NOT EXISTS "${schema}".approval_requests (
+                id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                rule_id       UUID REFERENCES "${schema}".approval_rules(id) ON DELETE SET NULL,
+                entity_type   VARCHAR(50)  NOT NULL,
+                entity_id     UUID         NOT NULL,
+                trigger_event VARCHAR(50)  NOT NULL,
+                status        VARCHAR(20)  NOT NULL DEFAULT 'pending',
+                current_step  INTEGER      NOT NULL DEFAULT 1,
+                requested_by  UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                completed_at  TIMESTAMPTZ,
+                rejected_at   TIMESTAMPTZ,
+                created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_approval_request_status'
+                ) THEN
+                  ALTER TABLE "${schema}".approval_requests
+                    ADD CONSTRAINT chk_approval_request_status
+                    CHECK (status IN ('pending','approved','rejected','cancelled'));
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_approval_requests_entity
+                ON "${schema}".approval_requests(entity_type, entity_id);
+              CREATE INDEX IF NOT EXISTS idx_approval_requests_status
+                ON "${schema}".approval_requests(status);
+              CREATE INDEX IF NOT EXISTS idx_approval_requests_rule
+                ON "${schema}".approval_requests(rule_id);
+
+              -- 4. approval_request_steps
+              CREATE TABLE IF NOT EXISTS "${schema}".approval_request_steps (
+                id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                request_id       UUID NOT NULL REFERENCES "${schema}".approval_requests(id) ON DELETE CASCADE,
+                step_order       INTEGER NOT NULL,
+                approver_user_id UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                approver_role_id UUID REFERENCES "${schema}".roles(id) ON DELETE SET NULL,
+                status           VARCHAR(20) NOT NULL DEFAULT 'pending',
+                comment          TEXT,
+                actioned_at      TIMESTAMPTZ,
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_approval_req_step_status'
+                ) THEN
+                  ALTER TABLE "${schema}".approval_request_steps
+                    ADD CONSTRAINT chk_approval_req_step_status
+                    CHECK (status IN ('pending','approved','rejected','skipped'));
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_approval_req_steps_request
+                ON "${schema}".approval_request_steps(request_id);
+              CREATE INDEX IF NOT EXISTS idx_approval_req_steps_approver
+                ON "${schema}".approval_request_steps(approver_user_id)
+                WHERE approver_user_id IS NOT NULL;
+            `,
+          },
+          {
+            name: '030_contracts',
+            sql: `
+              -- =====================================================
+              -- 1. tenant_integrations (PUBLIC schema)
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS public.tenant_integrations (
+                id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id    UUID NOT NULL REFERENCES master.tenants(id) ON DELETE CASCADE,
+                provider     VARCHAR(50) NOT NULL,
+                is_enabled   BOOLEAN NOT NULL DEFAULT false,
+                config       JSONB NOT NULL DEFAULT '{}',
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE(tenant_id, provider)
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_tenant_integrations_tenant
+                ON public.tenant_integrations(tenant_id);
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_tenant_integration_provider'
+                ) THEN
+                  ALTER TABLE public.tenant_integrations
+                    ADD CONSTRAINT chk_tenant_integration_provider
+                    CHECK (provider IN ('docusign','xero','slack','twilio','sendgrid','stripe'));
+                END IF;
+              END $$;
+
+              -- =====================================================
+              -- 2. contract_number_seq (tenant schema)
+              -- =====================================================
+              CREATE SEQUENCE IF NOT EXISTS "${schema}".contract_number_seq START 1000;
+
+              -- =====================================================
+              -- 3. contracts (tenant schema)
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".contracts (
+                id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                contract_number      VARCHAR(50) NOT NULL UNIQUE,
+                opportunity_id       UUID REFERENCES "${schema}".opportunities(id) ON DELETE SET NULL,
+                proposal_id          UUID REFERENCES "${schema}".proposals(id) ON DELETE SET NULL,
+                title                VARCHAR(255) NOT NULL,
+                type                 VARCHAR(30) NOT NULL DEFAULT 'service_agreement',
+                status               VARCHAR(30) NOT NULL DEFAULT 'draft',
+                sign_mode            VARCHAR(20) NOT NULL DEFAULT 'internal',
+                value                NUMERIC(15,2) NOT NULL DEFAULT 0,
+                currency             VARCHAR(10) NOT NULL DEFAULT 'USD',
+                start_date           DATE,
+                end_date             DATE,
+                renewal_date         DATE,
+                auto_renewal         BOOLEAN NOT NULL DEFAULT false,
+                terms                TEXT,
+                docusign_envelope_id VARCHAR(255),
+                docusign_status      VARCHAR(50),
+                created_by           UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                deleted_at           TIMESTAMPTZ
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_contract_type'
+                ) THEN
+                  ALTER TABLE "${schema}".contracts
+                    ADD CONSTRAINT chk_contract_type
+                    CHECK (type IN ('nda','msa','sow','service_agreement','custom'));
+                END IF;
+              END $$;
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_contract_status'
+                ) THEN
+                  ALTER TABLE "${schema}".contracts
+                    ADD CONSTRAINT chk_contract_status
+                    CHECK (status IN ('draft','sent_for_signing','partially_signed','fully_signed','expired','terminated','renewed'));
+                END IF;
+              END $$;
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_contract_sign_mode'
+                ) THEN
+                  ALTER TABLE "${schema}".contracts
+                    ADD CONSTRAINT chk_contract_sign_mode
+                    CHECK (sign_mode IN ('docusign','internal'));
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_contracts_opportunity ON "${schema}".contracts(opportunity_id);
+              CREATE INDEX IF NOT EXISTS idx_contracts_proposal ON "${schema}".contracts(proposal_id);
+              CREATE INDEX IF NOT EXISTS idx_contracts_status ON "${schema}".contracts(status);
+              CREATE INDEX IF NOT EXISTS idx_contracts_number ON "${schema}".contracts(contract_number);
+              CREATE INDEX IF NOT EXISTS idx_contracts_end_date ON "${schema}".contracts(end_date) WHERE deleted_at IS NULL;
+
+              -- =====================================================
+              -- 4. contract_signatories (tenant schema)
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".contract_signatories (
+                id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                contract_id      UUID NOT NULL REFERENCES "${schema}".contracts(id) ON DELETE CASCADE,
+                signatory_type   VARCHAR(20) NOT NULL DEFAULT 'external',
+                sign_order       INTEGER NOT NULL DEFAULT 1,
+                user_id          UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                contact_id       UUID REFERENCES "${schema}".contacts(id) ON DELETE SET NULL,
+                name             VARCHAR(255) NOT NULL,
+                email            VARCHAR(255) NOT NULL,
+                status           VARCHAR(20) NOT NULL DEFAULT 'pending',
+                signed_at        TIMESTAMPTZ,
+                signature_data   TEXT,
+                ip_address       VARCHAR(45),
+                token            UUID UNIQUE DEFAULT gen_random_uuid(),
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_signatory_type'
+                ) THEN
+                  ALTER TABLE "${schema}".contract_signatories
+                    ADD CONSTRAINT chk_signatory_type
+                    CHECK (signatory_type IN ('internal','external'));
+                END IF;
+              END $$;
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_signatory_status'
+                ) THEN
+                  ALTER TABLE "${schema}".contract_signatories
+                    ADD CONSTRAINT chk_signatory_status
+                    CHECK (status IN ('pending','sent','signed','declined'));
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_contract_signatories_contract ON "${schema}".contract_signatories(contract_id);
+              CREATE INDEX IF NOT EXISTS idx_contract_signatories_token ON "${schema}".contract_signatories(token);
+              CREATE INDEX IF NOT EXISTS idx_contract_signatories_email ON "${schema}".contract_signatories(email);
+            `,
+          },
+          {
+            name: '031_invoicing',
+            sql: `
+              -- =====================================================
+              -- 1. Add xero_contact_id to accounts
+              -- =====================================================
+              ALTER TABLE "${schema}".accounts
+                ADD COLUMN IF NOT EXISTS xero_contact_id VARCHAR(255);
+
+              CREATE INDEX IF NOT EXISTS idx_accounts_xero_contact
+                ON "${schema}".accounts(xero_contact_id)
+                WHERE xero_contact_id IS NOT NULL;
+
+              -- =====================================================
+              -- 2. Add xero_contact_id to contacts
+              -- =====================================================
+              ALTER TABLE "${schema}".contacts
+                ADD COLUMN IF NOT EXISTS xero_contact_id VARCHAR(255);
+
+              CREATE INDEX IF NOT EXISTS idx_contacts_xero_contact
+                ON "${schema}".contacts(xero_contact_id)
+                WHERE xero_contact_id IS NOT NULL;
+
+              -- =====================================================
+              -- 3. invoice_number_seq
+              -- =====================================================
+              CREATE SEQUENCE IF NOT EXISTS "${schema}".invoice_number_seq START 1000;
+
+              -- =====================================================
+              -- 4. invoices table
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".invoices (
+                id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                invoice_number      VARCHAR(50) NOT NULL UNIQUE,
+                opportunity_id      UUID REFERENCES "${schema}".opportunities(id) ON DELETE SET NULL,
+                contract_id         UUID REFERENCES "${schema}".contracts(id) ON DELETE SET NULL,
+                proposal_id         UUID REFERENCES "${schema}".proposals(id) ON DELETE SET NULL,
+                account_id          UUID REFERENCES "${schema}".accounts(id) ON DELETE SET NULL,
+                contact_id          UUID REFERENCES "${schema}".contacts(id) ON DELETE SET NULL,
+                title               VARCHAR(255) NOT NULL,
+                status              VARCHAR(30)  NOT NULL DEFAULT 'draft',
+                currency            VARCHAR(10)  NOT NULL DEFAULT 'USD',
+                subtotal            NUMERIC(15,2) NOT NULL DEFAULT 0,
+                discount_amount     NUMERIC(15,2) NOT NULL DEFAULT 0,
+                tax_amount          NUMERIC(15,2) NOT NULL DEFAULT 0,
+                total_amount        NUMERIC(15,2) NOT NULL DEFAULT 0,
+                amount_paid         NUMERIC(15,2) NOT NULL DEFAULT 0,
+                amount_due          NUMERIC(15,2) NOT NULL DEFAULT 0,
+                issue_date          DATE NOT NULL DEFAULT CURRENT_DATE,
+                due_date            DATE,
+                paid_at             TIMESTAMPTZ,
+                notes               TEXT,
+                terms               TEXT,
+                is_recurring        BOOLEAN NOT NULL DEFAULT false,
+                recurrence_interval VARCHAR(20),
+                recurrence_end_date DATE,
+                next_invoice_date   DATE,
+                xero_invoice_id     VARCHAR(255),
+                xero_status         VARCHAR(50),
+                stripe_payment_id   VARCHAR(255),
+                created_by          UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                deleted_at          TIMESTAMPTZ
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_invoice_status'
+                ) THEN
+                  ALTER TABLE "${schema}".invoices
+                    ADD CONSTRAINT chk_invoice_status
+                    CHECK (status IN ('draft','sent','partially_paid','paid','overdue','cancelled','void'));
+                END IF;
+              END $$;
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_invoice_recurrence'
+                ) THEN
+                  ALTER TABLE "${schema}".invoices
+                    ADD CONSTRAINT chk_invoice_recurrence
+                    CHECK (recurrence_interval IN ('weekly','monthly','quarterly','annually') OR recurrence_interval IS NULL);
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_invoices_opportunity ON "${schema}".invoices(opportunity_id);
+              CREATE INDEX IF NOT EXISTS idx_invoices_contract ON "${schema}".invoices(contract_id);
+              CREATE INDEX IF NOT EXISTS idx_invoices_account ON "${schema}".invoices(account_id);
+              CREATE INDEX IF NOT EXISTS idx_invoices_status ON "${schema}".invoices(status);
+              CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON "${schema}".invoices(due_date) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_invoices_xero ON "${schema}".invoices(xero_invoice_id) WHERE xero_invoice_id IS NOT NULL;
+
+              -- =====================================================
+              -- 5. invoice_line_items table
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".invoice_line_items (
+                id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                invoice_id    UUID NOT NULL REFERENCES "${schema}".invoices(id) ON DELETE CASCADE,
+                product_id    UUID REFERENCES "${schema}".products(id) ON DELETE SET NULL,
+                description   VARCHAR(500) NOT NULL,
+                quantity      NUMERIC(10,2) NOT NULL DEFAULT 1,
+                unit_price    NUMERIC(15,2) NOT NULL DEFAULT 0,
+                discount      NUMERIC(10,2) NOT NULL DEFAULT 0,
+                discount_type VARCHAR(10)   NOT NULL DEFAULT 'percentage',
+                tax_rate      NUMERIC(5,2)  NOT NULL DEFAULT 0,
+                total         NUMERIC(15,2) NOT NULL DEFAULT 0,
+                sort_order    INTEGER       NOT NULL DEFAULT 0,
+                created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_invoice_line_discount_type'
+                ) THEN
+                  ALTER TABLE "${schema}".invoice_line_items
+                    ADD CONSTRAINT chk_invoice_line_discount_type
+                    CHECK (discount_type IN ('percentage','fixed'));
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_invoice_line_items_invoice ON "${schema}".invoice_line_items(invoice_id);
+
+              -- =====================================================
+              -- 6. invoice_payments table
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".invoice_payments (
+                id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                invoice_id      UUID NOT NULL REFERENCES "${schema}".invoices(id) ON DELETE CASCADE,
+                amount          NUMERIC(15,2) NOT NULL,
+                currency        VARCHAR(10)   NOT NULL DEFAULT 'USD',
+                payment_method  VARCHAR(50)   NOT NULL DEFAULT 'manual',
+                reference       VARCHAR(255),
+                notes           TEXT,
+                paid_at         TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+                recorded_by     UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                xero_payment_id VARCHAR(255),
+                created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'chk_invoice_payment_method'
+                ) THEN
+                  ALTER TABLE "${schema}".invoice_payments
+                    ADD CONSTRAINT chk_invoice_payment_method
+                    CHECK (payment_method IN ('manual','bank_transfer','credit_card','xero','stripe','cash','cheque'));
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_invoice_payments_invoice ON "${schema}".invoice_payments(invoice_id);
+              CREATE INDEX IF NOT EXISTS idx_invoice_payments_paid_at ON "${schema}".invoice_payments(paid_at);
+            `,
+          },
+          {
+            name: '032_project_management',
+            sql: `
+              -- =====================================================
+              -- PART 1: project_statuses
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".project_statuses (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(100) NOT NULL,
+                slug VARCHAR(100) NOT NULL,
+                color VARCHAR(20) DEFAULT '#3B82F6',
+                icon VARCHAR(50) DEFAULT 'circle',
+                description TEXT,
+                is_default BOOLEAN DEFAULT false,
+                is_closed BOOLEAN DEFAULT false,
+                is_system BOOLEAN DEFAULT false,
+                is_active BOOLEAN DEFAULT true,
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(slug)
+              );
+
+              INSERT INTO "${schema}".project_statuses
+                (name, slug, color, icon, is_default, is_closed, is_system, sort_order)
+              VALUES
+                ('Not Started', 'not_started', '#94A3B8', 'circle',        true,  false, true, 1),
+                ('In Progress', 'in_progress', '#3B82F6', 'play-circle',   false, false, true, 2),
+                ('On Hold',     'on_hold',     '#F59E0B', 'pause-circle',  false, false, true, 3),
+                ('Completed',   'completed',   '#10B981', 'check-circle',  false, true,  true, 4),
+                ('Cancelled',   'cancelled',   '#EF4444', 'x-circle',      false, true,  true, 5)
+              ON CONFLICT (slug) DO NOTHING;
+
+              -- =====================================================
+              -- PART 2: project_task_statuses
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".project_task_statuses (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(100) NOT NULL,
+                slug VARCHAR(100) NOT NULL,
+                color VARCHAR(20) DEFAULT '#3B82F6',
+                is_default BOOLEAN DEFAULT false,
+                is_done BOOLEAN DEFAULT false,
+                is_system BOOLEAN DEFAULT false,
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(slug)
+              );
+
+              INSERT INTO "${schema}".project_task_statuses
+                (name, slug, color, is_default, is_done, is_system, sort_order)
+              VALUES
+                ('To Do',       'todo',        '#94A3B8', true,  false, true, 1),
+                ('In Progress', 'in_progress', '#3B82F6', false, false, true, 2),
+                ('In Review',   'in_review',   '#F59E0B', false, false, true, 3),
+                ('Done',        'done',        '#10B981', false, true,  true, 4),
+                ('Blocked',     'blocked',     '#EF4444', false, false, true, 5)
+              ON CONFLICT (slug) DO NOTHING;
+
+              -- =====================================================
+              -- PART 3: project_templates
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".project_templates (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                color VARCHAR(20) DEFAULT '#3B82F6',
+                icon VARCHAR(50) DEFAULT 'folder',
+                estimated_days INT,
+                is_active BOOLEAN DEFAULT true,
+                is_system BOOLEAN DEFAULT false,
+                created_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_project_templates_active
+                ON "${schema}".project_templates(is_active);
+
+              -- =====================================================
+              -- PART 4: project_template_phases
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".project_template_phases (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                template_id UUID NOT NULL REFERENCES "${schema}".project_templates(id) ON DELETE CASCADE,
+                name VARCHAR(150) NOT NULL,
+                description TEXT,
+                color VARCHAR(20) DEFAULT '#3B82F6',
+                sort_order INT DEFAULT 0,
+                estimated_days INT,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_project_template_phases_template
+                ON "${schema}".project_template_phases(template_id);
+
+              -- =====================================================
+              -- PART 5: project_template_tasks
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".project_template_tasks (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                phase_id UUID NOT NULL REFERENCES "${schema}".project_template_phases(id) ON DELETE CASCADE,
+                template_id UUID NOT NULL REFERENCES "${schema}".project_templates(id) ON DELETE CASCADE,
+                title VARCHAR(500) NOT NULL,
+                description TEXT,
+                assignee_role VARCHAR(100),
+                due_days_from_start INT,
+                estimated_hours DECIMAL(8,2),
+                priority VARCHAR(20) DEFAULT 'medium',
+                tags TEXT[] DEFAULT '{}',
+                dependencies JSONB DEFAULT '[]',
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_project_template_tasks_phase
+                ON "${schema}".project_template_tasks(phase_id);
+              CREATE INDEX IF NOT EXISTS idx_project_template_tasks_template
+                ON "${schema}".project_template_tasks(template_id);
+
+              -- =====================================================
+              -- PART 6: projects
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".projects (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                status_id UUID REFERENCES "${schema}".project_statuses(id) ON DELETE SET NULL,
+                color VARCHAR(20) DEFAULT '#3B82F6',
+                opportunity_id UUID REFERENCES "${schema}".opportunities(id) ON DELETE SET NULL,
+                account_id UUID REFERENCES "${schema}".accounts(id) ON DELETE SET NULL,
+                contact_id UUID REFERENCES "${schema}".contacts(id) ON DELETE SET NULL,
+                template_id UUID REFERENCES "${schema}".project_templates(id) ON DELETE SET NULL,
+                health_score INT DEFAULT 100,
+                health_status VARCHAR(20) DEFAULT 'on_track',
+                start_date DATE,
+                end_date DATE,
+                actual_end_date DATE,
+                budget DECIMAL(15,2),
+                actual_cost DECIMAL(15,2) DEFAULT 0,
+                currency VARCHAR(3) DEFAULT 'USD',
+                owner_id UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                team_id UUID REFERENCES "${schema}".teams(id) ON DELETE SET NULL,
+                tags TEXT[] DEFAULT '{}',
+                custom_fields JSONB DEFAULT '{}',
+                client_portal_enabled BOOLEAN DEFAULT false,
+                created_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                updated_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                deleted_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_projects_opportunity ON "${schema}".projects(opportunity_id);
+              CREATE INDEX IF NOT EXISTS idx_projects_account     ON "${schema}".projects(account_id);
+              CREATE INDEX IF NOT EXISTS idx_projects_owner       ON "${schema}".projects(owner_id);
+              CREATE INDEX IF NOT EXISTS idx_projects_status      ON "${schema}".projects(status_id);
+              CREATE INDEX IF NOT EXISTS idx_projects_deleted     ON "${schema}".projects(deleted_at) WHERE deleted_at IS NULL;
+
+              -- =====================================================
+              -- PART 7: project_members
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".project_members (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                project_id UUID NOT NULL REFERENCES "${schema}".projects(id) ON DELETE CASCADE,
+                user_id UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+                role VARCHAR(50) DEFAULT 'member',
+                is_client_contact BOOLEAN DEFAULT false,
+                added_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(project_id, user_id)
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_project_members_project ON "${schema}".project_members(project_id);
+              CREATE INDEX IF NOT EXISTS idx_project_members_user    ON "${schema}".project_members(user_id);
+
+              -- =====================================================
+              -- PART 8: project_phases
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".project_phases (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                project_id UUID NOT NULL REFERENCES "${schema}".projects(id) ON DELETE CASCADE,
+                name VARCHAR(150) NOT NULL,
+                description TEXT,
+                color VARCHAR(20) DEFAULT '#3B82F6',
+                sort_order INT DEFAULT 0,
+                is_complete BOOLEAN DEFAULT false,
+                completed_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_project_phases_project ON "${schema}".project_phases(project_id);
+
+              -- =====================================================
+              -- PART 9: project_tasks
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".project_tasks (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                project_id UUID NOT NULL REFERENCES "${schema}".projects(id) ON DELETE CASCADE,
+                phase_id UUID REFERENCES "${schema}".project_phases(id) ON DELETE SET NULL,
+                parent_task_id UUID REFERENCES "${schema}".project_tasks(id) ON DELETE CASCADE,
+                title VARCHAR(500) NOT NULL,
+                description TEXT,
+                status_id UUID REFERENCES "${schema}".project_task_statuses(id) ON DELETE SET NULL,
+                priority VARCHAR(20) DEFAULT 'medium',
+                assignee_id UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                start_date DATE,
+                due_date DATE,
+                completed_at TIMESTAMPTZ,
+                estimated_hours DECIMAL(8,2),
+                logged_hours DECIMAL(8,2) DEFAULT 0,
+                sort_order INT DEFAULT 0,
+                tags TEXT[] DEFAULT '{}',
+                custom_fields JSONB DEFAULT '{}',
+                created_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                updated_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                deleted_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_project_tasks_project  ON "${schema}".project_tasks(project_id, phase_id);
+              CREATE INDEX IF NOT EXISTS idx_project_tasks_assignee ON "${schema}".project_tasks(assignee_id, status_id);
+              CREATE INDEX IF NOT EXISTS idx_project_tasks_parent   ON "${schema}".project_tasks(parent_task_id);
+              CREATE INDEX IF NOT EXISTS idx_project_tasks_due      ON "${schema}".project_tasks(due_date) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_project_tasks_deleted  ON "${schema}".project_tasks(deleted_at) WHERE deleted_at IS NULL;
+
+              -- =====================================================
+              -- PART 10: project_task_dependencies
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".project_task_dependencies (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                task_id UUID NOT NULL REFERENCES "${schema}".project_tasks(id) ON DELETE CASCADE,
+                depends_on_task_id UUID NOT NULL REFERENCES "${schema}".project_tasks(id) ON DELETE CASCADE,
+                dependency_type VARCHAR(30) DEFAULT 'finish_to_start',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(task_id, depends_on_task_id)
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_task_deps_task        ON "${schema}".project_task_dependencies(task_id);
+              CREATE INDEX IF NOT EXISTS idx_task_deps_depends_on  ON "${schema}".project_task_dependencies(depends_on_task_id);
+
+              -- =====================================================
+              -- PART 11: project_task_comments, attachments, time entries, milestones
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".project_task_comments (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                task_id UUID NOT NULL REFERENCES "${schema}".project_tasks(id) ON DELETE CASCADE,
+                user_id UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                mentions JSONB DEFAULT '[]',
+                is_edited BOOLEAN DEFAULT false,
+                edited_at TIMESTAMPTZ,
+                deleted_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_task_comments_task ON "${schema}".project_task_comments(task_id);
+
+              CREATE TABLE IF NOT EXISTS "${schema}".project_task_attachments (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                task_id UUID NOT NULL REFERENCES "${schema}".project_tasks(id) ON DELETE CASCADE,
+                project_id UUID NOT NULL REFERENCES "${schema}".projects(id) ON DELETE CASCADE,
+                name VARCHAR(255) NOT NULL,
+                original_name VARCHAR(255),
+                mime_type VARCHAR(100),
+                size_bytes BIGINT,
+                storage_path VARCHAR(500),
+                storage_url VARCHAR(500),
+                uploaded_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_task_attachments_task    ON "${schema}".project_task_attachments(task_id);
+              CREATE INDEX IF NOT EXISTS idx_task_attachments_project ON "${schema}".project_task_attachments(project_id);
+
+              CREATE TABLE IF NOT EXISTS "${schema}".project_time_entries (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                project_id UUID NOT NULL REFERENCES "${schema}".projects(id) ON DELETE CASCADE,
+                task_id UUID REFERENCES "${schema}".project_tasks(id) ON DELETE SET NULL,
+                user_id UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+                description TEXT,
+                minutes INT NOT NULL DEFAULT 0,
+                logged_at DATE NOT NULL DEFAULT CURRENT_DATE,
+                is_billable BOOLEAN DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_time_entries_project ON "${schema}".project_time_entries(project_id);
+              CREATE INDEX IF NOT EXISTS idx_time_entries_task    ON "${schema}".project_time_entries(task_id, user_id);
+              CREATE INDEX IF NOT EXISTS idx_time_entries_user    ON "${schema}".project_time_entries(user_id, logged_at);
+
+              CREATE TABLE IF NOT EXISTS "${schema}".project_milestones (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                project_id UUID NOT NULL REFERENCES "${schema}".projects(id) ON DELETE CASCADE,
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                due_date DATE,
+                is_complete BOOLEAN DEFAULT false,
+                completed_at TIMESTAMPTZ,
+                linked_task_ids JSONB DEFAULT '[]',
+                created_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_project_milestones_project ON "${schema}".project_milestones(project_id);
+              CREATE INDEX IF NOT EXISTS idx_project_milestones_due     ON "${schema}".project_milestones(due_date);
+
+              -- =====================================================
+              -- PART 12: client_portal_tokens + default template seed
+              -- =====================================================
+              CREATE TABLE IF NOT EXISTS "${schema}".client_portal_tokens (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                project_id UUID NOT NULL REFERENCES "${schema}".projects(id) ON DELETE CASCADE,
+                token VARCHAR(128) NOT NULL UNIQUE,
+                label VARCHAR(255),
+                email VARCHAR(255),
+                permissions JSONB DEFAULT '{"view_tasks":true,"view_files":true,"view_timeline":false,"add_comments":false}',
+                expires_at TIMESTAMPTZ,
+                last_accessed_at TIMESTAMPTZ,
+                created_by UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_portal_tokens_project ON "${schema}".client_portal_tokens(project_id);
+              CREATE INDEX IF NOT EXISTS idx_portal_tokens_token   ON "${schema}".client_portal_tokens(token);
+
+              -- Seed default template
+              DO $$
+              DECLARE
+                tmpl_id UUID;
+                phase1_id UUID;
+                phase2_id UUID;
+                phase3_id UUID;
+              BEGIN
+                INSERT INTO "${schema}".project_templates
+                  (name, description, color, icon, estimated_days, is_system, is_active)
+                VALUES
+                  ('General Project', 'Default template for new projects', '#3B82F6', 'folder', 30, true, true)
+                ON CONFLICT DO NOTHING
+                RETURNING id INTO tmpl_id;
+
+                IF tmpl_id IS NOT NULL THEN
+                  INSERT INTO "${schema}".project_template_phases
+                    (template_id, name, color, sort_order, estimated_days)
+                  VALUES (tmpl_id, 'Planning',  '#8B5CF6', 1, 7)  RETURNING id INTO phase1_id;
+
+                  INSERT INTO "${schema}".project_template_phases
+                    (template_id, name, color, sort_order, estimated_days)
+                  VALUES (tmpl_id, 'Execution', '#3B82F6', 2, 16) RETURNING id INTO phase2_id;
+
+                  INSERT INTO "${schema}".project_template_phases
+                    (template_id, name, color, sort_order, estimated_days)
+                  VALUES (tmpl_id, 'Handover',  '#10B981', 3, 7)  RETURNING id INTO phase3_id;
+
+                  INSERT INTO "${schema}".project_template_tasks
+                    (template_id, phase_id, title, due_days_from_start, sort_order)
+                  VALUES
+                    (tmpl_id, phase1_id, 'Define project scope',         2, 1),
+                    (tmpl_id, phase1_id, 'Identify stakeholders',        3, 2),
+                    (tmpl_id, phase1_id, 'Set up project workspace',     5, 3),
+                    (tmpl_id, phase2_id, 'Kick-off meeting with client', 8, 1),
+                    (tmpl_id, phase2_id, 'Deliver first milestone',     15, 2),
+                    (tmpl_id, phase2_id, 'Mid-project review',          20, 3),
+                    (tmpl_id, phase3_id, 'Final delivery review',       26, 1),
+                    (tmpl_id, phase3_id, 'Client sign-off',             28, 2),
+                    (tmpl_id, phase3_id, 'Project closure report',      30, 3);
+                END IF;
+              END $$;
+
+              DO $$
+              BEGIN
+                IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'intelli_hiper_app') THEN
+                  EXECUTE 'GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app';
+                  EXECUTE 'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app';
+                END IF;
+              END $$;
+            `,
+          },
+          {
+            name: '033_projects_enhancements',
+            sql: build033ProjectsEnhancements(schema),
+          },
         ];
 
         // ── Execute pending migrations ────────────────────────────
@@ -3205,6 +4215,41 @@ function buildLeadImportMigration(schema: string): string {
     );
 
     CREATE INDEX IF NOT EXISTS idx_import_mapping_templates_type ON "${schema}".import_mapping_templates(type);
+  `;
+}
+
+function build033ProjectsEnhancements(schema: string): string {
+  return `
+    -- 033: Projects module enhancements
+    -- is_closed / is_cancelled flags on project_statuses
+    ALTER TABLE "${schema}".project_statuses
+      ADD COLUMN IF NOT EXISTS is_closed    BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS is_cancelled BOOLEAN DEFAULT false;
+
+    UPDATE "${schema}".project_statuses
+      SET is_closed = true
+      WHERE name = 'Completed';
+
+    UPDATE "${schema}".project_statuses
+      SET is_closed = true, is_cancelled = true
+      WHERE name = 'Cancelled';
+
+    -- approval_config on project_templates
+    ALTER TABLE "${schema}".project_templates
+      ADD COLUMN IF NOT EXISTS approval_config JSONB DEFAULT NULL;
+
+    -- Add projects permissions to existing system roles (merge, do not overwrite)
+    UPDATE "${schema}".roles
+      SET permissions = permissions || '{"projects":{"view":true,"create":true,"edit":true,"delete":true,"export":false,"import":false}}'::jsonb
+      WHERE name = 'admin' AND is_custom = false;
+
+    UPDATE "${schema}".roles
+      SET permissions = permissions || '{"projects":{"view":true,"create":true,"edit":true,"delete":false,"export":false,"import":false}}'::jsonb
+      WHERE name = 'manager' AND is_custom = false;
+
+    UPDATE "${schema}".roles
+      SET permissions = permissions || '{"projects":{"view":true,"create":false,"edit":false,"delete":false,"export":false,"import":false}}'::jsonb
+      WHERE name = 'user' AND is_custom = false;
   `;
 }
 

@@ -15,7 +15,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { PermissionGuard, RequirePermission, AdminOnly } from '../../common/guards/permissions.guard';
-import { LeadSettingsService } from './lead-settings.service';
+import { LeadSettingsService, UpdateStageOwnershipDto } from './lead-settings.service';
 import { LeadScoringService } from './lead-scoring.service';
 import { RecordTeamService } from '../shared/record-team.service';
 
@@ -147,6 +147,63 @@ export class LeadSettingsController {
     @Body() body: { fields: any[] },
   ) {
     return this.settingsService.upsertStageFields(req.user.tenantSchema, stageId, body.fields);
+  }
+
+  // ============================================================
+  // STAGE OWNERSHIP
+  // ============================================================
+
+  @Get('stage-ownership')
+  @RequirePermission('leads', 'view')
+  @ApiOperation({ summary: 'Get stage ownership for all stages in a pipeline' })
+  @ApiQuery({ name: 'pipelineId', required: true })
+  async getStageOwnershipByPipeline(
+    @Request() req: { user: JwtPayload },
+    @Query('pipelineId') pipelineId: string,
+  ) {
+    return this.settingsService.getStageOwnershipByPipeline(req.user.tenantSchema, pipelineId);
+  }
+
+  @Get('stage-ownership/:stageId')
+  @RequirePermission('leads', 'view')
+  @ApiOperation({ summary: 'Get stage ownership configuration' })
+  async getStageOwnership(
+    @Request() req: { user: JwtPayload },
+    @Param('stageId') stageId: string,
+  ) {
+    return this.settingsService.getStageOwnership(req.user.tenantSchema, stageId);
+  }
+
+  @Put('stage-ownership/:stageId')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Update stage ownership configuration' })
+  async updateStageOwnership(
+    @Request() req: { user: JwtPayload },
+    @Param('stageId') stageId: string,
+    @Body() dto: UpdateStageOwnershipDto,
+  ) {
+    return this.settingsService.updateStageOwnership(req.user.tenantSchema, stageId, req.user.sub, dto);
+  }
+
+  @Get('field-visibility/:stageId')
+  @RequirePermission('leads', 'view')
+  @ApiOperation({ summary: 'Get field visibility for a stage' })
+  async getFieldVisibility(
+    @Request() req: { user: JwtPayload },
+    @Param('stageId') stageId: string,
+  ) {
+    return this.settingsService.getFieldVisibility(req.user.tenantSchema, stageId);
+  }
+
+  @Put('field-visibility/:stageId')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Update field visibility for a stage' })
+  async updateFieldVisibility(
+    @Request() req: { user: JwtPayload },
+    @Param('stageId') stageId: string,
+    @Body() body: { fieldVisibility: Record<string, 'hidden' | 'read_only' | 'editable'> },
+  ) {
+    return this.settingsService.updateFieldVisibility(req.user.tenantSchema, stageId, req.user.sub, body.fieldVisibility);
   }
 
   // ============================================================

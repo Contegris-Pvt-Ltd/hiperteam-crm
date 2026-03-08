@@ -6,14 +6,18 @@ import { NotesService } from './notes.service';
 import { DataAccessService } from './data-access.service';
 import { TablePreferencesService } from './table-preferences.service';
 import { TableColumnsService } from './table-columns.service';
-import { TablePreferencesController } from './table-preferences.controller'; 
+import { TablePreferencesController } from './table-preferences.controller';
 import { FieldValidationService } from './field-validation.service';
 import { ModuleSettingsController } from './module-settings.controller';
+import { ApprovalService } from './approval.service';
+import { ApprovalController } from './approval.controller';
+import { EmailModule } from '../email/email.module';
 
 @Global()
 @Module({
-  controllers: [TablePreferencesController, ModuleSettingsController],
-  providers: [AuditService, ActivityService, DocumentsService, NotesService, DataAccessService, TablePreferencesService, TableColumnsService, FieldValidationService],
-  exports: [AuditService, ActivityService, DocumentsService, NotesService, DataAccessService, TablePreferencesService, TableColumnsService, FieldValidationService],
+  imports: [EmailModule],
+  controllers: [TablePreferencesController, ModuleSettingsController, ApprovalController],
+  providers: [AuditService, ActivityService, DocumentsService, NotesService, DataAccessService, TablePreferencesService, TableColumnsService, FieldValidationService, ApprovalService],
+  exports: [AuditService, ActivityService, DocumentsService, NotesService, DataAccessService, TablePreferencesService, TableColumnsService, FieldValidationService, ApprovalService],
 })
 export class SharedModule {}

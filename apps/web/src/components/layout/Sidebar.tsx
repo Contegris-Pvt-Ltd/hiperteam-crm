@@ -16,7 +16,10 @@ import {
   Shield,
   Package,
   Bell,
-  BarChart3
+  BarChart3,
+  ClipboardCheck,
+  Receipt,
+  FolderKanban,
 } from 'lucide-react';
 
 const navigation = [
@@ -25,9 +28,12 @@ const navigation = [
   { name: 'Accounts', href: '/accounts', icon: Building2 },
   { name: 'Leads', href: '/leads', icon: UserPlus },
   { name: 'Opportunities', href: '/opportunities', icon: TrendingUp },
+  { name: 'Invoices', href: '/invoices', icon: Receipt },
+  { name: 'Projects', href: '/projects', icon: FolderKanban },
   { name: 'Products', href: '/products', icon: Package },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Notifications', href: '/notifications', icon: Bell },
+  { name: 'Approvals', href: '/approvals', icon: ClipboardCheck },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
 ];
 
