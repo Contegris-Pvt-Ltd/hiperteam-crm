@@ -73,7 +73,11 @@ export class ApprovalService {
     triggerEvent: string,
     requestedBy: string,
   ): Promise<any | null> {
-    const rule = await this.findActiveRule(schemaName, entityType, triggerEvent);
+    const rule = await this.findActiveRule(
+      schemaName,
+      entityType,
+      triggerEvent,
+    );
     if (!rule) return null;
 
     // Check for existing pending request
@@ -92,7 +96,9 @@ export class ApprovalService {
     );
     if (existing.length > 0) {
       const name = existing[0].approver_name || 'the designated approver';
-      throw new BadRequestException(`An approval request is already pending with ${name}`);
+      throw new BadRequestException(
+        `An approval request is already pending with ${name}`,
+      );
     }
 
     // Insert the request
@@ -147,10 +153,7 @@ export class ApprovalService {
   // ============================================================
   // GET SINGLE REQUEST WITH STEPS
   // ============================================================
-  async getRequest(
-    schemaName: string,
-    requestId: string,
-  ): Promise<any> {
+  async getRequest(schemaName: string, requestId: string): Promise<any> {
     const rows = await this.dataSource.query(
       `SELECT
          r.*,
@@ -232,7 +235,9 @@ export class ApprovalService {
       [requestId, request.currentStep],
     );
     if (!step) {
-      throw new BadRequestException('No pending step found for current step order');
+      throw new BadRequestException(
+        'No pending step found for current step order',
+      );
     }
 
     // ── Approver verification ──────────────────────────────────
@@ -275,7 +280,11 @@ export class ApprovalService {
 
       // Notify next approver
       try {
-        await this.notifyApprover(schemaName, requestId, request.currentStep + 1);
+        await this.notifyApprover(
+          schemaName,
+          requestId,
+          request.currentStep + 1,
+        );
       } catch (notifyErr) {
         this.logger.error('Failed to send next step notification:', notifyErr);
       }
@@ -289,9 +298,18 @@ export class ApprovalService {
         stepStatus: { from: 'pending', to: 'approved' },
         ...(remaining.cnt === 0
           ? { status: { from: 'pending', to: 'approved' } }
-          : { currentStep: { from: request.currentStep, to: request.currentStep + 1 } }),
+          : {
+              currentStep: {
+                from: request.currentStep,
+                to: request.currentStep + 1,
+              },
+            }),
       },
-      newValues: { approvedBy: userId, stepOrder: request.currentStep, comment },
+      newValues: {
+        approvedBy: userId,
+        stepOrder: request.currentStep,
+        comment,
+      },
       performedBy: userId,
     });
 
@@ -319,7 +337,9 @@ export class ApprovalService {
       [requestId, request.currentStep],
     );
     if (!step) {
-      throw new BadRequestException('No pending step found for current step order');
+      throw new BadRequestException(
+        'No pending step found for current step order',
+      );
     }
 
     // ── Approver verification ──────────────────────────────────
@@ -346,7 +366,11 @@ export class ApprovalService {
       entityId: requestId,
       action: 'update',
       changes: { status: { from: 'pending', to: 'rejected' } },
-      newValues: { rejectedBy: userId, stepOrder: request.currentStep, comment },
+      newValues: {
+        rejectedBy: userId,
+        stepOrder: request.currentStep,
+        comment,
+      },
       performedBy: userId,
     });
 
@@ -490,10 +514,7 @@ export class ApprovalService {
   // ============================================================
   // RULE CRUD
   // ============================================================
-  async getRules(
-    schemaName: string,
-    entityType?: string,
-  ): Promise<any[]> {
+  async getRules(schemaName: string, entityType?: string): Promise<any[]> {
     const conditions = ['r.deleted_at IS NULL'];
     const params: any[] = [];
 
@@ -535,7 +556,13 @@ export class ApprovalService {
          (name, entity_type, trigger_event, conditions, created_by)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [dto.name, dto.entityType, dto.triggerEvent, dto.conditions || null, userId],
+      [
+        dto.name,
+        dto.entityType,
+        dto.triggerEvent,
+        dto.conditions || null,
+        userId,
+      ],
     );
 
     for (const step of dto.steps) {
@@ -558,7 +585,11 @@ export class ApprovalService {
       entityId: rule.id,
       action: 'create',
       changes: {},
-      newValues: { name: dto.name, entityType: dto.entityType, triggerEvent: dto.triggerEvent },
+      newValues: {
+        name: dto.name,
+        entityType: dto.entityType,
+        triggerEvent: dto.triggerEvent,
+      },
       performedBy: userId,
     });
 
@@ -583,7 +614,7 @@ export class ApprovalService {
       }>;
     },
   ): Promise<any> {
-    const existing = await this.getRuleById(schemaName, ruleId);
+    await this.getRuleById(schemaName, ruleId);
 
     // Block update if active pending requests use this rule
     const pending = await this.dataSource.query(
@@ -593,7 +624,9 @@ export class ApprovalService {
       [ruleId],
     );
     if (pending.length > 0) {
-      throw new BadRequestException('Cannot update rule with active pending requests');
+      throw new BadRequestException(
+        'Cannot update rule with active pending requests',
+      );
     }
 
     await this.dataSource.query(
@@ -655,7 +688,7 @@ export class ApprovalService {
     ruleId: string,
     userId: string,
   ): Promise<void> {
-    const existing = await this.getRuleById(schemaName, ruleId);
+    await this.getRuleById(schemaName, ruleId);
 
     await this.dataSource.query(
       `UPDATE "${schemaName}".approval_rules
@@ -674,10 +707,7 @@ export class ApprovalService {
     });
   }
 
-  async getRuleById(
-    schemaName: string,
-    ruleId: string,
-  ): Promise<any> {
+  async getRuleById(schemaName: string, ruleId: string): Promise<any> {
     const rows = await this.dataSource.query(
       `SELECT
          r.*,
@@ -771,7 +801,8 @@ export class ApprovalService {
 
     const appUrl = process.env.APP_URL || 'http://localhost:5173';
     const queueUrl = `${appUrl}/approvals`;
-    const triggerLabel = triggerLabels[request.triggerEvent] || request.triggerEvent;
+    const triggerLabel =
+      triggerLabels[request.triggerEvent] || request.triggerEvent;
 
     await this.emailService.sendEmail({
       to,
@@ -848,24 +879,34 @@ export class ApprovalService {
     approvedBy: string,
   ): Promise<void> {
     try {
-      if (request.entityType === 'proposals' && request.triggerEvent === 'publish') {
+      if (
+        request.entityType === 'proposals' &&
+        request.triggerEvent === 'publish'
+      ) {
         await this.dataSource.query(
           `UPDATE "${schemaName}".proposals
            SET status = 'published', published_at = NOW(), published_by = $2, updated_at = NOW()
            WHERE id = $1 AND deleted_at IS NULL`,
           [request.entityId, approvedBy],
         );
-        this.logger.log(`Proposal ${request.entityId} published after approval`);
+        this.logger.log(
+          `Proposal ${request.entityId} published after approval`,
+        );
       }
 
-      if (request.entityType === 'opportunities' && request.triggerEvent === 'close_won') {
+      if (
+        request.entityType === 'opportunities' &&
+        request.triggerEvent === 'close_won'
+      ) {
         await this.dataSource.query(
           `UPDATE "${schemaName}".opportunities
            SET status = 'closed_won', closed_at = NOW(), updated_at = NOW()
            WHERE id = $1 AND deleted_at IS NULL`,
           [request.entityId],
         );
-        this.logger.log(`Opportunity ${request.entityId} closed-won after approval`);
+        this.logger.log(
+          `Opportunity ${request.entityId} closed-won after approval`,
+        );
       }
     } catch (err) {
       this.logger.error('Failed to execute post-approval action:', err);

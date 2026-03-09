@@ -202,7 +202,7 @@ export function LeadDetailPage() {
     }
   };
 
-  const handleStageAssignmentConfirm = async (assignment: {
+  const handleStageAssignmentConfirm = async (_assignment: {
     ownerType: 'inherit' | 'user' | 'team_lead' | 'auto_assign';
     userId?: string | null;
     teamId?: string | null;

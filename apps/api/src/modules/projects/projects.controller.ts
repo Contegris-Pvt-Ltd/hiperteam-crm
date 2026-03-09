@@ -5,13 +5,26 @@
 // comments, time tracking, Kanban, Gantt, client portal
 // ============================================================
 import {
-  Controller, Get, Post, Put, Patch, Delete,
-  Body, Param, Query, Request, UseGuards,
-  NotFoundException, BadRequestException,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Request,
+  UseGuards,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { PermissionGuard, RequirePermission, AdminOnly } from '../../common/guards/permissions.guard';
+import {
+  PermissionGuard,
+  RequirePermission,
+} from '../../common/guards/permissions.guard';
 import { ProjectsService } from './projects.service';
 import { DocumentsService } from '../shared/documents.service';
 
@@ -60,7 +73,10 @@ export class ProjectsController {
     @Request() req: { user: JwtPayload },
     @Param('templateId') templateId: string,
   ) {
-    return this.projectsService.getTemplateById(req.user.tenantSchema, templateId);
+    return this.projectsService.getTemplateById(
+      req.user.tenantSchema,
+      templateId,
+    );
   }
 
   // ============================================================
@@ -72,7 +88,15 @@ export class ProjectsController {
   @ApiOperation({ summary: 'Create project status' })
   async createProjectStatus(
     @Request() req: { user: JwtPayload },
-    @Body() dto: { name: string; color?: string; icon?: string; description?: string; isClosed?: boolean; sortOrder?: number },
+    @Body()
+    dto: {
+      name: string;
+      color?: string;
+      icon?: string;
+      description?: string;
+      isClosed?: boolean;
+      sortOrder?: number;
+    },
   ) {
     return this.projectsService.createProjectStatus(req.user.tenantSchema, dto);
   }
@@ -83,9 +107,22 @@ export class ProjectsController {
   async updateProjectStatus(
     @Request() req: { user: JwtPayload },
     @Param('statusId') statusId: string,
-    @Body() dto: { name?: string; color?: string; icon?: string; description?: string; isClosed?: boolean; isActive?: boolean; sortOrder?: number },
+    @Body()
+    dto: {
+      name?: string;
+      color?: string;
+      icon?: string;
+      description?: string;
+      isClosed?: boolean;
+      isActive?: boolean;
+      sortOrder?: number;
+    },
   ) {
-    return this.projectsService.updateProjectStatus(req.user.tenantSchema, statusId, dto);
+    return this.projectsService.updateProjectStatus(
+      req.user.tenantSchema,
+      statusId,
+      dto,
+    );
   }
 
   @Delete('admin/project-statuses/:statusId')
@@ -96,7 +133,10 @@ export class ProjectsController {
     @Param('statusId') statusId: string,
   ) {
     try {
-      return await this.projectsService.deleteProjectStatus(req.user.tenantSchema, statusId);
+      return await this.projectsService.deleteProjectStatus(
+        req.user.tenantSchema,
+        statusId,
+      );
     } catch (e: any) {
       throw new BadRequestException(e.message);
     }
@@ -111,9 +151,13 @@ export class ProjectsController {
   @ApiOperation({ summary: 'Create project task status' })
   async createProjectTaskStatus(
     @Request() req: { user: JwtPayload },
-    @Body() dto: { name: string; color?: string; isDone?: boolean; sortOrder?: number },
+    @Body()
+    dto: { name: string; color?: string; isDone?: boolean; sortOrder?: number },
   ) {
-    return this.projectsService.createProjectTaskStatus(req.user.tenantSchema, dto);
+    return this.projectsService.createProjectTaskStatus(
+      req.user.tenantSchema,
+      dto,
+    );
   }
 
   @Patch('admin/task-statuses/:statusId')
@@ -122,9 +166,19 @@ export class ProjectsController {
   async updateProjectTaskStatus(
     @Request() req: { user: JwtPayload },
     @Param('statusId') statusId: string,
-    @Body() dto: { name?: string; color?: string; isDone?: boolean; sortOrder?: number },
+    @Body()
+    dto: {
+      name?: string;
+      color?: string;
+      isDone?: boolean;
+      sortOrder?: number;
+    },
   ) {
-    return this.projectsService.updateProjectTaskStatus(req.user.tenantSchema, statusId, dto);
+    return this.projectsService.updateProjectTaskStatus(
+      req.user.tenantSchema,
+      statusId,
+      dto,
+    );
   }
 
   @Delete('admin/task-statuses/:statusId')
@@ -135,7 +189,10 @@ export class ProjectsController {
     @Param('statusId') statusId: string,
   ) {
     try {
-      return await this.projectsService.deleteProjectTaskStatus(req.user.tenantSchema, statusId);
+      return await this.projectsService.deleteProjectTaskStatus(
+        req.user.tenantSchema,
+        statusId,
+      );
     } catch (e: any) {
       throw new BadRequestException(e.message);
     }
@@ -150,9 +207,20 @@ export class ProjectsController {
   @ApiOperation({ summary: 'Create project template' })
   async createTemplate(
     @Request() req: { user: JwtPayload },
-    @Body() dto: { name: string; description?: string; color?: string; icon?: string; estimatedDays?: number },
+    @Body()
+    dto: {
+      name: string;
+      description?: string;
+      color?: string;
+      icon?: string;
+      estimatedDays?: number;
+    },
   ) {
-    return this.projectsService.createTemplate(req.user.tenantSchema, dto, req.user.sub);
+    return this.projectsService.createTemplate(
+      req.user.tenantSchema,
+      dto,
+      req.user.sub,
+    );
   }
 
   @Patch('admin/templates/:templateId')
@@ -161,9 +229,21 @@ export class ProjectsController {
   async updateTemplate(
     @Request() req: { user: JwtPayload },
     @Param('templateId') templateId: string,
-    @Body() dto: { name?: string; description?: string; color?: string; icon?: string; estimatedDays?: number; isActive?: boolean },
+    @Body()
+    dto: {
+      name?: string;
+      description?: string;
+      color?: string;
+      icon?: string;
+      estimatedDays?: number;
+      isActive?: boolean;
+    },
   ) {
-    return this.projectsService.updateTemplate(req.user.tenantSchema, templateId, dto);
+    return this.projectsService.updateTemplate(
+      req.user.tenantSchema,
+      templateId,
+      dto,
+    );
   }
 
   @Delete('admin/templates/:templateId')
@@ -174,7 +254,10 @@ export class ProjectsController {
     @Param('templateId') templateId: string,
   ) {
     try {
-      return await this.projectsService.deleteTemplate(req.user.tenantSchema, templateId);
+      return await this.projectsService.deleteTemplate(
+        req.user.tenantSchema,
+        templateId,
+      );
     } catch (e: any) {
       throw new BadRequestException(e.message);
     }
@@ -210,7 +293,10 @@ export class ProjectsController {
     @Query('limit') limit?: number,
   ) {
     return this.projectsService.listProjects(req.user.tenantSchema, {
-      statusId, ownerId, accountId, search,
+      statusId,
+      ownerId,
+      accountId,
+      search,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });
@@ -220,7 +306,8 @@ export class ProjectsController {
   @ApiOperation({ summary: 'Create a new project' })
   async createProject(
     @Request() req: { user: JwtPayload },
-    @Body() dto: {
+    @Body()
+    dto: {
       name: string;
       description?: string;
       color?: string;
@@ -235,7 +322,11 @@ export class ProjectsController {
       ownerId?: string;
     },
   ) {
-    return this.projectsService.createProject(req.user.tenantSchema, dto, req.user.sub);
+    return this.projectsService.createProject(
+      req.user.tenantSchema,
+      dto,
+      req.user.sub,
+    );
   }
 
   @Get(':id')
@@ -244,7 +335,10 @@ export class ProjectsController {
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
   ) {
-    const project = await this.projectsService.getProjectById(req.user.tenantSchema, id);
+    const project = await this.projectsService.getProjectById(
+      req.user.tenantSchema,
+      id,
+    );
     if (!project) throw new NotFoundException('Project not found');
     return project;
   }
@@ -256,7 +350,12 @@ export class ProjectsController {
     @Param('id') id: string,
     @Body() dto: any,
   ) {
-    return this.projectsService.updateProject(req.user.tenantSchema, id, dto, req.user.sub);
+    return this.projectsService.updateProject(
+      req.user.tenantSchema,
+      id,
+      dto,
+      req.user.sub,
+    );
   }
 
   @Delete(':id')
@@ -265,7 +364,11 @@ export class ProjectsController {
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
   ) {
-    return this.projectsService.deleteProject(req.user.tenantSchema, id, req.user.sub);
+    return this.projectsService.deleteProject(
+      req.user.tenantSchema,
+      id,
+      req.user.sub,
+    );
   }
 
   // ============================================================
@@ -311,7 +414,11 @@ export class ProjectsController {
     @Body() body: { userId: string; role?: string },
   ) {
     return this.projectsService.addMember(
-      req.user.tenantSchema, id, body.userId, body.role ?? 'member', req.user.sub,
+      req.user.tenantSchema,
+      id,
+      body.userId,
+      body.role ?? 'member',
+      req.user.sub,
     );
   }
 
@@ -322,7 +429,11 @@ export class ProjectsController {
     @Param('id') id: string,
     @Param('memberId') memberId: string,
   ) {
-    return this.projectsService.removeMember(req.user.tenantSchema, id, memberId);
+    return this.projectsService.removeMember(
+      req.user.tenantSchema,
+      id,
+      memberId,
+    );
   }
 
   // ============================================================
@@ -336,7 +447,12 @@ export class ProjectsController {
     @Param('id') id: string,
     @Body() dto: any,
   ) {
-    return this.projectsService.createTask(req.user.tenantSchema, id, dto, req.user.sub);
+    return this.projectsService.createTask(
+      req.user.tenantSchema,
+      id,
+      dto,
+      req.user.sub,
+    );
   }
 
   @Put(':id/tasks/:taskId')
@@ -347,7 +463,13 @@ export class ProjectsController {
     @Param('taskId') taskId: string,
     @Body() dto: any,
   ) {
-    return this.projectsService.updateTask(req.user.tenantSchema, id, taskId, dto, req.user.sub);
+    return this.projectsService.updateTask(
+      req.user.tenantSchema,
+      id,
+      taskId,
+      dto,
+      req.user.sub,
+    );
   }
 
   @Delete(':id/tasks/:taskId')
@@ -357,7 +479,11 @@ export class ProjectsController {
     @Param('id') id: string,
     @Param('taskId') taskId: string,
   ) {
-    return this.projectsService.deleteTask(req.user.tenantSchema, taskId, req.user.sub);
+    return this.projectsService.deleteTask(
+      req.user.tenantSchema,
+      taskId,
+      req.user.sub,
+    );
   }
 
   // ============================================================
@@ -371,7 +497,10 @@ export class ProjectsController {
     @Param('id') _id: string,
     @Param('taskId') taskId: string,
   ) {
-    return this.projectsService.getTaskDependencies(req.user.tenantSchema, taskId);
+    return this.projectsService.getTaskDependencies(
+      req.user.tenantSchema,
+      taskId,
+    );
   }
 
   @Post(':id/tasks/:taskId/dependencies')
@@ -383,7 +512,9 @@ export class ProjectsController {
     @Body() body: { dependsOnTaskId: string; dependencyType?: string },
   ) {
     return this.projectsService.addTaskDependency(
-      req.user.tenantSchema, taskId, body.dependsOnTaskId,
+      req.user.tenantSchema,
+      taskId,
+      body.dependsOnTaskId,
       body.dependencyType ?? 'finish_to_start',
     );
   }
@@ -396,7 +527,10 @@ export class ProjectsController {
     @Param('taskId') _taskId: string,
     @Param('depId') depId: string,
   ) {
-    return this.projectsService.removeTaskDependency(req.user.tenantSchema, depId);
+    return this.projectsService.removeTaskDependency(
+      req.user.tenantSchema,
+      depId,
+    );
   }
 
   // ============================================================
@@ -422,7 +556,11 @@ export class ProjectsController {
     @Body() body: { content: string; mentions?: string[] },
   ) {
     return this.projectsService.addComment(
-      req.user.tenantSchema, taskId, req.user.sub, body.content, body.mentions,
+      req.user.tenantSchema,
+      taskId,
+      req.user.sub,
+      body.content,
+      body.mentions,
     );
   }
 
@@ -436,9 +574,21 @@ export class ProjectsController {
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
     @Param('taskId') taskId: string,
-    @Body() dto: { minutes: number; description?: string; loggedAt?: string; isBillable?: boolean },
+    @Body()
+    dto: {
+      minutes: number;
+      description?: string;
+      loggedAt?: string;
+      isBillable?: boolean;
+    },
   ) {
-    return this.projectsService.logTime(req.user.tenantSchema, id, taskId, req.user.sub, dto);
+    return this.projectsService.logTime(
+      req.user.tenantSchema,
+      id,
+      taskId,
+      req.user.sub,
+      dto,
+    );
   }
 
   @Get(':id/time-report')
@@ -495,7 +645,11 @@ export class ProjectsController {
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
   ) {
-    return this.documentsService.findByEntity(req.user.tenantSchema, 'projects', id);
+    return this.documentsService.findByEntity(
+      req.user.tenantSchema,
+      'projects',
+      id,
+    );
   }
 
   @Get(':id/open-tasks-count')
@@ -505,10 +659,7 @@ export class ProjectsController {
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
   ) {
-    return this.projectsService.getOpenTasksCount(
-      req.user.tenantSchema,
-      id,
-    );
+    return this.projectsService.getOpenTasksCount(req.user.tenantSchema, id);
   }
 
   @Post(':id/request-approval')
@@ -549,9 +700,20 @@ export class ProjectsController {
   async generatePortalToken(
     @Request() req: { user: JwtPayload },
     @Param('id') id: string,
-    @Body() dto: { label?: string; email?: string; permissions?: Record<string, boolean>; expiresAt?: string },
+    @Body()
+    dto: {
+      label?: string;
+      email?: string;
+      permissions?: Record<string, boolean>;
+      expiresAt?: string;
+    },
   ) {
-    return this.projectsService.generatePortalToken(req.user.tenantSchema, id, dto, req.user.sub);
+    return this.projectsService.generatePortalToken(
+      req.user.tenantSchema,
+      id,
+      dto,
+      req.user.sub,
+    );
   }
 }
 
@@ -571,7 +733,8 @@ export class ClientPortalController {
     @Param('token') token: string,
   ) {
     const result = await this.projectsService.getPortalView(tenantSlug, token);
-    if (!result) throw new NotFoundException('Portal link is invalid or expired');
+    if (!result)
+      throw new NotFoundException('Portal link is invalid or expired');
     return result;
   }
 }

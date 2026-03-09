@@ -8,7 +8,12 @@
 //   - Audit logging on all mutations
 //   - formatContract() / formatContractRow() for consistent camelCase
 // ============================================================
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { AuditService } from '../shared/audit.service';
@@ -401,7 +406,9 @@ export class ContractsService {
     const contract = await this.findOne(schemaName, contractId);
 
     if (contract.status !== 'draft') {
-      throw new BadRequestException('Only draft contracts can be sent for signing');
+      throw new BadRequestException(
+        'Only draft contracts can be sent for signing',
+      );
     }
 
     // Must have at least 1 signatory
@@ -410,7 +417,9 @@ export class ContractsService {
       [contractId],
     );
     if (parseInt(sigCount.cnt, 10) === 0) {
-      throw new BadRequestException('Contract must have at least one signatory before sending');
+      throw new BadRequestException(
+        'Contract must have at least one signatory before sending',
+      );
     }
 
     // Check if DocuSign is enabled for this tenant
@@ -485,7 +494,11 @@ export class ContractsService {
       throw new BadRequestException('This signatory has already signed');
     }
 
-    if (!['sent_for_signing', 'partially_signed'].includes(signatory.contract_status)) {
+    if (
+      !['sent_for_signing', 'partially_signed'].includes(
+        signatory.contract_status,
+      )
+    ) {
       throw new BadRequestException('Contract is not in a signable state');
     }
 
@@ -539,7 +552,11 @@ export class ContractsService {
       entityId: signatory.contract_id,
       action: 'update',
       changes: { signatoryStatus: { from: signatory.status, to: 'signed' } },
-      newValues: { signedBy: signatory.name, signedByEmail: signatory.email, ipAddress },
+      newValues: {
+        signedBy: signatory.name,
+        signedByEmail: signatory.email,
+        ipAddress,
+      },
       performedBy: signatory.user_id || signatory.name,
     });
 
@@ -593,6 +610,7 @@ export class ContractsService {
   async addSignatory(
     schemaName: string,
     contractId: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     userId: string,
     dto: {
       signatoryType: 'internal' | 'external';
@@ -609,7 +627,9 @@ export class ContractsService {
     );
     if (!contract) throw new NotFoundException('Contract not found');
     if (contract.status !== 'draft') {
-      throw new BadRequestException('Signatories can only be added to draft contracts');
+      throw new BadRequestException(
+        'Signatories can only be added to draft contracts',
+      );
     }
 
     await this.dataSource.query(
@@ -637,6 +657,7 @@ export class ContractsService {
     schemaName: string,
     contractId: string,
     signatoryId: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     userId: string,
   ): Promise<any> {
     const [contract] = await this.dataSource.query(
@@ -645,7 +666,9 @@ export class ContractsService {
     );
     if (!contract) throw new NotFoundException('Contract not found');
     if (contract.status !== 'draft') {
-      throw new BadRequestException('Signatories can only be removed from draft contracts');
+      throw new BadRequestException(
+        'Signatories can only be removed from draft contracts',
+      );
     }
 
     await this.dataSource.query(
@@ -671,7 +694,11 @@ export class ContractsService {
     );
     if (!contract) throw new NotFoundException('Contract not found');
 
-    if (!['sent_for_signing', 'partially_signed', 'fully_signed'].includes(contract.status)) {
+    if (
+      !['sent_for_signing', 'partially_signed', 'fully_signed'].includes(
+        contract.status,
+      )
+    ) {
       throw new BadRequestException('Only active contracts can be terminated');
     }
 
@@ -695,10 +722,7 @@ export class ContractsService {
   // ============================================================
   // GET BY TOKEN (public — for signatory to view)
   // ============================================================
-  async getByToken(
-    schemaName: string,
-    token: string,
-  ): Promise<any> {
+  async getByToken(schemaName: string, token: string): Promise<any> {
     // Find signatory by token to get contract_id
     const [signatory] = await this.dataSource.query(
       `SELECT contract_id FROM "${schemaName}".contract_signatories WHERE token = $1`,
@@ -746,7 +770,9 @@ export class ContractsService {
   // ============================================================
   // FIND SCHEMA BY CONTRACT TOKEN (for public endpoints)
   // ============================================================
-  async findSchemaByContractToken(token: string): Promise<{ schemaName: string }> {
+  async findSchemaByContractToken(
+    token: string,
+  ): Promise<{ schemaName: string }> {
     const tenants = await this.dataSource.query(
       `SELECT schema_name FROM master.tenants WHERE status = 'active'`,
     );
@@ -770,7 +796,9 @@ export class ContractsService {
   // ============================================================
   // FIND SCHEMA BY ENVELOPE ID (for DocuSign webhook)
   // ============================================================
-  async findSchemaByEnvelopeId(envelopeId: string): Promise<{ schemaName: string } | null> {
+  async findSchemaByEnvelopeId(
+    envelopeId: string,
+  ): Promise<{ schemaName: string } | null> {
     const tenants = await this.dataSource.query(
       `SELECT schema_name FROM master.tenants WHERE status = 'active'`,
     );
@@ -794,7 +822,11 @@ export class ContractsService {
   // ============================================================
   // DELETE (soft — draft only)
   // ============================================================
-  async delete(schemaName: string, contractId: string, userId: string): Promise<any> {
+  async delete(
+    schemaName: string,
+    contractId: string,
+    userId: string,
+  ): Promise<any> {
     const [contract] = await this.dataSource.query(
       `SELECT * FROM "${schemaName}".contracts WHERE id = $1 AND deleted_at IS NULL`,
       [contractId],
@@ -836,7 +868,9 @@ export class ContractsService {
     const contract = await this.findOne(schemaName, contractId);
 
     if (!['sent_for_signing', 'partially_signed'].includes(contract.status)) {
-      throw new BadRequestException('Emails can only be resent for contracts that are currently out for signing');
+      throw new BadRequestException(
+        'Emails can only be resent for contracts that are currently out for signing',
+      );
     }
 
     await this.sendSigningEmails(schemaName, contractId, contract);
@@ -861,7 +895,9 @@ export class ContractsService {
     contractId: string,
     contract: any,
   ): Promise<void> {
-    const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:5173';
+    const frontendUrl =
+      this.configService.get<string>('app.frontendUrl') ||
+      'http://localhost:5173';
 
     // Query signatories who haven't signed yet
     const signatories = await this.dataSource.query(
@@ -925,9 +961,14 @@ export class ContractsService {
           subject: `Contract Signing Request: ${contract.title} (${contract.contractNumber})`,
           html,
         });
-        this.logger.log(`Signing email sent to ${sig.name} <${sig.email}> for contract ${contractId}`);
+        this.logger.log(
+          `Signing email sent to ${sig.name} <${sig.email}> for contract ${contractId}`,
+        );
       } catch (err) {
-        this.logger.error(`Failed to send signing email to ${sig.email} for contract ${contractId}`, err);
+        this.logger.error(
+          `Failed to send signing email to ${sig.email} for contract ${contractId}`,
+          err,
+        );
       }
     }
   }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Loader2, Plus, Trash2, Save, Pencil, X,
-  ShieldCheck, ToggleLeft, ToggleRight, AlertTriangle, UserCheck, Users,
+  ShieldCheck, ToggleLeft, ToggleRight, AlertTriangle,
 } from 'lucide-react';
 import { approvalsApi } from '../../api/approvals.api';
 import type { ApprovalRule, EntityType, TriggerEvent } from '../../api/approvals.api';

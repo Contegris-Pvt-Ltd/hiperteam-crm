@@ -143,7 +143,7 @@ export function IntegrationsPage() {
   const loadIntegrations = async () => {
     setLoading(true);
     try {
-      const data: IntegrationRow[] = await adminApi.getIntegrations();
+      const data = await adminApi.getIntegrations() as IntegrationRow[];
       const map: Record<string, IntegrationRow> = {};
       data.forEach((row) => { map[row.provider] = row; });
       setIntegrations(map as any);

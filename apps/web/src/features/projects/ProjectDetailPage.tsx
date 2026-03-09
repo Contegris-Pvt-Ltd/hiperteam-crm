@@ -1576,7 +1576,7 @@ const PRIORITY_TEXT: Record<string, { label: string; text: string }> = {
 };
 
 function ListView({
-  projectId,
+  projectId: _projectId,
   project,
   onTaskClick,
   onAddTask,

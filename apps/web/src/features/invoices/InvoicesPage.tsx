@@ -540,7 +540,7 @@ interface InvoiceDetailPanelProps {
 }
 
 function InvoiceDetailPanel({
-  invoice, loading, onClose, onRefresh, onDownload, onSendEmail, onPushXero, pushingXero, downloading,
+  invoice, loading, onClose, onRefresh: _onRefresh, onDownload, onSendEmail, onPushXero, pushingXero, downloading,
 }: InvoiceDetailPanelProps) {
   const sc = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.draft;
 

@@ -35,7 +35,7 @@ const TYPE_LABELS: Record<string, string> = {
   custom: 'Custom',
 };
 
-const SIG_STATUS_ICON: Record<string, JSX.Element> = {
+const SIG_STATUS_ICON: Record<string, React.ReactNode> = {
   signed: <CheckCircle className="w-4 h-4 text-green-500" />,
   sent: <PenLine className="w-4 h-4 text-blue-500" />,
   pending: <Loader2 className="w-4 h-4 text-gray-400" />,

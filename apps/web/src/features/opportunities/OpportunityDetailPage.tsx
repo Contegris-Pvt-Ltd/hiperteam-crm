@@ -1006,7 +1006,7 @@ function SendProposalEmailModal({
     const emails: string[] = [];
     const seen = new Set<string>();
     const primary = contacts.find(c => c.isPrimary && c.email);
-    if (primary) { seen.add(primary.email.toLowerCase()); emails.push(primary.email); }
+    if (primary?.email) { seen.add(primary.email.toLowerCase()); emails.push(primary.email); }
     if (contactEmail && !seen.has(contactEmail.toLowerCase())) { seen.add(contactEmail.toLowerCase()); emails.push(contactEmail); }
     if (accountEmail && !seen.has(accountEmail.toLowerCase())) { emails.push(accountEmail); }
     if (emails.length > 0) setTo(emails);
@@ -1095,11 +1095,11 @@ function SendProposalEmailModal({
             {contactsWithEmail.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1">
                 {contactsWithEmail
-                  .filter(c => !to.includes(c.email))
+                  .filter(c => c.email && !to.includes(c.email))
                   .map(c => (
                     <button
                       key={c.contactId}
-                      onClick={() => { addEmail(c.email, activeField); }}
+                      onClick={() => { addEmail(c.email!, activeField); }}
                       className="text-[10px] px-2 py-0.5 rounded-full border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20"
                     >
                       + {c.firstName} {c.lastName}

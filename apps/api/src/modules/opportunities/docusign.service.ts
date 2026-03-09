@@ -8,7 +8,7 @@
 // ============================================================
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const docusign = require('docusign-esign');
 
 interface DocuSignConfig {
@@ -44,7 +44,8 @@ export class DocuSignService {
     );
     if (!row) return null;
 
-    const cfg = typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
+    const cfg =
+      typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
 
     return {
       integrationKey: cfg.integrationKey || cfg.integration_key,
@@ -83,7 +84,9 @@ export class DocuSignService {
       return apiClient;
     } catch (error: any) {
       this.logger.error('DocuSign JWT auth failed', error?.message || error);
-      throw new BadRequestException('DocuSign authentication failed. Check tenant integration settings.');
+      throw new BadRequestException(
+        'DocuSign authentication failed. Check tenant integration settings.',
+      );
     }
   }
 
@@ -131,7 +134,10 @@ export class DocuSignService {
       this.logger.log(`DocuSign envelope created: ${result.envelopeId}`);
       return { envelopeId: result.envelopeId };
     } catch (error: any) {
-      this.logger.error('DocuSign createEnvelope failed', error?.message || error);
+      this.logger.error(
+        'DocuSign createEnvelope failed',
+        error?.message || error,
+      );
       throw new BadRequestException('Failed to create DocuSign envelope');
     }
   }
@@ -147,8 +153,14 @@ export class DocuSignService {
     const envelopesApi = new docusign.EnvelopesApi(apiClient);
 
     try {
-      const envelope = await envelopesApi.getEnvelope(config.accountId, envelopeId);
-      const recipientResult = await envelopesApi.listRecipients(config.accountId, envelopeId);
+      const envelope = await envelopesApi.getEnvelope(
+        config.accountId,
+        envelopeId,
+      );
+      const recipientResult = await envelopesApi.listRecipients(
+        config.accountId,
+        envelopeId,
+      );
 
       return {
         status: envelope.status,
@@ -161,7 +173,10 @@ export class DocuSignService {
         })),
       };
     } catch (error: any) {
-      this.logger.error('DocuSign getEnvelopeStatus failed', error?.message || error);
+      this.logger.error(
+        'DocuSign getEnvelopeStatus failed',
+        error?.message || error,
+      );
       throw new BadRequestException('Failed to get DocuSign envelope status');
     }
   }
@@ -173,7 +188,8 @@ export class DocuSignService {
     schemaName: string,
     payload: any,
   ): Promise<{ processed: boolean }> {
-    const envelopeId = payload?.envelopeId || payload?.EnvelopeStatus?.EnvelopeID;
+    const envelopeId =
+      payload?.envelopeId || payload?.EnvelopeStatus?.EnvelopeID;
     const status = payload?.status || payload?.EnvelopeStatus?.Status;
 
     if (!envelopeId) {
@@ -181,7 +197,9 @@ export class DocuSignService {
       return { processed: false };
     }
 
-    this.logger.log(`DocuSign webhook: envelope=${envelopeId}, status=${status}`);
+    this.logger.log(
+      `DocuSign webhook: envelope=${envelopeId}, status=${status}`,
+    );
 
     // Find contract by docusign_envelope_id
     const [contract] = await this.dataSource.query(
@@ -191,7 +209,9 @@ export class DocuSignService {
     );
 
     if (!contract) {
-      this.logger.warn(`DocuSign webhook: no contract found for envelope ${envelopeId}`);
+      this.logger.warn(
+        `DocuSign webhook: no contract found for envelope ${envelopeId}`,
+      );
       return { processed: false };
     }
 
@@ -204,7 +224,9 @@ export class DocuSignService {
 
     const newStatus = statusMap[status?.toLowerCase()];
     if (!newStatus) {
-      this.logger.log(`DocuSign webhook: unhandled status "${status}", skipping`);
+      this.logger.log(
+        `DocuSign webhook: unhandled status "${status}", skipping`,
+      );
       return { processed: false };
     }
 
@@ -227,7 +249,10 @@ export class DocuSignService {
     }
 
     // If declined/voided, find the decliner from payload and mark them
-    if (newStatus === 'terminated' && payload?.EnvelopeStatus?.RecipientStatuses) {
+    if (
+      newStatus === 'terminated' &&
+      payload?.EnvelopeStatus?.RecipientStatuses
+    ) {
       const declinedRecipient = payload.EnvelopeStatus.RecipientStatuses.find(
         (r: any) => r.Status === 'Declined',
       );
@@ -241,7 +266,9 @@ export class DocuSignService {
       }
     }
 
-    this.logger.log(`DocuSign webhook: contract ${contract.id} updated to ${newStatus}`);
+    this.logger.log(
+      `DocuSign webhook: contract ${contract.id} updated to ${newStatus}`,
+    );
     return { processed: true };
   }
 }
