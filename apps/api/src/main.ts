@@ -12,6 +12,7 @@ async function bootstrap() {
   });
 
   // Increase body size limit for emails with inline images / large payloads
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const express = require('express');
   app.use(express.json({ limit: '25mb' }));
   app.use(express.urlencoded({ extended: true, limit: '25mb' }));
@@ -20,10 +21,13 @@ async function bootstrap() {
   app.use(helmet());
   app.use(compression());
   app.useWebSocketAdapter(new IoAdapter(app));
-  
+
   // CORS
   app.enableCors({
-    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:5173', 'https://hiperteam.intellicon.io'],
+    origin: process.env.CORS_ORIGINS?.split(',') || [
+      'http://localhost:5173',
+      'https://hiperteam.intellicon.io',
+    ],
     credentials: true,
   });
 

@@ -15,26 +15,37 @@ export class EmailSyncService {
 
   // ── Register Gmail Push Notifications ───────────────────────
   async registerGmailWatch(schemaName: string, accountId: string) {
-    const account = await this.emailAccountsService.getAccountById(schemaName, accountId);
-    const accessToken = await this.refreshGmailTokenIfNeeded(schemaName, account);
+    const account = await this.emailAccountsService.getAccountById(
+      schemaName,
+      accountId,
+    );
+    const accessToken = await this.refreshGmailTokenIfNeeded(
+      schemaName,
+      account,
+    );
 
     const topicName = process.env.GMAIL_PUBSUB_TOPIC;
     if (!topicName) {
-      this.logger.warn('GMAIL_PUBSUB_TOPIC not configured, skipping watch registration');
+      this.logger.warn(
+        'GMAIL_PUBSUB_TOPIC not configured, skipping watch registration',
+      );
       return;
     }
 
-    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/watch', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+    const response = await fetch(
+      'https://gmail.googleapis.com/gmail/v1/users/me/watch',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topicName,
+          labelIds: ['INBOX', 'SENT'],
+        }),
       },
-      body: JSON.stringify({
-        topicName,
-        labelIds: ['INBOX', 'SENT'],
-      }),
-    });
+    );
 
     if (!response.ok) {
       const err = await response.text();
@@ -51,13 +62,21 @@ export class EmailSyncService {
       historyId: data.historyId,
     });
 
-    this.logger.log(`Gmail watch registered for account ${accountId}, expires ${expiry.toISOString()}`);
+    this.logger.log(
+      `Gmail watch registered for account ${accountId}, expires ${expiry.toISOString()}`,
+    );
   }
 
   // ── Register Microsoft Webhook ──────────────────────────────
   async registerMicrosoftWebhook(schemaName: string, accountId: string) {
-    const account = await this.emailAccountsService.getAccountById(schemaName, accountId);
-    const accessToken = await this.refreshMicrosoftTokenIfNeeded(schemaName, account);
+    const account = await this.emailAccountsService.getAccountById(
+      schemaName,
+      accountId,
+    );
+    const accessToken = await this.refreshMicrosoftTokenIfNeeded(
+      schemaName,
+      account,
+    );
 
     const webhookUrl = process.env.MS_WEBHOOK_URL;
     const clientState = process.env.MS_WEBHOOK_CLIENT_STATE || 'intellicon-crm';
@@ -66,22 +85,27 @@ export class EmailSyncService {
       return;
     }
 
-    const expirationDateTime = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+    const expirationDateTime = new Date(
+      Date.now() + 3 * 24 * 60 * 60 * 1000,
+    ).toISOString();
 
-    const response = await fetch('https://graph.microsoft.com/v1.0/subscriptions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+    const response = await fetch(
+      'https://graph.microsoft.com/v1.0/subscriptions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          changeType: 'created,updated',
+          notificationUrl: webhookUrl,
+          resource: "me/mailFolders('inbox')/messages",
+          expirationDateTime,
+          clientState,
+        }),
       },
-      body: JSON.stringify({
-        changeType: 'created,updated',
-        notificationUrl: webhookUrl,
-        resource: "me/mailFolders('inbox')/messages",
-        expirationDateTime,
-        clientState,
-      }),
-    });
+    );
 
     if (!response.ok) {
       const err = await response.text();
@@ -95,19 +119,31 @@ export class EmailSyncService {
       msSubscriptionId: sub.id,
     });
 
-    this.logger.log(`Microsoft webhook registered for account ${accountId}, sub ${sub.id}`);
+    this.logger.log(
+      `Microsoft webhook registered for account ${accountId}, sub ${sub.id}`,
+    );
   }
 
   // ── Handle Gmail Push Notification ──────────────────────────
-  async handleGmailPush(schemaName: string, accountId: string, historyId: string) {
-    const account = await this.emailAccountsService.getAccountById(schemaName, accountId);
+  async handleGmailPush(
+    schemaName: string,
+    accountId: string,
+    historyId: string,
+  ) {
+    const account = await this.emailAccountsService.getAccountById(
+      schemaName,
+      accountId,
+    );
 
     // Skip if we've already processed this history
     if (account.history_id && BigInt(historyId) <= BigInt(account.history_id)) {
       return;
     }
 
-    const accessToken = await this.refreshGmailTokenIfNeeded(schemaName, account);
+    const accessToken = await this.refreshGmailTokenIfNeeded(
+      schemaName,
+      account,
+    );
 
     // Fetch history since last known point
     const startHistoryId = account.history_id || historyId;
@@ -139,9 +175,16 @@ export class EmailSyncService {
     // Fetch and store each new message
     for (const msgId of messageIds) {
       try {
-        await this.fetchAndStoreGmailMessage(schemaName, accountId, accessToken, msgId);
+        await this.fetchAndStoreGmailMessage(
+          schemaName,
+          accountId,
+          accessToken,
+          msgId,
+        );
       } catch (err: any) {
-        this.logger.warn(`Failed to fetch Gmail message ${msgId}: ${err.message}`);
+        this.logger.warn(
+          `Failed to fetch Gmail message ${msgId}: ${err.message}`,
+        );
       }
     }
 
@@ -153,9 +196,19 @@ export class EmailSyncService {
   }
 
   // ── Handle Microsoft Notification ───────────────────────────
-  async handleMicrosoftNotification(schemaName: string, accountId: string, messageId: string) {
-    const account = await this.emailAccountsService.getAccountById(schemaName, accountId);
-    const accessToken = await this.refreshMicrosoftTokenIfNeeded(schemaName, account);
+  async handleMicrosoftNotification(
+    schemaName: string,
+    accountId: string,
+    messageId: string,
+  ) {
+    const account = await this.emailAccountsService.getAccountById(
+      schemaName,
+      accountId,
+    );
+    const accessToken = await this.refreshMicrosoftTokenIfNeeded(
+      schemaName,
+      account,
+    );
 
     const url = `https://graph.microsoft.com/v1.0/me/messages/${messageId}?$select=id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,bccRecipients,sentDateTime,receivedDateTime,isRead,hasAttachments,flag,internetMessageId`;
 
@@ -170,50 +223,69 @@ export class EmailSyncService {
 
     const msg = await response.json();
 
-    const isInbox = true; // notification is for inbox
-    const direction = msg.from?.emailAddress?.address?.toLowerCase() === account.email.toLowerCase()
-      ? 'outbound' : 'inbound';
+    const direction =
+      msg.from?.emailAddress?.address?.toLowerCase() ===
+      account.email.toLowerCase()
+        ? 'outbound'
+        : 'inbound';
 
     const hasAttachments = msg.hasAttachments || false;
     let bodyHtml = msg.body?.contentType === 'html' ? msg.body?.content : null;
 
     // Resolve CID inline images before storing
     if (bodyHtml && hasAttachments && bodyHtml.includes('cid:')) {
-      bodyHtml = await this.resolveMicrosoftCidImages(schemaName, accessToken, messageId, bodyHtml);
+      bodyHtml = await this.resolveMicrosoftCidImages(
+        schemaName,
+        accessToken,
+        messageId,
+        bodyHtml,
+      );
     }
 
-    const emailId = await this.emailStoreService.storeEmail(schemaName, accountId, {
-      messageId: msg.internetMessageId || msg.id,
-      threadId: msg.conversationId || null,
-      direction,
-      subject: msg.subject || '',
-      bodyText: msg.bodyPreview || '',
-      bodyHtml,
-      snippet: (msg.bodyPreview || '').substring(0, 200),
-      fromEmail: msg.from?.emailAddress?.address || '',
-      fromName: msg.from?.emailAddress?.name || '',
-      toEmails: (msg.toRecipients || []).map((r: any) => ({
-        email: r.emailAddress?.address,
-        name: r.emailAddress?.name,
-      })),
-      ccEmails: (msg.ccRecipients || []).map((r: any) => ({
-        email: r.emailAddress?.address,
-        name: r.emailAddress?.name,
-      })),
-      bccEmails: (msg.bccRecipients || []).map((r: any) => ({
-        email: r.emailAddress?.address,
-        name: r.emailAddress?.name,
-      })),
-      sentAt: msg.sentDateTime ? new Date(msg.sentDateTime) : null,
-      receivedAt: msg.receivedDateTime ? new Date(msg.receivedDateTime) : null,
-      hasAttachments,
-      labels: [],
-    });
+    const emailId = await this.emailStoreService.storeEmail(
+      schemaName,
+      accountId,
+      {
+        messageId: msg.internetMessageId || msg.id,
+        threadId: msg.conversationId || null,
+        direction,
+        subject: msg.subject || '',
+        bodyText: msg.bodyPreview || '',
+        bodyHtml,
+        snippet: (msg.bodyPreview || '').substring(0, 200),
+        fromEmail: msg.from?.emailAddress?.address || '',
+        fromName: msg.from?.emailAddress?.name || '',
+        toEmails: (msg.toRecipients || []).map((r: any) => ({
+          email: r.emailAddress?.address,
+          name: r.emailAddress?.name,
+        })),
+        ccEmails: (msg.ccRecipients || []).map((r: any) => ({
+          email: r.emailAddress?.address,
+          name: r.emailAddress?.name,
+        })),
+        bccEmails: (msg.bccRecipients || []).map((r: any) => ({
+          email: r.emailAddress?.address,
+          name: r.emailAddress?.name,
+        })),
+        sentAt: msg.sentDateTime ? new Date(msg.sentDateTime) : null,
+        receivedAt: msg.receivedDateTime
+          ? new Date(msg.receivedDateTime)
+          : null,
+        hasAttachments,
+        labels: [],
+      },
+    );
 
     // Fetch and store file attachments (non-inline)
     if (emailId && hasAttachments) {
-      this.fetchAndStoreMicrosoftAttachments(schemaName, emailId, accessToken, messageId)
-        .catch((err) => this.logger.warn(`MS attachment fetch failed: ${err.message}`));
+      this.fetchAndStoreMicrosoftAttachments(
+        schemaName,
+        emailId,
+        accessToken,
+        messageId,
+      ).catch((err) =>
+        this.logger.warn(`MS attachment fetch failed: ${err.message}`),
+      );
     }
 
     await this.emailAccountsService.updateWebhookState(schemaName, accountId, {
@@ -228,12 +300,19 @@ export class EmailSyncService {
     try {
       ImapFlow = (await import('imapflow')).ImapFlow;
     } catch {
-      this.logger.error('imapflow package not installed. Run: npm install imapflow');
+      this.logger.error(
+        'imapflow package not installed. Run: npm install imapflow',
+      );
       throw new Error('imapflow not available');
     }
 
-    const account = await this.emailAccountsService.getAccountById(schemaName, accountId);
-    const password = this.emailAccountsService.decryptPassword(account.imap_password);
+    const account = await this.emailAccountsService.getAccountById(
+      schemaName,
+      accountId,
+    );
+    const password = this.emailAccountsService.decryptPassword(
+      account.imap_password,
+    );
 
     const client = new ImapFlow({
       host: account.imap_host,
@@ -259,42 +338,78 @@ export class EmailSyncService {
         )) {
           try {
             const env = message.envelope;
-            const hasAttachments = (message.bodyStructure?.childNodes?.length || 0) > 1;
+            const hasAttachments =
+              (message.bodyStructure?.childNodes?.length || 0) > 1;
 
             // Try to parse HTML body and resolve CID images from raw source
-            let parsedBody: { html: string | null; text: string | null; attachments: any[] } = { html: null, text: null, attachments: [] };
+            let parsedBody: {
+              html: string | null;
+              text: string | null;
+              attachments: any[];
+            } = { html: null, text: null, attachments: [] };
             if (message.source) {
-              parsedBody = await this.parseImapSource(schemaName, message.source);
+              parsedBody = await this.parseImapSource(
+                schemaName,
+                message.source,
+              );
             }
 
-            const emailId = await this.emailStoreService.storeEmail(schemaName, accountId, {
-              messageId: env.messageId || `imap-${message.uid}`,
-              threadId: env.inReplyTo || null,
-              direction: env.from?.[0]?.address?.toLowerCase() === account.email.toLowerCase()
-                ? 'outbound' : 'inbound',
-              subject: env.subject || '',
-              bodyText: parsedBody.text || message.source?.toString('utf-8')?.substring(0, 50000) || '',
-              bodyHtml: parsedBody.html || null,
-              snippet: (parsedBody.text || env.subject || '').substring(0, 200),
-              fromEmail: env.from?.[0]?.address || '',
-              fromName: env.from?.[0]?.name || '',
-              toEmails: (env.to || []).map((a: any) => ({ email: a.address, name: a.name })),
-              ccEmails: (env.cc || []).map((a: any) => ({ email: a.address, name: a.name })),
-              bccEmails: [],
-              sentAt: env.date ? new Date(env.date) : null,
-              receivedAt: env.date ? new Date(env.date) : null,
-              hasAttachments,
-              labels: [],
-            });
+            const emailId = await this.emailStoreService.storeEmail(
+              schemaName,
+              accountId,
+              {
+                messageId: env.messageId || `imap-${message.uid}`,
+                threadId: env.inReplyTo || null,
+                direction:
+                  env.from?.[0]?.address?.toLowerCase() ===
+                  account.email.toLowerCase()
+                    ? 'outbound'
+                    : 'inbound',
+                subject: env.subject || '',
+                bodyText:
+                  parsedBody.text ||
+                  message.source?.toString('utf-8')?.substring(0, 50000) ||
+                  '',
+                bodyHtml: parsedBody.html || null,
+                snippet: (parsedBody.text || env.subject || '').substring(
+                  0,
+                  200,
+                ),
+                fromEmail: env.from?.[0]?.address || '',
+                fromName: env.from?.[0]?.name || '',
+                toEmails: (env.to || []).map((a: any) => ({
+                  email: a.address,
+                  name: a.name,
+                })),
+                ccEmails: (env.cc || []).map((a: any) => ({
+                  email: a.address,
+                  name: a.name,
+                })),
+                bccEmails: [],
+                sentAt: env.date ? new Date(env.date) : null,
+                receivedAt: env.date ? new Date(env.date) : null,
+                hasAttachments,
+                labels: [],
+              },
+            );
 
             // Store file attachments (already parsed above)
             if (emailId && parsedBody.attachments.length > 0) {
               for (const att of parsedBody.attachments) {
-                this.emailStoreService.storeAttachments(schemaName, emailId, [{
-                  filename: att.filename || 'unnamed',
-                  content: att.content,
-                  contentType: att.contentType || 'application/octet-stream',
-                }]).catch((err) => this.logger.warn(`IMAP attachment store error: ${err.message}`));
+                this.emailStoreService
+                  .storeAttachments(schemaName, emailId, [
+                    {
+                      filename: att.filename || 'unnamed',
+                      content: att.content,
+                      contentType:
+                        att.contentType || 'application/octet-stream',
+                    },
+                  ])
+                  .catch((err) =>
+                    this.logger.warn(
+                      `IMAP attachment store error: ${err.message}`,
+                    ),
+                  );
               }
             }
           } catch (err: any) {
@@ -307,7 +422,9 @@ export class EmailSyncService {
 
       await client.logout();
     } catch (err: any) {
-      this.logger.error(`IMAP sync failed for ${account.email}: ${err.message}`);
+      this.logger.error(
+        `IMAP sync failed for ${account.email}: ${err.message}`,
+      );
       throw err;
     }
 
@@ -318,8 +435,14 @@ export class EmailSyncService {
 
   // ── Manual sync: Gmail ─────────────────────────────────────
   async syncGmailAccount(schemaName: string, accountId: string) {
-    const account = await this.emailAccountsService.getAccountById(schemaName, accountId);
-    const accessToken = await this.refreshGmailTokenIfNeeded(schemaName, account);
+    const account = await this.emailAccountsService.getAccountById(
+      schemaName,
+      accountId,
+    );
+    const accessToken = await this.refreshGmailTokenIfNeeded(
+      schemaName,
+      account,
+    );
     await this.syncGmailRecent(schemaName, accountId, accessToken);
     await this.emailAccountsService.updateWebhookState(schemaName, accountId, {
       lastSyncedAt: new Date(),
@@ -329,8 +452,14 @@ export class EmailSyncService {
 
   // ── Manual sync: Microsoft ───────────────────────────────────
   async syncMicrosoftAccount(schemaName: string, accountId: string) {
-    const account = await this.emailAccountsService.getAccountById(schemaName, accountId);
-    const accessToken = await this.refreshMicrosoftTokenIfNeeded(schemaName, account);
+    const account = await this.emailAccountsService.getAccountById(
+      schemaName,
+      accountId,
+    );
+    const accessToken = await this.refreshMicrosoftTokenIfNeeded(
+      schemaName,
+      account,
+    );
 
     const url = `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$top=50&$orderby=receivedDateTime desc&$select=id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,bccRecipients,sentDateTime,receivedDateTime,isRead,hasAttachments,internetMessageId`;
     const response = await fetch(url, {
@@ -345,47 +474,67 @@ export class EmailSyncService {
     const data = await response.json();
     for (const msg of data.value || []) {
       try {
-        const direction = msg.from?.emailAddress?.address?.toLowerCase() === account.email.toLowerCase()
-          ? 'outbound' : 'inbound';
+        const direction =
+          msg.from?.emailAddress?.address?.toLowerCase() ===
+          account.email.toLowerCase()
+            ? 'outbound'
+            : 'inbound';
         const hasAttachments = msg.hasAttachments || false;
-        let bodyHtml = msg.body?.contentType === 'html' ? msg.body?.content : null;
+        let bodyHtml =
+          msg.body?.contentType === 'html' ? msg.body?.content : null;
 
         // Resolve CID inline images before storing
         if (bodyHtml && hasAttachments && bodyHtml.includes('cid:')) {
-          bodyHtml = await this.resolveMicrosoftCidImages(schemaName, accessToken, msg.id, bodyHtml);
+          bodyHtml = await this.resolveMicrosoftCidImages(
+            schemaName,
+            accessToken,
+            msg.id,
+            bodyHtml,
+          );
         }
 
-        const emailId = await this.emailStoreService.storeEmail(schemaName, accountId, {
-          messageId: msg.internetMessageId || msg.id,
-          threadId: msg.conversationId || null,
-          direction,
-          subject: msg.subject || '',
-          bodyText: msg.bodyPreview || '',
-          bodyHtml,
-          snippet: (msg.bodyPreview || '').substring(0, 200),
-          fromEmail: msg.from?.emailAddress?.address || '',
-          fromName: msg.from?.emailAddress?.name || '',
-          toEmails: (msg.toRecipients || []).map((r: any) => ({
-            email: r.emailAddress?.address,
-            name: r.emailAddress?.name,
-          })),
-          ccEmails: (msg.ccRecipients || []).map((r: any) => ({
-            email: r.emailAddress?.address,
-            name: r.emailAddress?.name,
-          })),
-          bccEmails: (msg.bccRecipients || []).map((r: any) => ({
-            email: r.emailAddress?.address,
-            name: r.emailAddress?.name,
-          })),
-          sentAt: msg.sentDateTime ? new Date(msg.sentDateTime) : null,
-          receivedAt: msg.receivedDateTime ? new Date(msg.receivedDateTime) : null,
-          hasAttachments,
-          labels: [],
-        });
+        const emailId = await this.emailStoreService.storeEmail(
+          schemaName,
+          accountId,
+          {
+            messageId: msg.internetMessageId || msg.id,
+            threadId: msg.conversationId || null,
+            direction,
+            subject: msg.subject || '',
+            bodyText: msg.bodyPreview || '',
+            bodyHtml,
+            snippet: (msg.bodyPreview || '').substring(0, 200),
+            fromEmail: msg.from?.emailAddress?.address || '',
+            fromName: msg.from?.emailAddress?.name || '',
+            toEmails: (msg.toRecipients || []).map((r: any) => ({
+              email: r.emailAddress?.address,
+              name: r.emailAddress?.name,
+            })),
+            ccEmails: (msg.ccRecipients || []).map((r: any) => ({
+              email: r.emailAddress?.address,
+              name: r.emailAddress?.name,
+            })),
+            bccEmails: (msg.bccRecipients || []).map((r: any) => ({
+              email: r.emailAddress?.address,
+              name: r.emailAddress?.name,
+            })),
+            sentAt: msg.sentDateTime ? new Date(msg.sentDateTime) : null,
+            receivedAt: msg.receivedDateTime
+              ? new Date(msg.receivedDateTime)
+              : null,
+            hasAttachments,
+            labels: [],
+          },
+        );
 
         // Fetch and store file attachments (non-inline)
         if (emailId && hasAttachments) {
-          await this.fetchAndStoreMicrosoftAttachments(schemaName, emailId, accessToken, msg.id);
+          await this.fetchAndStoreMicrosoftAttachments(
+            schemaName,
+            emailId,
+            accessToken,
+            msg.id,
+          );
         }
       } catch (err: any) {
         this.logger.warn(`MS sync message error: ${err.message}`);
@@ -399,8 +548,13 @@ export class EmailSyncService {
   }
 
   // ── Gmail: Fetch recent messages (fallback) ─────────────────
-  private async syncGmailRecent(schemaName: string, accountId: string, accessToken: string) {
-    const listUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50&labelIds=INBOX';
+  private async syncGmailRecent(
+    schemaName: string,
+    accountId: string,
+    accessToken: string,
+  ) {
+    const listUrl =
+      'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50&labelIds=INBOX';
     const response = await fetch(listUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -410,7 +564,12 @@ export class EmailSyncService {
 
     for (const item of data.messages || []) {
       try {
-        await this.fetchAndStoreGmailMessage(schemaName, accountId, accessToken, item.id);
+        await this.fetchAndStoreGmailMessage(
+          schemaName,
+          accountId,
+          accessToken,
+          item.id,
+        );
       } catch (err: any) {
         this.logger.warn(`Gmail recent sync error: ${err.message}`);
       }
@@ -419,7 +578,10 @@ export class EmailSyncService {
 
   // ── Gmail: Fetch + store single message ─────────────────────
   private async fetchAndStoreGmailMessage(
-    schemaName: string, accountId: string, accessToken: string, gmailMsgId: string,
+    schemaName: string,
+    accountId: string,
+    accessToken: string,
+    gmailMsgId: string,
   ) {
     const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${gmailMsgId}?format=full`;
 
@@ -427,68 +589,97 @@ export class EmailSyncService {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    if (!response.ok) throw new Error(`Gmail message fetch failed: ${response.status}`);
+    if (!response.ok)
+      throw new Error(`Gmail message fetch failed: ${response.status}`);
     const msg = await response.json();
 
-    const headers = (msg.payload?.headers || []).reduce((acc: any, h: any) => {
-      acc[h.name.toLowerCase()] = h.value;
-      return acc;
-    }, {} as Record<string, string>);
+    const headers = (msg.payload?.headers || []).reduce(
+      (acc: any, h: any) => {
+        acc[h.name.toLowerCase()] = h.value;
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
 
     const parseAddresses = (header: string) => {
       if (!header) return [];
-      return header.split(',').map((s: string) => {
-        const trimmed = s.trim();
-        const angleMatch = trimmed.match(/<([^>]+@[^>]+)>/);
-        if (angleMatch) {
-          const emailAddr = angleMatch[1].trim();
-          const namePart = trimmed.substring(0, trimmed.indexOf('<')).trim().replace(/^["']|["']$/g, '');
-          return { email: emailAddr, name: namePart };
-        }
-        const plainMatch = trimmed.match(/([^\s<>"]+@[^\s<>"]+)/);
-        if (plainMatch) {
-          return { email: plainMatch[1], name: '' };
-        }
-        return { email: trimmed, name: '' };
-      }).filter((a) => a.email.includes('@'));
+      return header
+        .split(',')
+        .map((s: string) => {
+          const trimmed = s.trim();
+          const angleMatch = trimmed.match(/<([^>]+@[^>]+)>/);
+          if (angleMatch) {
+            const emailAddr = angleMatch[1].trim();
+            const namePart = trimmed
+              .substring(0, trimmed.indexOf('<'))
+              .trim()
+              .replace(/^["']|["']$/g, '');
+            return { email: emailAddr, name: namePart };
+          }
+          const plainMatch = trimmed.match(/([^\s<>"]+@[^\s<>"]+)/);
+          if (plainMatch) {
+            return { email: plainMatch[1], name: '' };
+          }
+          return { email: trimmed, name: '' };
+        })
+        .filter((a) => a.email.includes('@'));
     };
 
     // Extract body from payload parts
-    let { bodyHtml, bodyText } = this.extractGmailBody(msg.payload);
+    const extracted = this.extractGmailBody(msg.payload);
+    let bodyHtml = extracted.bodyHtml;
+    const bodyText = extracted.bodyText;
 
     const fromParts = parseAddresses(headers.from);
     const labelIds = msg.labelIds || [];
 
-    const hasAttachments = (msg.payload?.parts || []).some((p: any) => p.filename);
+    const hasAttachments = (msg.payload?.parts || []).some(
+      (p: any) => p.filename,
+    );
 
     // Resolve CID inline images before storing
     if (bodyHtml && bodyHtml.includes('cid:')) {
-      bodyHtml = await this.resolveGmailCidImages(schemaName, accessToken, msg, bodyHtml);
+      bodyHtml = await this.resolveGmailCidImages(
+        schemaName,
+        accessToken,
+        msg,
+        bodyHtml,
+      );
     }
 
-    const emailId = await this.emailStoreService.storeEmail(schemaName, accountId, {
-      messageId: msg.id,
-      threadId: msg.threadId || null,
-      direction: labelIds.includes('SENT') ? 'outbound' : 'inbound',
-      subject: headers.subject || '',
-      bodyText: bodyText || msg.snippet || '',
-      bodyHtml: bodyHtml || null,
-      snippet: (msg.snippet || '').substring(0, 200),
-      fromEmail: fromParts[0]?.email || '',
-      fromName: fromParts[0]?.name || '',
-      toEmails: parseAddresses(headers.to),
-      ccEmails: parseAddresses(headers.cc),
-      bccEmails: [],
-      sentAt: headers.date ? new Date(headers.date) : null,
-      receivedAt: headers.date ? new Date(headers.date) : null,
-      hasAttachments,
-      labels: labelIds,
-    });
+    const emailId = await this.emailStoreService.storeEmail(
+      schemaName,
+      accountId,
+      {
+        messageId: msg.id,
+        threadId: msg.threadId || null,
+        direction: labelIds.includes('SENT') ? 'outbound' : 'inbound',
+        subject: headers.subject || '',
+        bodyText: bodyText || msg.snippet || '',
+        bodyHtml: bodyHtml || null,
+        snippet: (msg.snippet || '').substring(0, 200),
+        fromEmail: fromParts[0]?.email || '',
+        fromName: fromParts[0]?.name || '',
+        toEmails: parseAddresses(headers.to),
+        ccEmails: parseAddresses(headers.cc),
+        bccEmails: [],
+        sentAt: headers.date ? new Date(headers.date) : null,
+        receivedAt: headers.date ? new Date(headers.date) : null,
+        hasAttachments,
+        labels: labelIds,
+      },
+    );
 
     // Fetch and store file attachments (non-inline) from Gmail
     if (emailId && hasAttachments) {
-      this.fetchAndStoreGmailAttachments(schemaName, emailId, accessToken, msg)
-        .catch((err) => this.logger.warn(`Gmail attachment fetch failed: ${err.message}`));
+      this.fetchAndStoreGmailAttachments(
+        schemaName,
+        emailId,
+        accessToken,
+        msg,
+      ).catch((err) =>
+        this.logger.warn(`Gmail attachment fetch failed: ${err.message}`),
+      );
     }
   }
 
@@ -508,7 +699,9 @@ export class EmailSyncService {
     for (const part of inlineParts) {
       try {
         // Get Content-ID (strip angle brackets)
-        const cidHeader = (part.headers || []).find((h: any) => h.name.toLowerCase() === 'content-id');
+        const cidHeader = (part.headers || []).find(
+          (h: any) => h.name.toLowerCase() === 'content-id',
+        );
         if (!cidHeader) continue;
         const cid = cidHeader.value.replace(/^<|>$/g, '');
 
@@ -552,7 +745,9 @@ export class EmailSyncService {
     if (!payload?.parts) return parts;
 
     for (const part of payload.parts) {
-      const cidHeader = (part.headers || []).find((h: any) => h.name.toLowerCase() === 'content-id');
+      const cidHeader = (part.headers || []).find(
+        (h: any) => h.name.toLowerCase() === 'content-id',
+      );
       if (cidHeader && part.mimeType?.startsWith('image/')) {
         parts.push(part);
       }
@@ -594,11 +789,13 @@ export class EmailSyncService {
 
         // Gmail uses URL-safe base64
         const buffer = Buffer.from(data, 'base64url');
-        await this.emailStoreService.storeAttachments(schemaName, emailId, [{
-          filename: part.filename || 'unnamed',
-          content: buffer,
-          contentType: part.mimeType || 'application/octet-stream',
-        }]);
+        await this.emailStoreService.storeAttachments(schemaName, emailId, [
+          {
+            filename: part.filename || 'unnamed',
+            content: buffer,
+            contentType: part.mimeType || 'application/octet-stream',
+          },
+        ]);
       } catch (err: any) {
         this.logger.warn(`Gmail attachment storage error: ${err.message}`);
       }
@@ -623,7 +820,10 @@ export class EmailSyncService {
   }
 
   // ── Gmail: Extract body from payload parts ─────────────────
-  private extractGmailBody(payload: any): { bodyHtml: string | null; bodyText: string | null } {
+  private extractGmailBody(payload: any): {
+    bodyHtml: string | null;
+    bodyText: string | null;
+  } {
     let bodyHtml: string | null = null;
     let bodyText: string | null = null;
 
@@ -652,7 +852,11 @@ export class EmailSyncService {
       for (const part of payload.parts) {
         if (part.mimeType === 'text/html' && part.body?.data && !bodyHtml) {
           bodyHtml = decodeBase64Url(part.body.data);
-        } else if (part.mimeType === 'text/plain' && part.body?.data && !bodyText) {
+        } else if (
+          part.mimeType === 'text/plain' &&
+          part.body?.data &&
+          !bodyText
+        ) {
           bodyText = decodeBase64Url(part.body.data);
         } else if (part.mimeType?.startsWith('multipart/') && part.parts) {
           // Nested multipart (e.g. multipart/alternative inside multipart/mixed)
@@ -687,7 +891,11 @@ export class EmailSyncService {
     if (parsed.attachments?.length) {
       for (const att of parsed.attachments) {
         // Inline image with CID — resolve to S3 URL
-        if (att.cid && att.contentType?.startsWith('image/') && html?.includes(`cid:${att.cid}`)) {
+        if (
+          att.cid &&
+          att.contentType?.startsWith('image/') &&
+          html?.includes(`cid:${att.cid}`)
+        ) {
           try {
             const url = await this.emailStoreService.uploadInlineImage(
               schemaName,
@@ -778,11 +986,13 @@ export class EmailSyncService {
         if (att.isInline) continue; // already handled by resolveMicrosoftCidImages
 
         const buffer = Buffer.from(att.contentBytes, 'base64');
-        await this.emailStoreService.storeAttachments(schemaName, emailId, [{
-          filename: att.name || 'unnamed',
-          content: buffer,
-          contentType: att.contentType || 'application/octet-stream',
-        }]);
+        await this.emailStoreService.storeAttachments(schemaName, emailId, [
+          {
+            filename: att.name || 'unnamed',
+            content: buffer,
+            contentType: att.contentType || 'application/octet-stream',
+          },
+        ]);
       } catch (err: any) {
         this.logger.warn(`MS attachment storage error: ${err.message}`);
       }
@@ -790,8 +1000,14 @@ export class EmailSyncService {
   }
 
   // ── Token refresh helpers ───────────────────────────────────
-  private async refreshGmailTokenIfNeeded(schemaName: string, account: any): Promise<string> {
-    if (account.token_expiry && new Date(account.token_expiry) > new Date(Date.now() + 60000)) {
+  private async refreshGmailTokenIfNeeded(
+    schemaName: string,
+    account: any,
+  ): Promise<string> {
+    if (
+      account.token_expiry &&
+      new Date(account.token_expiry) > new Date(Date.now() + 60000)
+    ) {
       return account.access_token;
     }
 
@@ -823,14 +1039,24 @@ export class EmailSyncService {
     const newExpiry = new Date(Date.now() + data.expires_in * 1000);
 
     await this.emailAccountsService.updateTokens(
-      schemaName, account.id, data.access_token, newExpiry, data.refresh_token,
+      schemaName,
+      account.id,
+      data.access_token,
+      newExpiry,
+      data.refresh_token,
     );
 
     return data.access_token;
   }
 
-  private async refreshMicrosoftTokenIfNeeded(schemaName: string, account: any): Promise<string> {
-    if (account.token_expiry && new Date(account.token_expiry) > new Date(Date.now() + 60000)) {
+  private async refreshMicrosoftTokenIfNeeded(
+    schemaName: string,
+    account: any,
+  ): Promise<string> {
+    if (
+      account.token_expiry &&
+      new Date(account.token_expiry) > new Date(Date.now() + 60000)
+    ) {
       return account.access_token;
     }
 
@@ -842,17 +1068,20 @@ export class EmailSyncService {
       return account.access_token;
     }
 
-    const response = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: account.refresh_token,
-        grant_type: 'refresh_token',
-        scope: 'Mail.ReadWrite Mail.Send offline_access',
-      }),
-    });
+    const response = await fetch(
+      'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: account.refresh_token,
+          grant_type: 'refresh_token',
+          scope: 'Mail.ReadWrite Mail.Send offline_access',
+        }),
+      },
+    );
 
     if (!response.ok) {
       this.logger.error(`Microsoft token refresh failed: ${response.status}`);
@@ -863,7 +1092,11 @@ export class EmailSyncService {
     const newExpiry = new Date(Date.now() + data.expires_in * 1000);
 
     await this.emailAccountsService.updateTokens(
-      schemaName, account.id, data.access_token, newExpiry, data.refresh_token,
+      schemaName,
+      account.id,
+      data.access_token,
+      newExpiry,
+      data.refresh_token,
     );
 
     return data.access_token;

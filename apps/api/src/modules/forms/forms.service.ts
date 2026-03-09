@@ -13,7 +13,10 @@ export class FormsService {
   ) {}
 
   // ── List all forms ──────────────────────────────────────────
-  async findAll(schemaName: string, query: { status?: string; search?: string; page?: number; limit?: number }) {
+  async findAll(
+    schemaName: string,
+    query: { status?: string; search?: string; page?: number; limit?: number },
+  ) {
     const page = query.page || 1;
     const limit = query.limit || 25;
     const offset = (page - 1) * limit;
@@ -26,7 +29,9 @@ export class FormsService {
     }
     if (query.search) {
       params.push(`%${query.search}%`);
-      conditions.push(`(f.name ILIKE $${params.length} OR f.description ILIKE $${params.length})`);
+      conditions.push(
+        `(f.name ILIKE $${params.length} OR f.description ILIKE $${params.length})`,
+      );
     }
 
     const where = conditions.join(' AND ');
@@ -112,7 +117,7 @@ export class FormsService {
 
   // ── Update form ─────────────────────────────────────────────
   async update(schemaName: string, userId: string, id: string, data: any) {
-    const existing = await this.findById(schemaName, id);
+    await this.findById(schemaName, id);
 
     const [row] = await this.dataSource.query(
       `UPDATE "${schemaName}".forms SET
@@ -190,7 +195,11 @@ export class FormsService {
   }
 
   // ── Get submissions ─────────────────────────────────────────
-  async getSubmissions(schemaName: string, formId: string, query: { page?: number; limit?: number }) {
+  async getSubmissions(
+    schemaName: string,
+    formId: string,
+    query: { page?: number; limit?: number },
+  ) {
     const page = query.page || 1;
     const limit = query.limit || 25;
     const offset = (page - 1) * limit;
@@ -240,8 +249,16 @@ export class FormsService {
   }
 
   // ── Process submission (public) ─────────────────────────────
-  async processSubmission(tenantSlug: string, token: string, submissionData: any, metadata: any) {
-    const { schemaName, form } = await this.resolvePublicForm(tenantSlug, token);
+  async processSubmission(
+    tenantSlug: string,
+    token: string,
+    submissionData: any,
+    metadata: any,
+  ) {
+    const { schemaName, form } = await this.resolvePublicForm(
+      tenantSlug,
+      token,
+    );
 
     const actionResults: any[] = [];
     // Context accumulates entity IDs from earlier actions so later actions can reference them
@@ -249,10 +266,16 @@ export class FormsService {
     const context: Record<string, string> = {};
 
     // Execute submit_actions in order (chained)
-    for (const action of (form.submitActions || [])) {
+    for (const action of form.submitActions || []) {
       if (action.enabled === false) continue;
       try {
-        const result = await this.executeAction(schemaName, action, submissionData, form, context);
+        const result = await this.executeAction(
+          schemaName,
+          action,
+          submissionData,
+          form,
+          context,
+        );
         actionResults.push({ type: action.type, status: 'success', result });
         // Store created entity ID in context for downstream actions
         if (result?.entityId) {
@@ -260,7 +283,11 @@ export class FormsService {
         }
       } catch (err: any) {
         this.logger.warn(`Form action ${action.type} failed: ${err.message}`);
-        actionResults.push({ type: action.type, status: 'error', error: err.message });
+        actionResults.push({
+          type: action.type,
+          status: 'error',
+          error: err.message,
+        });
       }
     }
 
@@ -290,14 +317,24 @@ export class FormsService {
   }
 
   // ── Execute a single submit action ──────────────────────────
-  private async executeAction(schemaName: string, action: any, data: any, form: any, context: Record<string, string>): Promise<any> {
+  private async executeAction(
+    schemaName: string,
+    action: any,
+    data: any,
+    form: any,
+    context: Record<string, string>,
+  ): Promise<any> {
     const mappedData = this.applyFieldMapping(action.fieldMapping || {}, data);
 
     switch (action.type) {
       case 'create_lead':
         return this.createLeadFromSubmission(schemaName, mappedData, context);
       case 'create_contact':
-        return this.createContactFromSubmission(schemaName, mappedData, context);
+        return this.createContactFromSubmission(
+          schemaName,
+          mappedData,
+          context,
+        );
       case 'create_account':
         return this.createAccountFromSubmission(schemaName, mappedData);
       case 'webhook':
@@ -308,7 +345,10 @@ export class FormsService {
     }
   }
 
-  private applyFieldMapping(mapping: Record<string, string>, data: Record<string, any>): Record<string, any> {
+  private applyFieldMapping(
+    mapping: Record<string, string>,
+    data: Record<string, any>,
+  ): Record<string, any> {
     const result: Record<string, any> = {};
     for (const [crmField, formField] of Object.entries(mapping)) {
       if (data[formField] !== undefined) {
@@ -318,7 +358,11 @@ export class FormsService {
     return result;
   }
 
-  private async createLeadFromSubmission(schemaName: string, data: Record<string, any>, context: Record<string, string>) {
+  private async createLeadFromSubmission(
+    schemaName: string,
+    data: Record<string, any>,
+    context: Record<string, string>,
+  ) {
     // Build custom_fields with linked entity references from earlier actions
     const customFields: Record<string, string> = {};
     if (context.contactId) customFields.source_contact_id = context.contactId;
@@ -335,13 +379,19 @@ export class FormsService {
         data.email || null,
         data.phone || null,
         data.company || null,
-        Object.keys(customFields).length > 0 ? JSON.stringify(customFields) : null,
+        Object.keys(customFields).length > 0
+          ? JSON.stringify(customFields)
+          : null,
       ],
     );
     return { entityType: 'lead', entityId: row.id };
   }
 
-  private async createContactFromSubmission(schemaName: string, data: Record<string, any>, context: Record<string, string>) {
+  private async createContactFromSubmission(
+    schemaName: string,
+    data: Record<string, any>,
+    context: Record<string, string>,
+  ) {
     // If an account was created earlier, link the contact to it
     const accountId = context.accountId || null;
 
@@ -362,7 +412,10 @@ export class FormsService {
     return { entityType: 'contact', entityId: row.id };
   }
 
-  private async createAccountFromSubmission(schemaName: string, data: Record<string, any>) {
+  private async createAccountFromSubmission(
+    schemaName: string,
+    data: Record<string, any>,
+  ) {
     const [row] = await this.dataSource.query(
       `INSERT INTO "${schemaName}".accounts
         (name, email, phone, website, type)
@@ -383,7 +436,12 @@ export class FormsService {
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ formId: form.id, formName: form.name, data, submittedAt: new Date().toISOString() }),
+        body: JSON.stringify({
+          formId: form.id,
+          formName: form.name,
+          data,
+          submittedAt: new Date().toISOString(),
+        }),
       });
       return { statusCode: response.status };
     } catch (err: any) {
@@ -400,9 +458,14 @@ export class FormsService {
       slug: r.slug,
       status: r.status,
       fields: typeof r.fields === 'string' ? JSON.parse(r.fields) : r.fields,
-      settings: typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings,
-      submitActions: typeof r.submit_actions === 'string' ? JSON.parse(r.submit_actions) : r.submit_actions,
-      branding: typeof r.branding === 'string' ? JSON.parse(r.branding) : r.branding,
+      settings:
+        typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings,
+      submitActions:
+        typeof r.submit_actions === 'string'
+          ? JSON.parse(r.submit_actions)
+          : r.submit_actions,
+      branding:
+        typeof r.branding === 'string' ? JSON.parse(r.branding) : r.branding,
       token: r.token,
       tenantSlug: r.tenant_slug,
       submissionCount: r.submission_count,
@@ -419,8 +482,12 @@ export class FormsService {
       id: r.id,
       formId: r.form_id,
       data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data,
-      metadata: typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata,
-      actionResults: typeof r.action_results === 'string' ? JSON.parse(r.action_results) : r.action_results,
+      metadata:
+        typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata,
+      actionResults:
+        typeof r.action_results === 'string'
+          ? JSON.parse(r.action_results)
+          : r.action_results,
       ipAddress: r.ip_address,
       userAgent: r.user_agent,
       createdAt: r.created_at,
