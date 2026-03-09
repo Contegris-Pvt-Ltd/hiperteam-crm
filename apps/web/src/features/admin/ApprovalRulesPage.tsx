@@ -18,6 +18,7 @@ const ENTITY_LABELS: Record<string, string> = {
   opportunities: 'Opportunities',
   deals: 'Deals',
   leads: 'Leads',
+  projects: 'Projects',
   custom: 'Custom',
 };
 
@@ -26,6 +27,9 @@ const TRIGGER_LABELS: Record<string, string> = {
   close_won: 'On Close Won',
   discount_threshold: 'Discount Threshold',
   manual: 'Manual Request',
+  project_created: 'On Project Creation',
+  project_completed: 'On Project Completion',
+  budget_exceeded: 'On Budget Exceeded',
 };
 
 const TRIGGER_OPTIONS: Record<string, TriggerEvent[]> = {
@@ -33,10 +37,11 @@ const TRIGGER_OPTIONS: Record<string, TriggerEvent[]> = {
   opportunities: ['close_won', 'discount_threshold', 'manual'],
   deals: ['close_won', 'discount_threshold', 'manual'],
   leads: ['manual'],
+  projects: ['project_created', 'project_completed', 'budget_exceeded', 'manual'],
   custom: ['manual'],
 };
 
-const ENTITY_TYPES: EntityType[] = ['proposals', 'opportunities', 'deals', 'leads', 'custom'];
+const ENTITY_TYPES: EntityType[] = ['proposals', 'opportunities', 'deals', 'leads', 'projects', 'custom'];
 
 const FILTER_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -44,6 +49,7 @@ const FILTER_OPTIONS = [
   { value: 'opportunities', label: 'Opportunities' },
   { value: 'deals', label: 'Deals' },
   { value: 'leads', label: 'Leads' },
+  { value: 'projects', label: 'Projects' },
   { value: 'custom', label: 'Custom' },
 ];
 

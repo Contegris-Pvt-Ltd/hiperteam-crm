@@ -94,6 +94,8 @@ export const CRM_MODULES = [
   'targets',
   'gamification',
   'notifications',
+  'forms',
+  'email',
 ] as const;
 
 export type CrmModule = typeof CRM_MODULES[number];
@@ -120,6 +122,8 @@ export function getModuleActions(module: CrmModule): ModuleAction[] {
     case 'gamification':
     case 'notifications':
     case 'projects':
+    case 'forms':
+    case 'email':
       return ['view', 'create', 'edit', 'delete'] as ModuleAction[];
     default:
       return DATA_MODULE_ACTIONS;

@@ -2,8 +2,8 @@ import { api } from './contacts.api';
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type ApproverType = 'user' | 'role';
-export type TriggerEvent = 'publish' | 'close_won' | 'discount_threshold' | 'manual';
-export type EntityType = 'proposals' | 'opportunities' | 'deals' | 'leads' | 'custom';
+export type TriggerEvent = 'publish' | 'close_won' | 'discount_threshold' | 'manual' | 'project_created' | 'project_completed' | 'budget_exceeded';
+export type EntityType = 'proposals' | 'opportunities' | 'deals' | 'leads' | 'projects' | 'custom';
 
 export interface ApprovalRuleStep {
   id?: string;

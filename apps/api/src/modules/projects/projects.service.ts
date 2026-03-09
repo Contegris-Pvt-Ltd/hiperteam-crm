@@ -49,12 +49,13 @@ export class ProjectsService {
   // ============================================================
   // 3. GET TEMPLATES
   // ============================================================
-  async getTemplates(schemaName: string) {
+  async getTemplates(schemaName: string, includeInactive = false) {
+    const whereClause = includeInactive ? '' : 'WHERE pt.is_active = true';
     return this.dataSource.query(
       `SELECT pt.*, COUNT(ptp.id) as phase_count
        FROM "${schemaName}".project_templates pt
        LEFT JOIN "${schemaName}".project_template_phases ptp ON ptp.template_id = pt.id
-       WHERE pt.is_active = true
+       ${whereClause}
        GROUP BY pt.id
        ORDER BY pt.is_system DESC, pt.name ASC`,
     );
@@ -82,10 +83,53 @@ export class ProjectsService {
       [templateId],
     );
 
+    // Build nested task hierarchy
+    const taskMap = new Map<string, any>();
+    const rootTasks: any[] = [];
+
+    tasks.forEach((task: any) => {
+      const formatted = {
+        id: task.id,
+        templateId: task.template_id,
+        phaseId: task.phase_id,
+        parentTaskId: task.parent_task_id,
+        title: task.title,
+        description: task.description,
+        assigneeRole: task.assignee_role,
+        dueDaysFromStart: task.due_days_from_start,
+        estimatedHours: task.estimated_hours,
+        priority: task.priority,
+        sortOrder: task.sort_order,
+        subtasks: [],
+      };
+      taskMap.set(task.id, formatted);
+      if (!task.parent_task_id) {
+        rootTasks.push(formatted);
+      }
+    });
+
+    // Attach subtasks to parent tasks
+    tasks.forEach((task: any) => {
+      if (task.parent_task_id) {
+        const parent = taskMap.get(task.parent_task_id);
+        if (parent) {
+          parent.subtasks.push(taskMap.get(task.id));
+        }
+      }
+    });
+
     template.phases = phases.map((phase: any) => ({
       ...phase,
-      tasks: tasks.filter((t: any) => t.phase_id === phase.id),
+      sortOrder: phase.sort_order,
+      estimatedDays: phase.estimated_days,
+      tasks: rootTasks.filter((t: any) => t.phaseId === phase.id),
     }));
+
+    template.approvalConfig = template.approval_config
+      ? typeof template.approval_config === 'string'
+        ? JSON.parse(template.approval_config)
+        : template.approval_config
+      : null;
 
     return template;
   }
@@ -253,6 +297,138 @@ export class ProjectsService {
       [id],
     );
     return { deleted: true };
+  }
+
+  // ============================================================
+  // 4d. SAVE TEMPLATE STRUCTURE (nested phases, tasks, subtasks)
+  // ============================================================
+  async saveTemplateStructure(
+    schemaName: string,
+    templateId: string,
+    dto: {
+      name?: string;
+      description?: string;
+      color?: string;
+      estimatedDays?: number;
+      approvalConfig?: any;
+      phases: Array<{
+        id?: string;
+        name: string;
+        color?: string;
+        estimatedDays?: number;
+        sortOrder: number;
+        tasks: Array<{
+          id?: string;
+          title: string;
+          description?: string;
+          priority?: string;
+          assigneeRole?: string;
+          dueDaysFromStart?: number;
+          estimatedHours?: number;
+          sortOrder: number;
+          subtasks?: Array<{
+            id?: string;
+            title: string;
+            description?: string;
+            priority?: string;
+            assigneeRole?: string;
+            dueDaysFromStart?: number;
+            estimatedHours?: number;
+            sortOrder: number;
+          }>;
+        }>;
+      }>;
+    },
+  ) {
+    // 1. Update template metadata
+    const updates: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+
+    if (dto.name !== undefined) { updates.push(`name = $${idx++}`); params.push(dto.name); }
+    if (dto.description !== undefined) { updates.push(`description = $${idx++}`); params.push(dto.description); }
+    if (dto.color !== undefined) { updates.push(`color = $${idx++}`); params.push(dto.color); }
+    if (dto.estimatedDays !== undefined) { updates.push(`estimated_days = $${idx++}`); params.push(dto.estimatedDays); }
+    if (dto.approvalConfig !== undefined) {
+      updates.push(`approval_config = $${idx++}`);
+      params.push(JSON.stringify(dto.approvalConfig));
+    }
+
+    updates.push(`updated_at = NOW()`);
+    params.push(templateId);
+
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".project_templates SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      params,
+    );
+
+    // 2. Delete existing phases and tasks for this template
+    await this.dataSource.query(
+      `DELETE FROM "${schemaName}".project_template_tasks WHERE template_id = $1`,
+      [templateId],
+    );
+    await this.dataSource.query(
+      `DELETE FROM "${schemaName}".project_template_phases WHERE template_id = $1`,
+      [templateId],
+    );
+
+    // 3. Insert phases, tasks, and subtasks
+    for (const phase of dto.phases) {
+      const [insertedPhase] = await this.dataSource.query(
+        `INSERT INTO "${schemaName}".project_template_phases
+         (template_id, name, color, sort_order, estimated_days)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [templateId, phase.name, phase.color || '#3B82F6', phase.sortOrder, phase.estimatedDays || null],
+      );
+
+      for (const task of phase.tasks) {
+        const [insertedTask] = await this.dataSource.query(
+          `INSERT INTO "${schemaName}".project_template_tasks
+           (template_id, phase_id, title, description, priority, assignee_role,
+            due_days_from_start, estimated_hours, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           RETURNING id`,
+          [
+            templateId,
+            insertedPhase.id,
+            task.title,
+            task.description || null,
+            task.priority || 'medium',
+            task.assigneeRole || null,
+            task.dueDaysFromStart || null,
+            task.estimatedHours || null,
+            task.sortOrder,
+          ],
+        );
+
+        // Insert subtasks if any
+        if (task.subtasks && task.subtasks.length > 0) {
+          for (const subtask of task.subtasks) {
+            await this.dataSource.query(
+              `INSERT INTO "${schemaName}".project_template_tasks
+               (template_id, phase_id, parent_task_id, title, description, priority,
+                assignee_role, due_days_from_start, estimated_hours, sort_order)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+              [
+                templateId,
+                insertedPhase.id,
+                insertedTask.id,
+                subtask.title,
+                subtask.description || null,
+                subtask.priority || 'medium',
+                subtask.assigneeRole || null,
+                subtask.dueDaysFromStart || null,
+                subtask.estimatedHours || null,
+                subtask.sortOrder,
+              ],
+            );
+          }
+        }
+      }
+    }
+
+    return this.getTemplateById(schemaName, templateId);
   }
 
   // ============================================================
@@ -515,7 +691,7 @@ export class ProjectsService {
 
     // b. Apply template if provided
     if (dto.templateId) {
-      await this.applyTemplate(schemaName, project.id, dto.templateId, dto.startDate || null);
+      await this.applyTemplate(schemaName, project.id, dto.templateId, dto.startDate || null, userId);
     }
 
     // c. Add creator as project member with role='owner'
@@ -550,6 +726,7 @@ export class ProjectsService {
     projectId: string,
     templateId: string,
     projectStartDate: string | null,
+    userId: string,
   ) {
     const template = await this.getTemplateById(schemaName, templateId);
     if (!template || !template.phases) return;
@@ -560,38 +737,85 @@ export class ProjectsService {
          (project_id, name, color, sort_order)
          VALUES ($1, $2, $3, $4)
          RETURNING *`,
-        [projectId, phase.name, phase.color || null, phase.sort_order],
+        [projectId, phase.name, phase.color || null, phase.sortOrder],
       );
 
       if (phase.tasks && phase.tasks.length > 0) {
         for (const task of phase.tasks) {
-          let dueDate: string | null = null;
-          if (projectStartDate && task.due_days_from_start) {
-            const start = new Date(projectStartDate);
-            start.setDate(start.getDate() + task.due_days_from_start);
-            dueDate = start.toISOString().split('T')[0];
-          }
+          const dueDate = this.calcDueDate(projectStartDate, task.dueDaysFromStart);
 
-          await this.dataSource.query(
+          const [insertedTask] = await this.dataSource.query(
             `INSERT INTO "${schemaName}".project_tasks
              (project_id, phase_id, title, description, priority,
-              estimated_hours, sort_order, due_date)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+              estimated_hours, sort_order, due_date, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             RETURNING *`,
             [
               projectId,
               insertedPhase.id,
               task.title,
               task.description || null,
               task.priority || 'medium',
-              task.estimated_hours ?? null,
-              task.sort_order,
+              task.estimatedHours ?? null,
+              task.sortOrder,
               dueDate,
+              userId,
             ],
           );
+
+          // Insert subtasks if any
+          if (task.subtasks && task.subtasks.length > 0) {
+            for (const subtask of task.subtasks) {
+              const subtaskDueDate = this.calcDueDate(projectStartDate, subtask.dueDaysFromStart);
+
+              await this.dataSource.query(
+                `INSERT INTO "${schemaName}".project_tasks
+                 (project_id, phase_id, parent_task_id, title, description, priority,
+                  estimated_hours, sort_order, due_date, created_by)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                [
+                  projectId,
+                  insertedPhase.id,
+                  insertedTask.id,
+                  subtask.title,
+                  subtask.description || null,
+                  subtask.priority || 'medium',
+                  subtask.estimatedHours ?? null,
+                  subtask.sortOrder,
+                  subtaskDueDate,
+                  userId,
+                ],
+              );
+            }
+          }
         }
       }
     }
+
+    // Trigger approval if template requires it
+    if (template.approvalConfig?.requireApproval && template.approvalConfig?.triggerEvent && userId) {
+      try {
+        await this.approvalService.createRequest(
+          schemaName,
+          'projects',
+          projectId,
+          template.approvalConfig.triggerEvent,
+          userId,
+        );
+      } catch { /* non-fatal */ }
+    }
   }
+
+  // ============================================================
+  // 8a. CALCULATE DUE DATE HELPER
+  // ============================================================
+  private calcDueDate(projectStartDate: string | null, dueDaysFromStart: number | null): string | null {
+    if (!projectStartDate || !dueDaysFromStart) return null;
+    const start = new Date(projectStartDate);
+    start.setDate(start.getDate() + dueDaysFromStart);
+    return start.toISOString().split('T')[0];
+  }
+
 
   // ============================================================
   // 9. UPDATE PROJECT

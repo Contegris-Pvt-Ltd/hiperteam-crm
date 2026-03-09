@@ -303,8 +303,10 @@ export const projectsApi = {
     return data;
   },
 
-  getTemplates: async (): Promise<ProjectTemplate[]> => {
-    const { data } = await api.get('/projects/templates');
+  getTemplates: async (includeInactive = false): Promise<ProjectTemplate[]> => {
+    const { data } = await api.get('/projects/templates', {
+      params: includeInactive ? { includeInactive: 'true' } : undefined,
+    });
     return data;
   },
 
@@ -594,5 +596,43 @@ export const projectsApi = {
 
   deleteTemplate: async (id: string) => {
     await api.delete(`/projects/admin/templates/${id}`);
+  },
+
+  saveTemplateStructure: async (id: string, dto: {
+    name?: string;
+    description?: string;
+    color?: string;
+    estimatedDays?: number;
+    approvalConfig?: any;
+    phases: Array<{
+      id?: string;
+      name: string;
+      color?: string;
+      estimatedDays?: number;
+      sortOrder: number;
+      tasks: Array<{
+        id?: string;
+        title: string;
+        description?: string;
+        priority?: string;
+        assigneeRole?: string;
+        dueDaysFromStart?: number;
+        estimatedHours?: number;
+        sortOrder: number;
+        subtasks?: Array<{
+          id?: string;
+          title: string;
+          description?: string;
+          priority?: string;
+          assigneeRole?: string;
+          dueDaysFromStart?: number;
+          estimatedHours?: number;
+          sortOrder: number;
+        }>;
+      }>;
+    }>;
+  }): Promise<ProjectTemplate> => {
+    const { data } = await api.put(`/projects/admin/templates/${id}/structure`, dto);
+    return data;
   },
 };

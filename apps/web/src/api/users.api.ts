@@ -76,4 +76,6 @@ export const usersApi = {
   getPendingInvitations: async (): Promise<PendingInvitation[]> => { const { data } = await api.get('/users/invitations'); return data; },
   resendInvitation: async (id: string) => { const { data } = await api.post(`/users/invitations/${id}/resend`); return data; },
   cancelInvitation: async (id: string) => { const { data } = await api.delete(`/users/invitations/${id}`); return data; },
+  getEmailSignature: async (): Promise<{ signature: string }> => { const { data } = await api.get('/users/me/email-signature'); return data; },
+  updateEmailSignature: async (signature: string): Promise<{ signature: string }> => { const { data } = await api.put('/users/me/email-signature', { signature }); return data; },
 };

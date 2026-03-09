@@ -48,6 +48,7 @@
     "docusign-esign": "^8.6.0",
     "handlebars": "^4.7.8",
     "helmet": "^8.1.0",
+    "imapflow": "^1.2.12",
     "ioredis": "^5.9.2",
     "libphonenumber-js": "^1.12.36",
     "multer": "^2.0.2",

@@ -27,13 +27,14 @@ import { usePermissions } from '../../hooks/usePermissions';
 //import { AuditLogViewer } from '../../components/shared/AuditLogViewer';
 import { DocumentsPanel } from '../../components/shared/DocumentsPanel';
 import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
+import { EntityEmailsTab } from '../email/EntityEmailsTab';
 import { projectsApi } from '../../api/projects.api';
 import { contractsApi } from '../../api/contracts.api';
 import type { Contract } from '../../api/contracts.api';
 import { invoicesApi } from '../../api/invoices.api';
 import type { Invoice, InvoiceLineItem } from '../../api/invoices.api';
 
-type Tab = 'details' | 'contacts' | 'products' | 'proposals' | 'contracts' | 'invoices' | 'activity' | 'notes' | 'tasks' | 'files' | 'history' | 'forecast';
+type Tab = 'details' | 'contacts' | 'products' | 'proposals' | 'contracts' | 'invoices' | 'activity' | 'emails' | 'notes' | 'tasks' | 'files' | 'history' | 'forecast';
 
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: 'details', label: 'Details', icon: FileText },
@@ -43,6 +44,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: 'contracts', label: 'Contracts', icon: FileSignature },
   { id: 'invoices', label: 'Invoices', icon: Receipt },
   { id: 'activity', label: 'Activity', icon: Activity },
+  { id: 'emails', label: 'Emails', icon: Mail },
   { id: 'notes', label: 'Notes', icon: MessageSquare },
   { id: 'files', label: 'Files', icon: FileText },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
@@ -623,6 +625,14 @@ export function OpportunityDetailPage() {
 
         {/* Forecast Tab */}
         {activeTab === 'forecast' && <ForecastView pipelineId={opp.pipelineId || undefined} />}
+
+        {activeTab === 'emails' && (
+          <EntityEmailsTab
+            entityType="opportunity"
+            entityId={opp.id}
+            entityEmail={opp.primaryContact?.email}
+          />
+        )}
 
         {activeTab === 'tasks' && (
           <EntityTasksPanel

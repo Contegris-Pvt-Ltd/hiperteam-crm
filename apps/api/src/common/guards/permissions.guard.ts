@@ -74,6 +74,11 @@ export class PermissionGuard implements CanActivate {
 
     const { module, action } = requiredPermission;
 
+    // Admin users bypass module-level permission checks
+    if (user.role === 'admin' || user.roleLevel >= 100) {
+      return true;
+    }
+
     if (!hasPermission(user.permissions || {}, module, action)) {
       throw new ForbiddenException(
         `You don't have permission to ${action} ${module}`,

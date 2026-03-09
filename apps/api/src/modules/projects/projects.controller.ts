@@ -63,8 +63,14 @@ export class ProjectsController {
 
   @Get('templates')
   @ApiOperation({ summary: 'Get project templates' })
-  async getTemplates(@Request() req: { user: JwtPayload }) {
-    return this.projectsService.getTemplates(req.user.tenantSchema);
+  async getTemplates(
+    @Request() req: { user: JwtPayload },
+    @Query('includeInactive') includeInactive?: string,
+  ) {
+    return this.projectsService.getTemplates(
+      req.user.tenantSchema,
+      includeInactive === 'true',
+    );
   }
 
   @Get('templates/:templateId')
@@ -257,6 +263,59 @@ export class ProjectsController {
       return await this.projectsService.deleteTemplate(
         req.user.tenantSchema,
         templateId,
+      );
+    } catch (e: any) {
+      throw new BadRequestException(e.message);
+    }
+  }
+
+  @Put('admin/templates/:templateId/structure')
+  @RequirePermission('settings', 'edit')
+  @ApiOperation({ summary: 'Save template structure with nested phases, tasks, and subtasks' })
+  async saveTemplateStructure(
+    @Request() req: { user: JwtPayload },
+    @Param('templateId') templateId: string,
+    @Body()
+    dto: {
+      name?: string;
+      description?: string;
+      color?: string;
+      estimatedDays?: number;
+      approvalConfig?: any;
+      phases: Array<{
+        id?: string;
+        name: string;
+        color?: string;
+        estimatedDays?: number;
+        sortOrder: number;
+        tasks: Array<{
+          id?: string;
+          title: string;
+          description?: string;
+          priority?: string;
+          assigneeRole?: string;
+          dueDaysFromStart?: number;
+          estimatedHours?: number;
+          sortOrder: number;
+          subtasks?: Array<{
+            id?: string;
+            title: string;
+            description?: string;
+            priority?: string;
+            assigneeRole?: string;
+            dueDaysFromStart?: number;
+            estimatedHours?: number;
+            sortOrder: number;
+          }>;
+        }>;
+      }>;
+    },
+  ) {
+    try {
+      return await this.projectsService.saveTemplateStructure(
+        req.user.tenantSchema,
+        templateId,
+        dto,
       );
     } catch (e: any) {
       throw new BadRequestException(e.message);

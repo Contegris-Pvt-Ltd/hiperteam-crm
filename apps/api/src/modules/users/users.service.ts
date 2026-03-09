@@ -452,6 +452,26 @@ export class UsersService {
   }
 
   // ============================================================
+  // EMAIL SIGNATURE
+  // ============================================================
+  async getEmailSignature(schema: string, userId: string) {
+    const [row] = await this.dataSource.query(
+      `SELECT email_signature FROM "${schema}".users WHERE id = $1 AND deleted_at IS NULL`,
+      [userId],
+    );
+    if (!row) throw new NotFoundException('User not found');
+    return { signature: row.email_signature || '' };
+  }
+
+  async updateEmailSignature(schema: string, userId: string, signature: string) {
+    await this.dataSource.query(
+      `UPDATE "${schema}".users SET email_signature = $2, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL`,
+      [userId, signature],
+    );
+    return { signature };
+  }
+
+  // ============================================================
   // DEACTIVATE / DELETE
   // ============================================================
   async deactivate(schema: string, id: string, userId: string) {

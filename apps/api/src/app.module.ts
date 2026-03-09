@@ -29,6 +29,8 @@ import { TargetsModule } from './modules/targets/targets.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { LeadImportModule } from './modules/lead-import/lead-import.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { FormsModule } from './modules/forms/forms.module';
+import { EmailInboxModule } from './modules/email-inbox/email-inbox.module';
 
 @Module({
   imports: [
@@ -75,6 +77,8 @@ import { ProjectsModule } from './modules/projects/projects.module';
     ReportsModule,
     LeadImportModule,
     ProjectsModule,
+    FormsModule,
+    EmailInboxModule,
   ],
   controllers: [AppController],
   providers: [AppService],

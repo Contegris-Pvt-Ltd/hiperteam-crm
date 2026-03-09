@@ -138,6 +138,24 @@ export class UsersController {
   }
 
   // ============================================================
+  // EMAIL SIGNATURE (current user)
+  // ============================================================
+  @Get('me/email-signature')
+  @ApiOperation({ summary: 'Get current user email signature' })
+  async getMySignature(@Request() req: { user: JwtPayload }) {
+    return this.usersService.getEmailSignature(req.user.tenantSchema, req.user.sub);
+  }
+
+  @Put('me/email-signature')
+  @ApiOperation({ summary: 'Update current user email signature' })
+  async updateMySignature(
+    @Request() req: { user: JwtPayload },
+    @Body() body: { signature: string },
+  ) {
+    return this.usersService.updateEmailSignature(req.user.tenantSchema, req.user.sub, body.signature);
+  }
+
+  // ============================================================
   // GET USER BY ID
   // ============================================================
   @Get(':id')

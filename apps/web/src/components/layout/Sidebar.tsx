@@ -20,6 +20,8 @@ import {
   ClipboardCheck,
   Receipt,
   FolderKanban,
+  FileText,
+  Mail,
 } from 'lucide-react';
 
 const navigation = [
@@ -32,8 +34,10 @@ const navigation = [
   { name: 'Projects', href: '/projects', icon: FolderKanban },
   { name: 'Products', href: '/products', icon: Package },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
+  { name: 'Inbox', href: '/inbox', icon: Mail },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Approvals', href: '/approvals', icon: ClipboardCheck },
+  { name: 'Forms', href: '/forms', icon: FileText },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
 ];
 

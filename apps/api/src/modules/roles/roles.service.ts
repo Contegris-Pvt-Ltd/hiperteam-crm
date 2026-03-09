@@ -30,6 +30,8 @@ export const MODULE_DEFINITIONS: Record<string, { label: string; actions: string
   targets:  { label: 'Targets & Goals', actions: ['view', 'create', 'edit', 'delete'] },
   gamification: { label: 'Gamification', actions: ['view', 'create', 'edit', 'delete'] },
   notifications: { label: 'Notifications', actions: ['view', 'create', 'edit', 'delete'] },
+  forms: { label: 'Forms', actions: ['view', 'create', 'edit', 'delete'] },
+  email: { label: 'Email Inbox', actions: ['view', 'create', 'edit', 'delete'] },
 };
 
 export const RECORD_ACCESS_MODULES = ['contacts', 'accounts', 'products', 'leads', 'opportunities', 'deals', 'tasks', 'projects', 'reports'];

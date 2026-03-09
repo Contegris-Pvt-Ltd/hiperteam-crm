@@ -908,6 +908,21 @@ export class ApprovalService {
           `Opportunity ${request.entityId} closed-won after approval`,
         );
       }
+
+      if (
+        request.entityType === 'projects' &&
+        request.triggerEvent === 'project_completed'
+      ) {
+        await this.dataSource.query(
+          `UPDATE "${schemaName}".projects
+           SET actual_end_date = NOW()::DATE, updated_at = NOW()
+           WHERE id = $1 AND deleted_at IS NULL`,
+          [request.entityId],
+        );
+        this.logger.log(
+          `Project ${request.entityId} marked completed after approval`,
+        );
+      }
     } catch (err) {
       this.logger.error('Failed to execute post-approval action:', err);
     }

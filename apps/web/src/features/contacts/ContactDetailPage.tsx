@@ -27,8 +27,9 @@ import { useModuleLayout } from '../../hooks/useModuleLayout';
 import { DynamicPageRenderer } from '../../components/shared/DynamicPageRenderer';
 // ===============================================
 import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
+import { EntityEmailsTab } from '../email/EntityEmailsTab';
 
-type TabType = 'activity' | 'notes' | 'accounts' | 'tasks' | 'documents' | 'history';
+type TabType = 'activity' | 'emails' | 'notes' | 'accounts' | 'tasks' | 'documents' | 'history';
 
 export function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -489,6 +490,7 @@ export function ContactDetailPage() {
 
   const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
     { id: 'activity', label: 'Activity', icon: <Activity className="w-4 h-4" /> },
+    { id: 'emails', label: 'Emails', icon: <Mail className="w-4 h-4" /> },
     { id: 'notes', label: 'Notes', icon: <MessageSquare className="w-4 h-4" /> },
     { id: 'documents', label: 'Documents', icon: <FileText className="w-4 h-4" /> },
     { id: 'accounts', label: 'Accounts', icon: <Building2 className="w-4 h-4" /> },
@@ -885,6 +887,9 @@ export function ContactDetailPage() {
                         </>
                       )}
                     </div>
+                  )}
+                  {activeTab === 'emails' && (
+                    <EntityEmailsTab entityType="contact" entityId={id!} entityEmail={primaryEmail?.email || contact.email} />
                   )}
                   {activeTab === 'history' && <ChangeHistory history={history} loading={tabLoading} />}
                   {activeTab === 'tasks' && (

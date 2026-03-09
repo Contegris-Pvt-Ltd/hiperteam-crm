@@ -2077,6 +2077,351 @@ async function runTenantMigrations() {
             name: '033_projects_enhancements',
             sql: build033ProjectsEnhancements(schema),
           },
+          {
+            name: '034_template_subtasks_and_project_approvals',
+            sql: `
+              -- 1. Add parent_task_id to project_template_tasks for nested subtasks
+              ALTER TABLE "${schema}".project_template_tasks
+                ADD COLUMN IF NOT EXISTS parent_task_id UUID
+                REFERENCES "${schema}".project_template_tasks(id) ON DELETE CASCADE;
+
+              CREATE INDEX IF NOT EXISTS idx_ptt_parent_task_id
+                ON "${schema}".project_template_tasks(parent_task_id);
+
+              -- 2. Add approval_config to project_templates
+              ALTER TABLE "${schema}".project_templates
+                ADD COLUMN IF NOT EXISTS approval_config JSONB DEFAULT NULL;
+
+              -- 3. Update approval_rules CHECK constraint for entity_type to include 'projects'
+              DO $$
+              BEGIN
+                -- Drop existing constraint if it exists
+                IF EXISTS (
+                  SELECT 1 FROM information_schema.table_constraints
+                  WHERE table_schema = '${schema}'
+                    AND table_name = 'approval_rules'
+                    AND constraint_name = 'approval_rules_entity_type_check'
+                ) THEN
+                  ALTER TABLE "${schema}".approval_rules
+                    DROP CONSTRAINT approval_rules_entity_type_check;
+                END IF;
+
+                -- Add new constraint with 'projects' included
+                ALTER TABLE "${schema}".approval_rules
+                  ADD CONSTRAINT approval_rules_entity_type_check
+                  CHECK (entity_type IN ('proposals', 'opportunities', 'deals', 'leads', 'projects', 'custom'));
+              END $$;
+
+              -- 4. Update approval_rules CHECK constraint for trigger_event to include project triggers
+              DO $$
+              BEGIN
+                -- Drop existing constraint if it exists
+                IF EXISTS (
+                  SELECT 1 FROM information_schema.table_constraints
+                  WHERE table_schema = '${schema}'
+                    AND table_name = 'approval_rules'
+                    AND constraint_name = 'approval_rules_trigger_event_check'
+                ) THEN
+                  ALTER TABLE "${schema}".approval_rules
+                    DROP CONSTRAINT approval_rules_trigger_event_check;
+                END IF;
+
+                -- Add new constraint with project triggers included
+                ALTER TABLE "${schema}".approval_rules
+                  ADD CONSTRAINT approval_rules_trigger_event_check
+                  CHECK (trigger_event IN (
+                    'publish', 'close_won', 'discount_threshold', 'manual',
+                    'project_created', 'project_completed', 'budget_exceeded'
+                  ));
+              END $$;
+
+              -- 5. Grant permissions (if needed)
+              DO $$
+              BEGIN
+                IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'intelli_hiper_app') THEN
+                  EXECUTE 'GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app';
+                  EXECUTE 'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app';
+                END IF;
+              END $$;
+            `,
+          },
+          {
+            name: '035_forms_module',
+            sql: `
+              -- Forms table
+              CREATE TABLE IF NOT EXISTS "${schema}".forms (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                slug VARCHAR(255),
+                status VARCHAR(20) NOT NULL DEFAULT 'draft'
+                  CHECK (status IN ('draft', 'active', 'inactive', 'archived')),
+                fields JSONB NOT NULL DEFAULT '[]',
+                settings JSONB NOT NULL DEFAULT '{}',
+                submit_actions JSONB NOT NULL DEFAULT '[]',
+                branding JSONB NOT NULL DEFAULT '{}',
+                token VARCHAR(100),
+                tenant_slug VARCHAR(100),
+                submission_count INT NOT NULL DEFAULT 0,
+                created_by UUID,
+                updated_by UUID,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMPTZ
+              );
+              CREATE INDEX IF NOT EXISTS idx_forms_status ON "${schema}".forms(status);
+              CREATE INDEX IF NOT EXISTS idx_forms_token ON "${schema}".forms(token);
+              CREATE INDEX IF NOT EXISTS idx_forms_deleted ON "${schema}".forms(deleted_at);
+              CREATE UNIQUE INDEX IF NOT EXISTS idx_forms_slug ON "${schema}".forms(slug) WHERE deleted_at IS NULL;
+
+              -- Form submissions table
+              CREATE TABLE IF NOT EXISTS "${schema}".form_submissions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                form_id UUID NOT NULL REFERENCES "${schema}".forms(id) ON DELETE CASCADE,
+                data JSONB NOT NULL DEFAULT '{}',
+                metadata JSONB NOT NULL DEFAULT '{}',
+                action_results JSONB NOT NULL DEFAULT '[]',
+                ip_address VARCHAR(45),
+                user_agent TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_form_submissions_form ON "${schema}".form_submissions(form_id);
+              CREATE INDEX IF NOT EXISTS idx_form_submissions_created ON "${schema}".form_submissions(created_at);
+
+              -- Populate tenant_slug from tenants table
+              DO $$
+              DECLARE
+                t_slug TEXT;
+              BEGIN
+                SELECT slug INTO t_slug FROM master.tenants
+                WHERE schema_name = '${schema}' LIMIT 1;
+                IF t_slug IS NOT NULL THEN
+                  UPDATE "${schema}".forms SET tenant_slug = t_slug WHERE tenant_slug IS NULL;
+                END IF;
+              END $$;
+
+              -- Grant permissions
+              DO $$
+              BEGIN
+                IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'intelli_hiper_app') THEN
+                  EXECUTE 'GRANT ALL ON ALL TABLES IN SCHEMA "${schema}" TO intelli_hiper_app';
+                  EXECUTE 'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO intelli_hiper_app';
+                END IF;
+              END $$;
+            `,
+          },
+          {
+            name: '036_forms_role_permissions',
+            sql: `
+              -- Add forms permissions to admin role
+              UPDATE "${schema}".roles SET
+                permissions = permissions || '{"forms":{"view":true,"create":true,"edit":true,"delete":true}}'::jsonb
+              WHERE name = 'admin' AND NOT (permissions ? 'forms');
+
+              -- Add forms permissions to manager role
+              UPDATE "${schema}".roles SET
+                permissions = permissions || '{"forms":{"view":true,"create":true,"edit":true,"delete":false}}'::jsonb
+              WHERE name = 'manager' AND NOT (permissions ? 'forms');
+
+              -- Add forms permissions to user role
+              UPDATE "${schema}".roles SET
+                permissions = permissions || '{"forms":{"view":true,"create":false,"edit":false,"delete":false}}'::jsonb
+              WHERE name = 'user' AND NOT (permissions ? 'forms');
+            `,
+          },
+          {
+            name: '037_email_inbox',
+            sql: `
+              -- Connected email accounts (per user or shared/tenant)
+              CREATE TABLE IF NOT EXISTS "${schema}".email_accounts (
+                id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id        UUID REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+                is_shared      BOOLEAN NOT NULL DEFAULT false,
+                provider       VARCHAR(20) NOT NULL,
+                email          VARCHAR(255) NOT NULL,
+                display_name   VARCHAR(255),
+                access_token   TEXT,
+                refresh_token  TEXT,
+                token_expiry   TIMESTAMPTZ,
+                imap_host      VARCHAR(255),
+                imap_port      INT,
+                imap_secure    BOOLEAN DEFAULT true,
+                smtp_host      VARCHAR(255),
+                smtp_port      INT,
+                smtp_secure    BOOLEAN DEFAULT true,
+                imap_password  TEXT,
+                sync_enabled        BOOLEAN DEFAULT true,
+                webhook_resource_id VARCHAR(255),
+                webhook_expiry      TIMESTAMPTZ,
+                ms_subscription_id  VARCHAR(255),
+                history_id          VARCHAR(255),
+                last_synced_at      TIMESTAMPTZ,
+                created_at     TIMESTAMPTZ DEFAULT NOW(),
+                updated_at     TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'uq_email_accounts_email_user'
+                ) THEN
+                  ALTER TABLE "${schema}".email_accounts
+                    ADD CONSTRAINT uq_email_accounts_email_user UNIQUE (email, user_id);
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_email_accounts_user
+                ON "${schema}".email_accounts(user_id);
+
+              -- Stored emails
+              CREATE TABLE IF NOT EXISTS "${schema}".emails (
+                id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                account_id      UUID NOT NULL REFERENCES "${schema}".email_accounts(id) ON DELETE CASCADE,
+                message_id      VARCHAR(512) NOT NULL,
+                thread_id       VARCHAR(512),
+                direction       VARCHAR(10) NOT NULL,
+                subject         TEXT,
+                body_text       TEXT,
+                body_html       TEXT,
+                from_email      VARCHAR(255),
+                from_name       VARCHAR(255),
+                to_emails       JSONB DEFAULT '[]',
+                cc_emails       JSONB DEFAULT '[]',
+                bcc_emails      JSONB DEFAULT '[]',
+                sent_at         TIMESTAMPTZ,
+                received_at     TIMESTAMPTZ,
+                is_read         BOOLEAN DEFAULT false,
+                is_starred      BOOLEAN DEFAULT false,
+                is_draft        BOOLEAN DEFAULT false,
+                has_attachments BOOLEAN DEFAULT false,
+                snippet         TEXT,
+                labels          JSONB DEFAULT '[]',
+                tracking_token  VARCHAR(100) UNIQUE,
+                opens_count     INT DEFAULT 0,
+                clicks_count    INT DEFAULT 0,
+                created_at      TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              CREATE UNIQUE INDEX IF NOT EXISTS idx_emails_message_id
+                ON "${schema}".emails(account_id, message_id);
+              CREATE INDEX IF NOT EXISTS idx_emails_thread
+                ON "${schema}".emails(thread_id);
+              CREATE INDEX IF NOT EXISTS idx_emails_from
+                ON "${schema}".emails(from_email);
+              CREATE INDEX IF NOT EXISTS idx_emails_sent_at
+                ON "${schema}".emails(sent_at DESC);
+              CREATE INDEX IF NOT EXISTS idx_emails_account_id
+                ON "${schema}".emails(account_id);
+
+              -- Polymorphic CRM record links
+              CREATE TABLE IF NOT EXISTS "${schema}".email_links (
+                id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                email_id    UUID NOT NULL REFERENCES "${schema}".emails(id) ON DELETE CASCADE,
+                entity_type VARCHAR(30) NOT NULL,
+                entity_id   UUID NOT NULL,
+                linked_by   UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                auto_linked BOOLEAN DEFAULT false,
+                created_at  TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint WHERE conname = 'uq_email_links_email_entity'
+                ) THEN
+                  ALTER TABLE "${schema}".email_links
+                    ADD CONSTRAINT uq_email_links_email_entity UNIQUE (email_id, entity_type, entity_id);
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_email_links_entity
+                ON "${schema}".email_links(entity_type, entity_id);
+              CREATE INDEX IF NOT EXISTS idx_email_links_email
+                ON "${schema}".email_links(email_id);
+
+              -- Attachments metadata
+              CREATE TABLE IF NOT EXISTS "${schema}".email_attachments (
+                id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                email_id    UUID NOT NULL REFERENCES "${schema}".emails(id) ON DELETE CASCADE,
+                filename    VARCHAR(512),
+                mime_type   VARCHAR(255),
+                size_bytes  INT,
+                storage_url TEXT,
+                created_at  TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_email_attachments_email
+                ON "${schema}".email_attachments(email_id);
+
+              -- Open/click tracking events
+              CREATE TABLE IF NOT EXISTS "${schema}".email_tracking_events (
+                id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                email_id    UUID NOT NULL REFERENCES "${schema}".emails(id) ON DELETE CASCADE,
+                type        VARCHAR(10) NOT NULL,
+                url         TEXT,
+                ip          VARCHAR(45),
+                user_agent  TEXT,
+                occurred_at TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_email_tracking_email
+                ON "${schema}".email_tracking_events(email_id);
+            `,
+          },
+          {
+            name: '038_email_role_permissions',
+            sql: `
+              UPDATE "${schema}".roles SET
+                permissions = permissions || '{"email":{"view":true,"create":true,"edit":true,"delete":true}}'::jsonb
+              WHERE name = 'admin' AND NOT (permissions ? 'email');
+
+              UPDATE "${schema}".roles SET
+                permissions = permissions || '{"email":{"view":true,"create":true,"edit":true,"delete":false}}'::jsonb
+              WHERE name = 'manager' AND NOT (permissions ? 'email');
+
+              UPDATE "${schema}".roles SET
+                permissions = permissions || '{"email":{"view":true,"create":true,"edit":true,"delete":false}}'::jsonb
+              WHERE name = 'user' AND NOT (permissions ? 'email');
+            `,
+          },
+
+          // ── 039 Email Inbox Rules ──────────────────────────────
+          {
+            name: '039_email_inbox_rules',
+            sql: `
+              CREATE TABLE IF NOT EXISTS "${schema}".email_inbox_rules (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(255) NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                apply_to VARCHAR(20) NOT NULL DEFAULT 'inbound',
+                conditions JSONB NOT NULL DEFAULT '[]',
+                actions JSONB NOT NULL DEFAULT '[]',
+                stop_processing BOOLEAN NOT NULL DEFAULT false,
+                priority INT NOT NULL DEFAULT 0,
+                created_by UUID REFERENCES "${schema}".users(id),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMPTZ
+              );
+              CREATE INDEX IF NOT EXISTS idx_email_inbox_rules_active
+                ON "${schema}".email_inbox_rules(is_active) WHERE deleted_at IS NULL;
+            `,
+          },
+          {
+            name: '040_user_email_signature',
+            sql: `
+              ALTER TABLE "${schema}".users
+                ADD COLUMN IF NOT EXISTS email_signature TEXT;
+            `,
+          },
+          {
+            name: '041_emails_deleted_at',
+            sql: `
+              ALTER TABLE "${schema}".emails
+                ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+              CREATE INDEX IF NOT EXISTS idx_emails_deleted_at
+                ON "${schema}".emails(deleted_at)
+                WHERE deleted_at IS NOT NULL;
+            `,
+          },
         ];
 
         // ── Execute pending migrations ────────────────────────────

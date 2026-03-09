@@ -26,13 +26,14 @@ import type { ProfileCompletionData } from '../../components/shared/ProfileCompl
 import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
 import { QuickCreateContactModal } from '../../components/shared/QuickCreateContactModal';
 import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
+import { EntityEmailsTab } from '../email/EntityEmailsTab';
 
 // ============ PAGE DESIGNER IMPORTS ============
 import { useModuleLayout } from '../../hooks/useModuleLayout';
 import { DynamicPageRenderer } from '../../components/shared/DynamicPageRenderer';
 // ===============================================
 
-type TabType = 'activity' | 'notes' | 'documents' | 'contacts' | 'children' | 'tasks' | 'history';
+type TabType = 'activity' | 'emails' | 'notes' | 'documents' | 'contacts' | 'children' | 'tasks' | 'history';
 
 export function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -480,6 +481,7 @@ export function AccountDetailPage() {
   // ============ DEFAULT LAYOUT RENDERING ============
   const tabs: { id: TabType; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'activity', label: 'Activity', icon: <Activity className="w-4 h-4" /> },
+    { id: 'emails', label: 'Emails', icon: <Mail className="w-4 h-4" /> },
     { id: 'contacts', label: 'Contacts', icon: <Users className="w-4 h-4" />, count: account.contactsCount },
     { id: 'notes', label: 'Notes', icon: <MessageSquare className="w-4 h-4" /> },
     { id: 'documents', label: 'Documents', icon: <FileText className="w-4 h-4" /> },
@@ -1020,6 +1022,14 @@ export function AccountDetailPage() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {activeTab === 'emails' && (
+                <EntityEmailsTab
+                  entityType="account"
+                  entityId={id!}
+                  entityEmail={primaryEmail?.email}
+                />
               )}
 
               {activeTab === 'tasks' && (

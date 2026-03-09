@@ -30,8 +30,9 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { LeadProductsTab } from './components/LeadProductsTab';
 import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 import { StageAssignmentModal } from '../../components/shared/StageAssignmentModal';
+import { EntityEmailsTab } from '../email/EntityEmailsTab';
 
-type TabType = 'products' | 'activity' | 'notes' | 'documents' | 'history' | 'tasks';
+type TabType = 'products' | 'activity' | 'emails' | 'notes' | 'documents' | 'history' | 'tasks';
 
 const PRIORITY_ICONS: Record<string, any> = {
   flame: Flame, thermometer: Thermometer, snowflake: Snowflake, sun: Sun, minus: Minus,
@@ -547,6 +548,7 @@ export function LeadDetailPage() {
               {[
                 { key: 'products', label: 'Products', icon: Package },
                 { key: 'activity', label: 'Activity', icon: Activity },
+                { key: 'emails', label: 'Emails', icon: Mail },
                 { key: 'notes', label: 'Notes', icon: MessageSquare },
                 { key: 'documents', label: 'Documents', icon: FileText },
                 { key: 'history', label: 'History', icon: History },
@@ -589,6 +591,12 @@ export function LeadDetailPage() {
                 />
               ) : activeTab === 'history' ? (
                 <ChangeHistory history={tabData || []} />
+              ) : activeTab === 'emails' ? (
+                <EntityEmailsTab
+                  entityType="lead"
+                  entityId={id!}
+                  entityEmail={lead.email}
+                />
               ) : activeTab === 'tasks' ? (
                 <EntityTasksPanel
                   entityType="leads"

@@ -55,6 +55,8 @@ import ProjectSettingsPage from './features/admin/ProjectSettingsPage';
 import { ProjectsPage } from './features/projects/ProjectsPage';
 import { ProjectDetailPage } from './features/projects/ProjectDetailPage';
 import { ClientPortalPage } from './features/projects/ClientPortalPage';
+import { FormsPage, FormBuilderPage, FormSubmissionsPage, FormPublicPage } from './features/forms';
+import { InboxPage, EmailSettingsPage, InboxRulesPage } from './features/email';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -88,6 +90,7 @@ function App() {
         <Route path="/proposals/public/:tenantId/:token" element={<ProposalPublicPage />} />
         <Route path="/contracts/sign/:token" element={<ContractSignPage />} />
         <Route path="/portal/:tenantSlug/:token" element={<ClientPortalPage />} />
+        <Route path="/f/:tenantSlug/:token" element={<FormPublicPage />} />
 
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<DashboardPage />} />
@@ -127,6 +130,16 @@ function App() {
           <Route path="invoices" element={<InvoicesPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
+
+          {/* Forms */}
+          <Route path="/forms" element={<FormsPage />} />
+          <Route path="/forms/:id/builder" element={<FormBuilderPage />} />
+          <Route path="/forms/:id/submissions" element={<FormSubmissionsPage />} />
+
+          {/* Email Inbox */}
+          <Route path="/inbox" element={<InboxPage />} />
+          <Route path="/inbox/rules" element={<InboxRulesPage />} />
+          <Route path="/settings/email" element={<EmailSettingsPage />} />
 
           {/* Reports */}
           <Route path="reports" element={<ReportsPage />} />

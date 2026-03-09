@@ -1,0 +1,106 @@
+import { api } from './contacts.api';
+
+export interface FormField {
+  id: string;
+  type: 'text' | 'email' | 'phone' | 'number' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'date' | 'file' | 'heading' | 'paragraph' | 'divider';
+  label: string;
+  name: string;
+  placeholder?: string;
+  required?: boolean;
+  options?: { label: string; value: string }[];
+  validation?: Record<string, any>;
+  width?: 'full' | 'half';
+}
+
+export interface FormSubmitAction {
+  type: 'create_lead' | 'create_contact' | 'create_account' | 'webhook';
+  enabled: boolean;
+  fieldMapping?: Record<string, string>; // crmField -> formFieldName
+  webhookUrl?: string;
+}
+
+export interface FormSettings {
+  successMessage?: string;
+  redirectUrl?: string;
+  allowMultiple?: boolean;
+  requireCaptcha?: boolean;
+  notifyEmails?: string[];
+}
+
+export interface FormBranding {
+  logoUrl?: string;
+  primaryColor?: string;
+  backgroundColor?: string;
+  headerText?: string;
+  footerText?: string;
+}
+
+export interface FormRecord {
+  id: string;
+  name: string;
+  description?: string;
+  slug?: string;
+  status: 'draft' | 'active' | 'inactive' | 'archived';
+  fields: FormField[];
+  settings: FormSettings;
+  submitActions: FormSubmitAction[];
+  branding: FormBranding;
+  token: string;
+  tenantSlug: string;
+  submissionCount: number;
+  createdBy: string;
+  createdByName?: string;
+  updatedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FormSubmission {
+  id: string;
+  formId: string;
+  data: Record<string, any>;
+  metadata: Record<string, any>;
+  actionResults: { type: string; status: string; result?: any; error?: string }[];
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
+}
+
+export const formsApi = {
+  getAll: async (params?: { status?: string; search?: string; page?: number; limit?: number }) => {
+    const { data } = await api.get('/forms', { params });
+    return data;
+  },
+  getById: async (id: string): Promise<FormRecord> => {
+    const { data } = await api.get(`/forms/${id}`);
+    return data;
+  },
+  create: async (body: Partial<FormRecord>): Promise<FormRecord> => {
+    const { data } = await api.post('/forms', body);
+    return data;
+  },
+  update: async (id: string, body: Partial<FormRecord>): Promise<FormRecord> => {
+    const { data } = await api.put(`/forms/${id}`, body);
+    return data;
+  },
+  delete: async (id: string) => {
+    await api.delete(`/forms/${id}`);
+  },
+  duplicate: async (id: string): Promise<FormRecord> => {
+    const { data } = await api.post(`/forms/${id}/duplicate`);
+    return data;
+  },
+  getSubmissions: async (formId: string, params?: { page?: number; limit?: number }) => {
+    const { data } = await api.get(`/forms/${formId}/submissions`, { params });
+    return data;
+  },
+  // Public (no auth)
+  getPublicForm: async (tenantSlug: string, token: string) => {
+    const { data } = await api.get(`/forms/public/${tenantSlug}/${token}`);
+    return data;
+  },
+  submitPublicForm: async (tenantSlug: string, token: string, formData: Record<string, any>) => {
+    const { data } = await api.post(`/forms/public/${tenantSlug}/${token}/submit`, formData);
+    return data;
+  },
+};
