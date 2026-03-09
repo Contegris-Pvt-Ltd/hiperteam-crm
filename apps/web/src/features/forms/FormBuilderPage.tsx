@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Save,
   Loader2,
-  Plus,
   Trash2,
   GripVertical,
   Type,
@@ -20,10 +19,8 @@ import {
   Heading,
   FileText,
   Minus,
-  Settings2,
   Eye,
   Wand2,
-  ExternalLink,
   Copy,
 } from 'lucide-react';
 import { formsApi } from '../../api/forms.api';

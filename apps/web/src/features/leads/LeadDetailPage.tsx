@@ -595,7 +595,7 @@ export function LeadDetailPage() {
                 <EntityEmailsTab
                   entityType="lead"
                   entityId={id!}
-                  entityEmail={lead.email}
+                  entityEmail={lead.email ?? undefined}
                 />
               ) : activeTab === 'tasks' ? (
                 <EntityTasksPanel

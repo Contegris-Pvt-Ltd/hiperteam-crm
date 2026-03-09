@@ -14,7 +14,6 @@ import {
   Save,
   Image,
   Link2,
-  Type,
 } from 'lucide-react';
 import { emailApi } from '../../api/email.api';
 import { usersApi } from '../../api/users.api';

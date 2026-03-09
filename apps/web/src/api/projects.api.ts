@@ -41,6 +41,11 @@ export interface ProjectTemplate {
   isSystem: boolean;
   phaseCount?: number;
   phases?: ProjectTemplatePhase[];
+  approvalConfig?: {
+    requireApproval: boolean;
+    triggerEvent: string;
+    approvalRuleId: string | null;
+  } | null;
 }
 
 export interface ProjectTemplatePhase {

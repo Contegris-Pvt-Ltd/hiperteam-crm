@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
   Mail,
-  MailOpen,
   Send,
   Inbox,
   Eye,
@@ -9,7 +8,6 @@ import {
   ChevronRight,
   Loader2,
   Paperclip,
-  Plus,
 } from 'lucide-react';
 import { emailApi } from '../../api/email.api';
 import type { Email } from '../../api/email.api';

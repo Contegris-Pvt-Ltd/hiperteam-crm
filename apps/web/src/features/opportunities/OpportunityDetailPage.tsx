@@ -630,7 +630,7 @@ export function OpportunityDetailPage() {
           <EntityEmailsTab
             entityType="opportunity"
             entityId={opp.id}
-            entityEmail={opp.primaryContact?.email}
+            entityEmail={opp.primaryContact?.email ?? undefined}
           />
         )}
 

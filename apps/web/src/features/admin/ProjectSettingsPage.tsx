@@ -105,9 +105,9 @@ export default function ProjectSettingsPage() {
 
   // ── Template Editor State ─────────────────────────────────
   const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
-  const [tplHeader, setTplHeader] = useState({ name: '', description: '', color: '#3B82F6', estimatedDays: null });
+  const [tplHeader, setTplHeader] = useState<{ name: string; description: string; color: string; estimatedDays: number | null }>({ name: '', description: '', color: '#3B82F6', estimatedDays: null });
   const [tplPhases, setTplPhases] = useState<any[]>([]);
-  const [tplApproval, setTplApproval] = useState({ requireApproval: false, triggerEvent: 'project_created', approvalRuleId: null });
+  const [tplApproval, setTplApproval] = useState<{ requireApproval: boolean; triggerEvent: string; approvalRuleId: string | null }>({ requireApproval: false, triggerEvent: 'project_created', approvalRuleId: null });
   const [approvalRules, setApprovalRules] = useState<any[]>([]);
   const [tplSaving, setTplSaving] = useState(false);
   const [tplError, setTplError] = useState('');
@@ -233,7 +233,7 @@ export default function ProjectSettingsPage() {
       setEditingTemplate(templateId);
       setTplHeader({
         name: fullTemplate.name,
-        description: fullTemplate.description,
+        description: fullTemplate.description || '',
         color: fullTemplate.color,
         estimatedDays: fullTemplate.estimatedDays,
       });
@@ -244,7 +244,7 @@ export default function ProjectSettingsPage() {
         approvalRuleId: fullTemplate.approvalConfig?.approvalRuleId || null,
       });
       setApprovalRules(rules.filter(r => r.entityType === 'projects'));
-      setExpandedPhases([(fullTemplate.phases?.[0]?.id)].filter(Boolean));
+      setExpandedPhases([(fullTemplate.phases?.[0]?.id)].filter((x): x is string => !!x));
     } catch (err) {
       setTplError('Failed to load template');
     } finally {
@@ -266,7 +266,7 @@ export default function ProjectSettingsPage() {
         name: tplHeader.name,
         description: tplHeader.description,
         color: tplHeader.color,
-        estimatedDays: tplHeader.estimatedDays,
+        estimatedDays: tplHeader.estimatedDays ?? undefined,
         approvalConfig: tplApproval.requireApproval ? {
           requireApproval: true,
           triggerEvent: tplApproval.triggerEvent,
@@ -311,7 +311,7 @@ export default function ProjectSettingsPage() {
   function removeTask(phaseId: string, taskId: string) {
     setTplPhases(tplPhases.map(p => {
       if (p.id !== phaseId) return p;
-      return { ...p, tasks: (p.tasks || []).filter(t => t.id !== taskId) };
+      return { ...p, tasks: (p.tasks || []).filter((t: any) => t.id !== taskId) };
     }));
   }
 
@@ -320,7 +320,7 @@ export default function ProjectSettingsPage() {
       if (p.id !== phaseId) return p;
       return {
         ...p,
-        tasks: (p.tasks || []).map(t => t.id === taskId ? { ...t, [field]: value } : t),
+        tasks: (p.tasks || []).map((t: any) => t.id === taskId ? { ...t, [field]: value } : t),
       };
     }));
   }
@@ -331,7 +331,7 @@ export default function ProjectSettingsPage() {
       if (p.id !== phaseId) return p;
       return {
         ...p,
-        tasks: (p.tasks || []).map(t => {
+        tasks: (p.tasks || []).map((t: any) => {
           if (t.id !== taskId) return t;
           return {
             ...t,
@@ -347,9 +347,9 @@ export default function ProjectSettingsPage() {
       if (p.id !== phaseId) return p;
       return {
         ...p,
-        tasks: (p.tasks || []).map(t => {
+        tasks: (p.tasks || []).map((t: any) => {
           if (t.id !== taskId) return t;
-          return { ...t, subtasks: (t.subtasks || []).filter(s => s.id !== subtaskId) };
+          return { ...t, subtasks: (t.subtasks || []).filter((s: any) => s.id !== subtaskId) };
         }),
       };
     }));
@@ -360,11 +360,11 @@ export default function ProjectSettingsPage() {
       if (p.id !== phaseId) return p;
       return {
         ...p,
-        tasks: (p.tasks || []).map(t => {
+        tasks: (p.tasks || []).map((t: any) => {
           if (t.id !== taskId) return t;
           return {
             ...t,
-            subtasks: (t.subtasks || []).map(s => s.id === subtaskId ? { ...s, [field]: value } : s),
+            subtasks: (t.subtasks || []).map((s: any) => s.id === subtaskId ? { ...s, [field]: value } : s),
           };
         }),
       };

@@ -12,7 +12,6 @@ import {
   Forward,
   Link2,
   X,
-  ChevronDown,
   Eye,
   Paperclip,
   Plus,
@@ -32,7 +31,7 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { emailApi } from '../../api/email.api';
 import { usersApi } from '../../api/users.api';
-import type { Email, EmailAccount, SendEmailDto } from '../../api/email.api';
+import type { Email, EmailAccount } from '../../api/email.api';
 import DOMPurify from 'dompurify';
 
 type FilterTab = 'all' | 'unread' | 'starred' | 'sent';
