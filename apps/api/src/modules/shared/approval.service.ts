@@ -688,7 +688,7 @@ export class ApprovalService {
     ruleId: string,
     userId: string,
   ): Promise<void> {
-    await this.getRuleById(schemaName, ruleId);
+    const existing = await this.getRuleById(schemaName, ruleId);
 
     await this.dataSource.query(
       `UPDATE "${schemaName}".approval_rules
