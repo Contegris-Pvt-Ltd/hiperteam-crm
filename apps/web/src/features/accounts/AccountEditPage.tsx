@@ -38,6 +38,7 @@ import {
 } from '../../api/accounts.api';
 // ============ PAGE DESIGNER IMPORTS ============
 import { useModuleLayout } from '../../hooks/useModuleLayout';
+import { useIndustries } from '../../hooks/useIndustries';
 // Note: DynamicFormRenderer for edit pages is a future enhancement
 // ===============================================
 import { moduleSettingsApi } from '../../api/module-settings.api';
@@ -58,11 +59,6 @@ const emailTypes = ['general', 'sales', 'support', 'billing', 'other'];
 const phoneTypes = ['main', 'sales', 'support', 'fax', 'other'];
 const addressTypes = ['headquarters', 'office', 'billing', 'shipping', 'other'];
 
-const industries = [
-  'Technology', 'Healthcare', 'Finance', 'Manufacturing', 'Retail', 
-  'Education', 'Real Estate', 'Construction', 'Transportation', 
-  'Energy', 'Media', 'Telecommunications', 'Agriculture', 'Other'
-];
 
 const companySizes = [
   '1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5000+'
@@ -79,6 +75,7 @@ export function AccountEditPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('basic');
+  const { industries } = useIndustries();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   // Parent account selection
@@ -973,8 +970,8 @@ export function AccountEditPage() {
                           className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                         >
                           <option value="">Select industry...</option>
-                          {industries.map(ind => (
-                            <option key={ind} value={ind}>{ind}</option>
+                          {industries.map(i => (
+                            <option key={i.id} value={i.name}>{i.name}</option>
                           ))}
                         </select>
                       </div>

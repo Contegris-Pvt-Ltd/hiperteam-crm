@@ -56,8 +56,9 @@ export class ContactsService {
         address_line1, address_line2, city, state, postal_code, country,
         emails, phones, addresses,
         source, lead_source_details, tags, notes, custom_fields, social_profiles,
-        do_not_contact, do_not_email, do_not_call, account_id, owner_id, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+        do_not_contact, do_not_email, do_not_call, account_id, owner_id, created_by,
+        industry)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
        RETURNING *`,
       [
         dto.firstName,
@@ -90,6 +91,7 @@ export class ContactsService {
         dto.accountId || null,
         dto.ownerId || userId,
         userId,
+        (dto as any).industry || null,
       ],
     );
 
@@ -296,6 +298,7 @@ export class ContactsService {
       emails: 'emails',
       phones: 'phones',
       addresses: 'addresses',
+      industry: 'industry',
       source: 'source',
       leadSourceDetails: 'lead_source_details',
       status: 'status',
@@ -495,6 +498,7 @@ export class ContactsService {
       emails: typeof contact.emails === 'string' ? JSON.parse(contact.emails) : (contact.emails || []),
       phones: typeof contact.phones === 'string' ? JSON.parse(contact.phones) : (contact.phones || []),
       addresses: typeof contact.addresses === 'string' ? JSON.parse(contact.addresses) : (contact.addresses || []),
+      industry: contact.industry,
       source: contact.source,
       leadSourceDetails: contact.lead_source_details,
       status: contact.status,

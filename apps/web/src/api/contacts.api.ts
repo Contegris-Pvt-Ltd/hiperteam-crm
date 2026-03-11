@@ -77,6 +77,7 @@ export interface Contact {
   phones?: PhoneEntry[];
   addresses?: AddressEntry[];
   socialProfiles?: SocialProfiles;
+  industry?: string | null;
   source?: string;
   status: string;
   tags?: string[];
@@ -151,6 +152,7 @@ export interface CreateContactData {
   emails?: EmailEntry[];
   phones?: PhoneEntry[];
   addresses?: AddressEntry[];
+  industry?: string;
   source?: string;
   tags?: string[];
   notes?: string;

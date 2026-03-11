@@ -25,6 +25,7 @@ import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.a
 import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
 // ============ PAGE DESIGNER IMPORTS ============
 import { useModuleLayout } from '../../hooks/useModuleLayout';
+import { useIndustries } from '../../hooks/useIndustries';
 // Note: DynamicFormRenderer for edit pages is a future enhancement
 // ===============================================
 import { QuickCreateAccountModal } from '../../components/shared/QuickCreateAccountModal';
@@ -57,6 +58,7 @@ export function ContactEditPage() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('basic');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const { industries } = useIndustries();
 
   // Selected account for linking
   const [selectedAccount, setSelectedAccount] = useState<SelectOption | null>(null);
@@ -106,6 +108,7 @@ export function ContactEditPage() {
     emails: [],
     phones: [],
     addresses: [],
+    industry: '',
     source: '',
     tags: [],
     notes: '',
@@ -175,6 +178,7 @@ export function ContactEditPage() {
         emails: data.emails || [],
         phones: data.phones || [],
         addresses: data.addresses || [],
+        industry: data.industry || '',
         source: data.source || '',
         tags: data.tags || [],
         notes: data.notes || '',
@@ -856,6 +860,24 @@ export function ContactEditPage() {
                       onChange={(e) => handleChange('company', e.target.value)}
                       className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                      Industry
+                    </label>
+                    <select
+                      value={formData.industry || ''}
+                      onChange={(e) => handleChange('industry', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select industry...</option>
+                      {industries.map(i => (
+                        <option key={i.id} value={i.name}>{i.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

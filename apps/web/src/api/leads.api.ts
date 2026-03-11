@@ -137,6 +137,7 @@ export interface Lead {
   phones: { type: string; number: string; primary?: boolean }[];
   addresses: any[];
   socialProfiles: Record<string, string>;
+  industry: string | null;
   source: string | null;
   sourceDetails: Record<string, any>;
   pipelineId: string | null;
@@ -245,6 +246,7 @@ export interface CreateLeadData {
   phones?: { type: string; number: string; primary?: boolean }[];
   addresses?: any[];
   socialProfiles?: Record<string, string>;
+  industry?: string;
   source?: string;
   sourceDetails?: Record<string, any>;
   pipelineId?: string;

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { leadsApi, leadSettingsApi } from '../../api/leads.api';
 import type { CreateLeadData, LeadStage, LeadPriority, QualificationField, DuplicateMatch, Pipeline } from '../../api/leads.api';
+import { useIndustries } from '../../hooks/useIndustries';
 import { teamsApi } from '../../api/teams.api';
 import type { TeamLookupItem } from '../../api/teams.api';
 import { adminApi } from '../../api/admin.api';
@@ -56,6 +57,7 @@ export function LeadEditPage() {
   const [qualificationFields, setQualificationFields] = useState<QualificationField[]>([]);
   const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
   const [teams, setTeams] = useState<TeamLookupItem[]>([]);
+  const { industries } = useIndustries();
 
   // Custom fields, tabs, groups
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -99,6 +101,7 @@ export function LeadEditPage() {
     state: '',
     postalCode: '',
     country: '',
+    industry: '',
     source: '',
     stageId: '',
     pipelineId: '',
@@ -207,6 +210,7 @@ export function LeadEditPage() {
         state: data.state || '',
         postalCode: data.postalCode || '',
         country: data.country || '',
+        industry: data.industry || '',
         source: data.source || '',
         stageId: data.stageId || '',
         pipelineId: data.pipelineId || '',
@@ -745,6 +749,15 @@ export function LeadEditPage() {
                   <option value="">Select source...</option>
                   {sources.map((s) => (
                     <option key={s.id} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Industry</label>
+                <select value={formData.industry || ''} onChange={(e) => handleChange('industry', e.target.value)} className={inputClass}>
+                  <option value="">Select industry...</option>
+                  {industries.map((i) => (
+                    <option key={i.id} value={i.name}>{i.name}</option>
                   ))}
                 </select>
               </div>

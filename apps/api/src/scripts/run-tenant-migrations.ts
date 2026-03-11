@@ -2423,6 +2423,93 @@ async function runTenantMigrations() {
             `,
           },
           {
+            name: '043_add_pinned_column_to_table_preferences',
+            sql: `
+              ALTER TABLE "${schema}".user_table_preferences
+                ADD COLUMN IF NOT EXISTS pinned_column VARCHAR(100);
+            `,
+          },
+          {
+            name: '044_general_settings',
+            sql: `
+              -- ── Company Settings (one row per tenant) ──────────────────────
+              CREATE TABLE IF NOT EXISTS "${schema}".company_settings (
+                id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                company_name    VARCHAR(255),
+                tagline         VARCHAR(500),
+                email           VARCHAR(255),
+                phone           VARCHAR(100),
+                website         VARCHAR(500),
+                logo_url        VARCHAR(1000),
+                address_line1   VARCHAR(255),
+                address_line2   VARCHAR(255),
+                city            VARCHAR(100),
+                state           VARCHAR(100),
+                country         VARCHAR(100),
+                postal_code     VARCHAR(30),
+                tax_id          VARCHAR(100),
+                registration_no VARCHAR(100),
+                currency        VARCHAR(10) DEFAULT 'USD',
+                updated_at      TIMESTAMPTZ DEFAULT NOW()
+              );
+
+              INSERT INTO "${schema}".company_settings (company_name)
+              VALUES (NULL)
+              ON CONFLICT DO NOTHING;
+
+              -- ── Industries (dynamic admin-managed list) ────────────────────
+              CREATE TABLE IF NOT EXISTS "${schema}".industries (
+                id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name       VARCHAR(150) NOT NULL,
+                is_active  BOOLEAN DEFAULT true,
+                is_system  BOOLEAN DEFAULT false,
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(name)
+              );
+
+              INSERT INTO "${schema}".industries (name, is_system, sort_order) VALUES
+                ('Technology',           true,  1),
+                ('Healthcare',           true,  2),
+                ('Finance & Banking',    true,  3),
+                ('Retail / E-commerce',  true,  4),
+                ('Education',            true,  5),
+                ('Manufacturing',        true,  6),
+                ('Real Estate',          true,  7),
+                ('Logistics',            true,  8),
+                ('Insurance',            true,  9),
+                ('Telecommunications',   true, 10),
+                ('Media & Entertainment',true, 11),
+                ('Food & Beverages',     true, 12),
+                ('Automotive',           true, 13),
+                ('Pharmaceutical',       true, 14),
+                ('Construction',         true, 15),
+                ('NGO / Non-Profit',     true, 16),
+                ('Government',           true, 17),
+                ('Other',                true, 99)
+              ON CONFLICT (name) DO NOTHING;
+
+              -- ── Add industry column to leads, contacts, opportunities ──────
+              ALTER TABLE "${schema}".leads
+                ADD COLUMN IF NOT EXISTS industry VARCHAR(150);
+
+              ALTER TABLE "${schema}".contacts
+                ADD COLUMN IF NOT EXISTS industry VARCHAR(150);
+
+              ALTER TABLE "${schema}".opportunities
+                ADD COLUMN IF NOT EXISTS industry VARCHAR(150);
+
+              CREATE INDEX IF NOT EXISTS idx_industries_active
+                ON "${schema}".industries(is_active);
+              CREATE INDEX IF NOT EXISTS idx_leads_industry
+                ON "${schema}".leads(industry);
+              CREATE INDEX IF NOT EXISTS idx_contacts_industry
+                ON "${schema}".contacts(industry);
+              CREATE INDEX IF NOT EXISTS idx_opportunities_industry
+                ON "${schema}".opportunities(industry);
+            `,
+          },
+          {
             name: '042_fix_leads_field_validation_rules',
             sql: `
               -- Ensure leads field validation rules are correctly configured:
@@ -2452,6 +2539,19 @@ async function runTenantMigrations() {
               ),
               updated_at = NOW()
               WHERE module = 'leads' AND setting_key = 'fieldValidation';
+            `,
+          },
+          {
+            name: '045_industry_column',
+            sql: `
+              ALTER TABLE "${schema}".leads
+                ADD COLUMN IF NOT EXISTS industry VARCHAR(255);
+
+              ALTER TABLE "${schema}".opportunities
+                ADD COLUMN IF NOT EXISTS industry VARCHAR(255);
+
+              ALTER TABLE "${schema}".contacts
+                ADD COLUMN IF NOT EXISTS industry VARCHAR(255);
             `,
           },
         ];

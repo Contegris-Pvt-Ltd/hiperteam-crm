@@ -150,6 +150,7 @@ export interface Opportunity {
   forecastCategory: string | null;
   closeDate: string | null;
   type: string | null;
+  industry: string | null;
   source: string | null;
   nextStep: string | null;
   description: string | null;
@@ -233,6 +234,7 @@ export interface OpportunitiesQuery {
   limit?: number;
   sortBy?: string;
   sortOrder?: 'ASC' | 'DESC';
+  columnSearch?: Record<string, string>;
 }
 
 export interface CreateOpportunityData {
@@ -245,6 +247,7 @@ export interface CreateOpportunityData {
   forecastCategory?: string;
   closeDate?: string;
   type?: string;
+  industry?: string;
   source?: string;
   nextStep?: string;
   description?: string;
@@ -266,11 +269,17 @@ export const opportunitiesApi = {
   // ── CRUD ──
   getAll: async (query: OpportunitiesQuery = {}) => {
     const params = new URLSearchParams();
-    Object.entries(query).forEach(([key, value]) => {
+    const { columnSearch, ...rest } = query;
+    Object.entries(rest).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         params.append(key, String(value));
       }
     });
+    if (columnSearch) {
+      Object.entries(columnSearch).forEach(([key, value]) => {
+        if (value?.trim()) params.append(`cs_${key}`, value.trim());
+      });
+    }
     const { data } = await api.get(`/opportunities?${params.toString()}`);
     return data;
   },

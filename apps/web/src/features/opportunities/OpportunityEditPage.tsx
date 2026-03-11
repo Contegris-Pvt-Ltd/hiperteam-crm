@@ -19,6 +19,7 @@ import { adminApi } from '../../api/admin.api';
 import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.api';
 import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
 import { useModuleLayout } from '../../hooks/useModuleLayout';
+import { useIndustries } from '../../hooks/useIndustries';
 import { teamsApi } from '../../api/teams.api';
 import type { TeamLookupItem } from '../../api/teams.api';
 
@@ -41,6 +42,8 @@ export function OpportunityEditPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('basic');
+
+  const { industries } = useIndustries();
 
   // Lookups
   const [stages, setStages] = useState<OpportunityStage[]>([]);
@@ -91,6 +94,7 @@ export function OpportunityEditPage() {
     forecastCategory: '',
     closeDate: '',
     type: '',
+    industry: '',
     source: '',
     nextStep: '',
     description: '',
@@ -165,6 +169,7 @@ export function OpportunityEditPage() {
           forecastCategory: opp.forecastCategory || '',
           closeDate: opp.closeDate ? opp.closeDate.split('T')[0] : '',
           type: opp.type || '',
+          industry: opp.industry || '',
           source: opp.source || '',
           nextStep: opp.nextStep || '',
           description: opp.description || '',
@@ -691,6 +696,19 @@ export function OpportunityEditPage() {
                 >
                   <option value="">Select type...</option>
                   {OPPORTUNITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              {/* Industry */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Industry</label>
+                <select
+                  value={formData.industry || ''}
+                  onChange={(e) => handleChange('industry', e.target.value)}
+                  className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800"
+                >
+                  <option value="">Select industry...</option>
+                  {industries.map(i => <option key={i.id} value={i.name}>{i.name}</option>)}
                 </select>
               </div>
             </div>

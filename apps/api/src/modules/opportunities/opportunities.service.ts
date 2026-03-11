@@ -94,9 +94,9 @@ export class OpportunitiesService {
       `INSERT INTO "${schemaName}".opportunities
        (name, pipeline_id, stage_id, amount, currency, close_date, probability,
         forecast_category, owner_id, team_id, account_id, primary_contact_id, priority_id,
-        type, source, lead_id, next_step, description, tags, custom_fields,
+        type, source, industry, lead_id, next_step, description, tags, custom_fields,
         stage_entered_at, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW(), $21, $21)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW(), $22, $22)
        RETURNING *`,
       [
         dto.name,
@@ -114,6 +114,7 @@ export class OpportunitiesService {
         dto.priorityId || null,
         dto.type || null,
         dto.source || null,
+        (dto as any).industry || null,
         dto.leadId || null,
         dto.nextStep || null,
         dto.description || null,
@@ -156,12 +157,13 @@ export class OpportunitiesService {
   // ============================================================
   // FIND ALL (List + Kanban)
   // ============================================================
-  async findAll(schemaName: string, query: QueryOpportunitiesDto, userId?: string) {
+  async findAll(schemaName: string, query: QueryOpportunitiesDto & { columnSearch?: Record<string, string> }, userId?: string) {
     const {
       search, pipelineId, stageId, ownerId, teamId, accountId, priorityId,
       type, source, forecastCategory, minAmount, maxAmount,
       closeDateFrom, closeDateTo, tag, isOpen, ownership,
       page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC', view,
+      columnSearch,
     } = query;
 
     let whereClause = 'o.deleted_at IS NULL';
@@ -273,6 +275,30 @@ export class OpportunitiesService {
       paramIndex++;
     }
 
+    // Column search (cs_* params)
+    if (columnSearch && Object.keys(columnSearch).length > 0) {
+      const COLUMN_DB_MAP: Record<string, string> = {
+        name:             'o.name',
+        source:           'o.source',
+        type:             'o.type',
+        forecastCategory: 'o.forecast_category',
+        competitor:       'o.competitor',
+        nextStep:         'o.next_step',
+        stageName:        'ps.name',
+        priorityName:     'op.name',
+        accountName:      'a.name',
+        ownerName:        `CONCAT(u.first_name, ' ', COALESCE(u.last_name, ''))`,
+      };
+      for (const [colKey, searchVal] of Object.entries(columnSearch)) {
+        const dbCol = COLUMN_DB_MAP[colKey];
+        if (dbCol && searchVal.trim()) {
+          whereClause += ` AND ${dbCol} ILIKE $${paramIndex}`;
+          params.push(`%${searchVal.trim()}%`);
+          paramIndex++;
+        }
+      }
+    }
+
     // Sort
     const sortMap: Record<string, string> = {
       name: 'o.name',
@@ -298,7 +324,10 @@ export class OpportunitiesService {
     const [{ count }] = await this.dataSource.query(
       `SELECT COUNT(*) as count
        FROM "${schemaName}".opportunities o
+       LEFT JOIN "${schemaName}".pipeline_stages ps ON o.stage_id = ps.id
+       LEFT JOIN "${schemaName}".opportunity_priorities op ON o.priority_id = op.id
        LEFT JOIN "${schemaName}".accounts a ON o.account_id = a.id
+       LEFT JOIN "${schemaName}".users u ON o.owner_id = u.id
        WHERE ${whereClause}`,
       params,
     );
@@ -527,6 +556,7 @@ export class OpportunitiesService {
       primaryContactId: 'primary_contact_id',
       priorityId: 'priority_id',
       type: 'type',
+      industry: 'industry',
       source: 'source',
       nextStep: 'next_step',
       description: 'description',
@@ -2244,6 +2274,7 @@ export class OpportunitiesService {
       pipelineId: o.pipeline_id,
       pipeline: o.pipeline_name ? { id: o.pipeline_id, name: o.pipeline_name } : null,
       stageId: o.stage_id,
+      stageName: o.stage_name || null,
       stage: o.stage_name ? {
         id: o.stage_id,
         name: o.stage_name,
@@ -2261,6 +2292,7 @@ export class OpportunitiesService {
       weightedAmount: o.weighted_amount ? parseFloat(o.weighted_amount) : null,
       forecastCategory: o.forecast_category,
       ownerId: o.owner_id,
+      ownerName: o.owner_first_name ? `${o.owner_first_name} ${o.owner_last_name || ''}`.trim() : null,
       owner: o.owner_first_name ? {
         id: o.owner_id,
         firstName: o.owner_first_name,
@@ -2270,6 +2302,7 @@ export class OpportunitiesService {
       teamId: o.team_id || null,
       team: o.team_name ? { id: o.team_id, name: o.team_name } : null,
       accountId: o.account_id,
+      accountName: o.account_name || null,
       account: o.account_name ? {
         id: o.account_id,
         name: o.account_name,
@@ -2284,6 +2317,7 @@ export class OpportunitiesService {
         email: o.contact_email,
       } : null,
       priorityId: o.priority_id,
+      priorityName: o.priority_name || null,
       priority: o.priority_name ? {
         id: o.priority_id,
         name: o.priority_name,
@@ -2291,6 +2325,7 @@ export class OpportunitiesService {
         icon: o.priority_icon,
       } : null,
       type: o.type,
+      industry: o.industry,
       source: o.source,
       leadId: o.lead_id,
       closeReasonId: o.close_reason_id,

@@ -478,6 +478,7 @@ export class LeadImportProcessor {
             ownerId,                                // 21
             resolvedTeamId,                         // 22
             userId,                                 // 23
+            rawData.industry || null,               // 24
           ]);
           batchProductIds.push(resolvedProductId);
           batchTeamMemberIds.push(resolvedTeamMemberIds);
@@ -727,6 +728,7 @@ export class LeadImportProcessor {
         source, pipeline_id, stage_id, priority_id,
         tags, custom_fields, qualification,
         owner_id, team_id, created_by,
+        industry,
         stage_entered_at, stage_history
       ) VALUES ${placeholders.join(', ')}
       RETURNING id
@@ -745,11 +747,12 @@ export class LeadImportProcessor {
         source, pipeline_id, stage_id, priority_id,
         tags, custom_fields, qualification,
         owner_id, team_id, created_by,
+        industry,
         stage_entered_at, stage_history
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, $23, $24, NOW(), $25
+        $21, $22, $23, $24, $25, NOW(), $26
       ) RETURNING id`,
       [
         ...row,
@@ -790,6 +793,7 @@ export class LeadImportProcessor {
       state: 'state',
       postalCode: 'postal_code',
       country: 'country',
+      industry: 'industry',
     };
 
     for (const [dtoField, dbField] of Object.entries(fieldMap)) {

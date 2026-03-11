@@ -127,7 +127,8 @@ export class LeadsService {
         do_not_contact, do_not_email, do_not_call,
         tags, custom_fields,
         owner_id, team_id, created_by, updated_by,
-        stage_entered_at, stage_history
+        stage_entered_at, stage_history,
+        industry
       ) VALUES (
         $1, $2, $3, $4, $5,
         $6, $7, $8,
@@ -139,7 +140,8 @@ export class LeadsService {
         $26, $27, $28,
         $29, $30,
         $31, $32, $33, $33,
-        NOW(), $34
+        NOW(), $34,
+        $35
       ) RETURNING *`,
       [
         dto.firstName || null,
@@ -176,6 +178,7 @@ export class LeadsService {
         teamId,
         userId,
         JSON.stringify([{ stageId, enteredAt: new Date().toISOString(), enteredBy: userId }]),
+        (dto as any).industry || null,
       ],
     );
 
@@ -366,17 +369,20 @@ export class LeadsService {
 
     if (query.columnSearch && Object.keys(query.columnSearch).length > 0) {
       const COLUMN_DB_MAP: Record<string, string> = {
-        firstName:  'l.first_name',
-        lastName:   'l.last_name',
-        email:      'l.email',
-        phone:      'l.phone',
-        mobile:     'l.mobile',
-        company:    'l.company',
-        jobTitle:   'l.job_title',
-        website:    'l.website',
-        city:       'l.city',
-        country:    'l.country',
-        source:     'l.source',
+        name:         `CONCAT(l.first_name, ' ', COALESCE(l.last_name, ''))`,
+        email:        'l.email',
+        phone:        'l.phone',
+        mobile:       'l.mobile',
+        company:      'l.company',
+        jobTitle:     'l.job_title',
+        source:       'l.source',
+        website:      'l.website',
+        city:         'l.city',
+        state:        'l.state',
+        country:      'l.country',
+        stageName:    'ls.name',
+        priorityName: 'lp.name',
+        ownerName:    `CONCAT(u.first_name, ' ', COALESCE(u.last_name, ''))`,
       };
       for (const [colKey, searchVal] of Object.entries(query.columnSearch)) {
         const dbCol = COLUMN_DB_MAP[colKey];
@@ -424,6 +430,8 @@ export class LeadsService {
       `SELECT COUNT(*) as count
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
+       LEFT JOIN "${schemaName}".lead_priorities lp ON l.priority_id = lp.id
+       LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
        WHERE ${whereClause}`,
       params,
     );
@@ -743,6 +751,7 @@ export class LeadsService {
       state: 'state',
       postalCode: 'postal_code',
       country: 'country',
+      industry: 'industry',
       source: 'source',
       pipelineId: 'pipeline_id',
       stageId: 'stage_id',
@@ -1462,8 +1471,8 @@ export class LeadsService {
           `INSERT INTO "${schemaName}".opportunities (
             name, account_id, primary_contact_id, owner_id, team_id, amount, close_date,
             pipeline_id, stage_id, probability, forecast_category,
-            type, source, lead_id, created_by, stage_entered_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+            type, source, industry, lead_id, created_by, stage_entered_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
           RETURNING id`,
           [
             dto.opportunityName || `${lead.company || lead.lastName} - Opportunity`,
@@ -1479,6 +1488,7 @@ export class LeadsService {
             'Pipeline',                       // default forecast category
             'New Business',                   // default type for converted leads
             lead.source || null,              // carry over lead source
+            lead.industry || null,            // carry over lead industry
             id,                               // lead_id — links back to original lead
             userId,
           ],
@@ -2088,6 +2098,7 @@ export class LeadsService {
       phones: typeof lead.phones === 'string' ? JSON.parse(lead.phones as string) : (lead.phones || []),
       addresses: typeof lead.addresses === 'string' ? JSON.parse(lead.addresses as string) : (lead.addresses || []),
       socialProfiles: typeof lead.social_profiles === 'string' ? JSON.parse(lead.social_profiles as string) : (lead.social_profiles || {}),
+      industry: lead.industry,
       source: lead.source,
       sourceDetails: typeof lead.source_details === 'string' ? JSON.parse(lead.source_details as string) : (lead.source_details || {}),
       pipelineId: lead.pipeline_id,
@@ -2096,6 +2107,7 @@ export class LeadsService {
         name: lead.pipeline_name,
       } : null,
       stageId: lead.stage_id,
+      stageName: (lead.stage_name as string) || null,
       stage: lead.stage_name ? {
         id: lead.stage_id,
         name: lead.stage_name,
@@ -2106,6 +2118,7 @@ export class LeadsService {
         isLost: lead.stage_is_lost,
       } : null,
       priorityId: lead.priority_id,
+      priorityName: (lead.priority_name as string) || null,
       priority: lead.priority_name ? {
         id: lead.priority_id,
         name: lead.priority_name,
@@ -2147,6 +2160,7 @@ export class LeadsService {
       tags: lead.tags,
       customFields: typeof lead.custom_fields === 'string' ? JSON.parse(lead.custom_fields as string) : (lead.custom_fields || {}),
       ownerId: lead.owner_id,
+      ownerName: lead.owner_first_name ? `${lead.owner_first_name} ${lead.owner_last_name || ''}`.trim() : null,
       owner: lead.owner_first_name ? {
         id: lead.owner_id,
         firstName: lead.owner_first_name,
