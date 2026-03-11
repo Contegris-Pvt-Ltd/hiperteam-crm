@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, LayoutList, LayoutGrid,
   Flame, Thermometer, Snowflake, Sun, Minus,
-  Filter, X, DollarSign, TrendingUp,
+  Filter, X, DollarSign,
   Loader2, AlertTriangle, Eye, Pencil, Trash2,
 } from 'lucide-react';
 import type {
