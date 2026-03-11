@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, FileDown, AlertCircle, CheckCircle2, ArrowRight, Trash2 } from 'lucide-react';
+import { Save, FileDown, AlertCircle, CheckCircle2, ArrowRight, Trash2, Pencil, Check, X } from 'lucide-react';
 import { leadImportApi } from '../../../../api/lead-import.api';
 import type { LeadFieldOption, MappingTemplate, SaveTemplateData } from '../../../../api/lead-import.api';
 
@@ -25,6 +25,10 @@ export default function StepMapping({
   const [_loadingTemplates, setLoadingTemplates] = useState(false);
   const [allTemplates, setAllTemplates] = useState<MappingTemplate[] | null>(null);
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editingTemplateName, setEditingTemplateName] = useState('');
+  const [editingUpdateMapping, setEditingUpdateMapping] = useState(false);
+  const [updatingTemplateId, setUpdatingTemplateId] = useState<string | null>(null);
 
   const handleFieldChange = (header: string, value: string) => {
     onMappingChange({ ...mapping, [header]: value });
@@ -53,6 +57,33 @@ export default function StepMapping({
       // ignore
     }
     setDeletingTemplateId(null);
+  };
+
+  const startEditTemplate = (e: React.MouseEvent, t: MappingTemplate) => {
+    e.stopPropagation();
+    setEditingTemplateId(t.id);
+    setEditingTemplateName(t.name);
+    setEditingUpdateMapping(false);
+  };
+
+  const confirmEditTemplate = async (e: React.MouseEvent, t: MappingTemplate) => {
+    e.stopPropagation();
+    if (!editingTemplateName.trim()) return;
+    setUpdatingTemplateId(t.id);
+    try {
+      await leadImportApi.updateTemplate(t.id, {
+        name: editingTemplateName.trim(),
+        columnMapping: editingUpdateMapping ? mapping : t.columnMapping,
+        fileHeaders: editingUpdateMapping ? headers : (t.fileHeaders || []),
+      });
+      const updated = { ...t, name: editingTemplateName.trim() };
+      setAllTemplates(prev => prev ? prev.map(x => x.id === t.id ? updated : x) : null);
+      setTemplates(prev => prev.map(x => x.id === t.id ? updated : x));
+    } catch {
+      // ignore
+    }
+    setUpdatingTemplateId(null);
+    setEditingTemplateId(null);
   };
 
   const applyTemplate = (template: MappingTemplate) => {
@@ -130,21 +161,69 @@ export default function StepMapping({
                     <p className="text-xs text-gray-500 p-2">No saved templates</p>
                   ) : (
                     allTemplates.map(t => (
-                      <div key={t.id} className="flex items-center group">
-                        <button
-                          onClick={() => { applyTemplate(t); setAllTemplates(null); }}
-                          className="flex-1 text-left px-3 py-2 text-sm rounded-l hover:bg-gray-100 dark:hover:bg-slate-800"
-                        >
-                          {t.name}
-                        </button>
-                        <button
-                          onClick={e => deleteTemplate(e, t.id)}
-                          disabled={deletingTemplateId === t.id}
-                          className="px-2 py-2 text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-r opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                          title="Delete template"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                      <div key={t.id} className="group">
+                        {editingTemplateId === t.id ? (
+                          <div className="px-2 py-2 space-y-1.5" onClick={e => e.stopPropagation()}>
+                            <input
+                              autoFocus
+                              type="text"
+                              value={editingTemplateName}
+                              onChange={e => setEditingTemplateName(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') confirmEditTemplate(e as any, t); if (e.key === 'Escape') setEditingTemplateId(null); }}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                            />
+                            <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={editingUpdateMapping}
+                                onChange={e => setEditingUpdateMapping(e.target.checked)}
+                                className="rounded"
+                              />
+                              Update mapping to current
+                            </label>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={e => confirmEditTemplate(e, t)}
+                                disabled={updatingTemplateId === t.id || !editingTemplateName.trim()}
+                                className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                              >
+                                <Check size={11} />
+                                {updatingTemplateId === t.id ? 'Saving…' : 'Save'}
+                              </button>
+                              <button
+                                onClick={e => { e.stopPropagation(); setEditingTemplateId(null); }}
+                                className="flex items-center gap-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-400"
+                              >
+                                <X size={11} />
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => { applyTemplate(t); setAllTemplates(null); }}
+                              className="flex-1 text-left px-3 py-2 text-sm rounded-l hover:bg-gray-100 dark:hover:bg-slate-800"
+                            >
+                              {t.name}
+                            </button>
+                            <button
+                              onClick={e => startEditTemplate(e, t)}
+                              className="px-2 py-2 text-gray-400 hover:text-purple-500 hover:bg-gray-100 dark:hover:bg-slate-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Edit template"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            <button
+                              onClick={e => deleteTemplate(e, t.id)}
+                              disabled={deletingTemplateId === t.id}
+                              className="px-2 py-2 text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-r opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                              title="Delete template"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}
