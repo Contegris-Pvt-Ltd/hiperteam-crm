@@ -273,15 +273,16 @@ export class LeadImportProcessor {
           for (const rule of activeRules) {
             const values = rule.fields.map(f => validationData[f]);
             const isEmpty = (v: any) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
+            const msg = rule.message || `${rule.label || rule.fields.join(', ')} is required`;
             switch (rule.type) {
               case 'required':
-                if (isEmpty(values[0])) errors.push(rule.message);
+                if (isEmpty(values[0])) errors.push(msg);
                 break;
               case 'any_one':
-                if (!values.some(v => !isEmpty(v))) errors.push(rule.message);
+                if (!values.some(v => !isEmpty(v))) errors.push(msg);
                 break;
               case 'all':
-                if (values.some(v => isEmpty(v))) errors.push(rule.message);
+                if (values.some(v => isEmpty(v))) errors.push(msg);
                 break;
             }
           }

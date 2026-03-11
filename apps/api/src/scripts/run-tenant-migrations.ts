@@ -2422,6 +2422,38 @@ async function runTenantMigrations() {
                 WHERE deleted_at IS NOT NULL;
             `,
           },
+          {
+            name: '042_fix_leads_field_validation_rules',
+            sql: `
+              -- Ensure leads field validation rules are correctly configured:
+              -- Rule 1: any_one for name (firstName OR lastName OR company)
+              -- Rule 2: any_one for contact (email OR phone OR mobile)
+              -- Remove any duplicate/empty-message rules
+              UPDATE "${schema}".module_settings
+              SET setting_value = jsonb_build_object(
+                'rules', jsonb_build_array(
+                  jsonb_build_object(
+                    'id',       'default-leads-1',
+                    'type',     'any_one',
+                    'label',    'Name or Company',
+                    'fields',   '["lastName","firstName","company"]'::jsonb,
+                    'message',  'At least one of first name, last name, or company is required',
+                    'isActive', true
+                  ),
+                  jsonb_build_object(
+                    'id',       'default-leads-2',
+                    'type',     'any_one',
+                    'label',    'Contact Info',
+                    'fields',   '["email","phone","mobile"]'::jsonb,
+                    'message',  'At least one of email, phone, or mobile is required',
+                    'isActive', true
+                  )
+                )
+              ),
+              updated_at = NOW()
+              WHERE module = 'leads' AND setting_key = 'fieldValidation';
+            `,
+          },
         ];
 
         // ── Execute pending migrations ────────────────────────────
