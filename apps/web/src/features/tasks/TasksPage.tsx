@@ -106,7 +106,10 @@ export function TasksPage() {
     }
   }, [query, viewMode]);
 
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  useEffect(() => {
+    if (tablePrefs.loading) return;
+    fetchTasks();
+  }, [query, viewMode, tablePrefs.loading]);
 
   // ── Handlers ──
   const handleSearch = (e: React.FormEvent) => {
