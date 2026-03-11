@@ -68,6 +68,10 @@ export interface DataTableProps<T = any> {
   selectedIds?: Set<string>;
   onSelectionChange?: (ids: Set<string>) => void;
   idKey?: string;
+  /** Column-level search values keyed by column key */
+  columnSearch?: Record<string, string>;
+  /** Called when a per-column search input changes */
+  onColumnSearchChange?: (key: string, value: string) => void;
 }
 
 // ============================================================
@@ -106,9 +110,12 @@ export function DataTable<T>({
   emptyMessage = 'No records found',
   searchValue, onSearchChange, onSearchSubmit,
   selectedIds, onSelectionChange, idKey = 'id',
+  columnSearch, onColumnSearchChange,
 }: DataTableProps<T>) {
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const isMobile = useIsMobile();
+  const [showColumnSearch, setShowColumnSearch] = useState(false);
+  const activeColumnSearchCount = columnSearch ? Object.values(columnSearch).filter(v => v.trim()).length : 0;
   const selectable = !!selectedIds && !!onSelectionChange;
 
   const toggleRow = useCallback((rowId: string) => {
@@ -267,6 +274,27 @@ export function DataTable<T>({
               ))}
             </select>
           </div>
+
+          {/* Column search toggle (only when callback provided) */}
+          {onColumnSearchChange && (
+            <button
+              onClick={() => setShowColumnSearch(s => !s)}
+              className={`relative flex items-center gap-1.5 px-2.5 py-1.5 border rounded-lg text-xs transition-colors ${
+                showColumnSearch || activeColumnSearchCount > 0
+                  ? 'border-purple-400 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20'
+                  : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800'
+              }`}
+              title="Filter by column"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Filter</span>
+              {activeColumnSearchCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-purple-600 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
+                  {activeColumnSearchCount}
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Column settings button */}
           <button
@@ -433,6 +461,47 @@ export function DataTable<T>({
                   </th>
                 )}
               </tr>
+
+              {/* Column search row */}
+              {onColumnSearchChange && showColumnSearch && (
+                <tr className="border-b border-gray-100 dark:border-slate-800 bg-gray-50/80 dark:bg-slate-800/40">
+                  {selectable && (
+                    <th className="px-3 py-1.5 w-10 sticky left-0 z-10 bg-gray-50 dark:bg-slate-800/60" />
+                  )}
+                  {columns.map((col) => {
+                    const w = columnWidths[col.key] || col.defaultWidth || 150;
+                    return (
+                      <th
+                        key={col.key}
+                        className={`px-2 py-1.5 ${col.frozen ? 'sticky z-10 bg-gray-50 dark:bg-slate-800/60' : ''}`}
+                        style={col.frozen ? { width: w, minWidth: w, left: selectable ? 40 : 0 } : { width: w }}
+                      >
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Filter…"
+                            value={columnSearch?.[col.key] || ''}
+                            onChange={e => onColumnSearchChange(col.key, e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                            className="w-full pl-2 pr-5 py-0.5 text-xs border border-gray-200 dark:border-slate-600 rounded bg-white dark:bg-slate-900 text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-slate-600 focus:ring-1 focus:ring-purple-500 focus:border-purple-400 outline-none"
+                          />
+                          {columnSearch?.[col.key] && (
+                            <button
+                              onClick={e => { e.stopPropagation(); onColumnSearchChange(col.key, ''); }}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
+                  {renderActions && (
+                    <th className="sticky right-0 bg-gray-50 dark:bg-slate-800/60 px-2 py-1.5 w-16" />
+                  )}
+                </tr>
+              )}
             </thead>
 
             {/* Body */}

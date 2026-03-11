@@ -61,6 +61,7 @@ export function LeadsPage() {
   // Query state
   const [query, setQuery] = useState<LeadsQuery>({ page: 1, limit: 20, view: 'list' });
   const [searchInput, setSearchInput] = useState('');
+  const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [showImportWizard, setShowImportWizard] = useState(false);
@@ -83,6 +84,18 @@ export function LeadsPage() {
       }));
     }
   }, [tablePrefs.loading]);
+
+  // ── Debounce column search into query ──
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(prev => ({
+        ...prev,
+        columnSearch: Object.values(columnSearch).some(v => v.trim()) ? columnSearch : undefined,
+        page: 1,
+      }));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [columnSearch]);
 
   // Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -178,6 +191,15 @@ export function LeadsPage() {
       setLoading(false);
     }
   }, [query, viewMode, selectedPipelineId]);
+
+  const handleColumnSearchChange = useCallback((key: string, value: string) => {
+    setColumnSearch(prev => {
+      const next = { ...prev };
+      if (value) next[key] = value;
+      else delete next[key];
+      return next;
+    });
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -729,6 +751,8 @@ export function LeadsPage() {
             onColumnsChange={tablePrefs.setVisibleColumns}
             onColumnWidthsChange={tablePrefs.setColumnWidths}
             onRowClick={(row) => navigate(`/leads/${row.id}`)}
+            columnSearch={columnSearch}
+            onColumnSearchChange={handleColumnSearchChange}
             emptyMessage="No leads found. Try adjusting your search or filters."
             renderCell={(col, value, row) => {
               const lead = row;

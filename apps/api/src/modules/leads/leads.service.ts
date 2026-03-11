@@ -237,7 +237,7 @@ export class LeadsService {
   // ============================================================
   private buildFilterConditions(
     schemaName: string,
-    query: { search?: string; stageId?: string; stageSlug?: string; priorityId?: string; source?: string; ownerId?: string; teamId?: string; tag?: string; company?: string; productIds?: string; scoreMin?: number; scoreMax?: number; convertedStatus?: string; ownership?: string; pipelineId?: string },
+    query: { search?: string; stageId?: string; stageSlug?: string; priorityId?: string; source?: string; ownerId?: string; teamId?: string; tag?: string; company?: string; productIds?: string; scoreMin?: number; scoreMax?: number; convertedStatus?: string; ownership?: string; pipelineId?: string; columnSearch?: Record<string, string> },
     userId?: string,
     startParamIndex = 1,
   ): { conditions: string[]; params: unknown[]; paramIndex: number } {
@@ -364,10 +364,34 @@ export class LeadsService {
       paramIndex++;
     }
 
+    if (query.columnSearch && Object.keys(query.columnSearch).length > 0) {
+      const COLUMN_DB_MAP: Record<string, string> = {
+        firstName:  'l.first_name',
+        lastName:   'l.last_name',
+        email:      'l.email',
+        phone:      'l.phone',
+        mobile:     'l.mobile',
+        company:    'l.company',
+        jobTitle:   'l.job_title',
+        website:    'l.website',
+        city:       'l.city',
+        country:    'l.country',
+        source:     'l.source',
+      };
+      for (const [colKey, searchVal] of Object.entries(query.columnSearch)) {
+        const dbCol = COLUMN_DB_MAP[colKey];
+        if (dbCol && searchVal.trim()) {
+          conditions.push(`${dbCol} ILIKE $${paramIndex}`);
+          params.push(`%${searchVal.trim()}%`);
+          paramIndex++;
+        }
+      }
+    }
+
     return { conditions, params, paramIndex };
   }
 
-  async findAll(schemaName: string, query: QueryLeadsDto, userId?: string) {
+  async findAll(schemaName: string, query: QueryLeadsDto & { columnSearch?: Record<string, string> }, userId?: string) {
     const {
       view,
       page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC',

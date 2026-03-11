@@ -54,7 +54,18 @@ export class LeadsController {
     @Request() req: { user: JwtPayload },
     @Query() query: QueryLeadsDto,
   ) {
-    return this.leadsService.findAll(req.user.tenantSchema, query, req.user.sub);
+    const rawQuery = (req as any).query as Record<string, string>;
+    const columnSearch: Record<string, string> = {};
+    for (const [key, val] of Object.entries(rawQuery || {})) {
+      if (key.startsWith('cs_') && typeof val === 'string' && val.trim()) {
+        columnSearch[key.slice(3)] = val.trim();
+      }
+    }
+    return this.leadsService.findAll(
+      req.user.tenantSchema,
+      { ...query, columnSearch: Object.keys(columnSearch).length ? columnSearch : undefined } as QueryLeadsDto & { columnSearch?: Record<string, string> },
+      req.user.sub,
+    );
   }
 
   // ============================================================

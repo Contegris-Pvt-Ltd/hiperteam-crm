@@ -211,6 +211,7 @@ export interface LeadsQuery {
   sortOrder?: 'ASC' | 'DESC';
   productIds?: string;  // comma-separated product UUIDs
   productsCount?: number;
+  columnSearch?: Record<string, string>;
 }
 
 export interface KanbanStageData {
@@ -358,12 +359,18 @@ export interface BulkUpdateData {
 export const leadsApi = {
   // CRUD
   getAll: async (query: LeadsQuery = {}) => {
+    const { columnSearch, ...rest } = query;
     const params = new URLSearchParams();
-    Object.entries(query).forEach(([key, value]) => {
+    Object.entries(rest).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         params.append(key, String(value));
       }
     });
+    if (columnSearch) {
+      for (const [key, value] of Object.entries(columnSearch)) {
+        if (value && value.trim()) params.append(`cs_${key}`, value.trim());
+      }
+    }
     const { data } = await api.get(`/leads?${params.toString()}`);
     return data;
   },
