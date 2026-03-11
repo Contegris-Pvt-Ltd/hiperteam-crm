@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, FileDown, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Save, FileDown, AlertCircle, CheckCircle2, ArrowRight, Trash2 } from 'lucide-react';
 import { leadImportApi } from '../../../../api/lead-import.api';
 import type { LeadFieldOption, MappingTemplate, SaveTemplateData } from '../../../../api/lead-import.api';
 
@@ -24,6 +24,7 @@ export default function StepMapping({
   const [saving, setSaving] = useState(false);
   const [_loadingTemplates, setLoadingTemplates] = useState(false);
   const [allTemplates, setAllTemplates] = useState<MappingTemplate[] | null>(null);
+  const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
 
   const handleFieldChange = (header: string, value: string) => {
     onMappingChange({ ...mapping, [header]: value });
@@ -39,6 +40,19 @@ export default function StepMapping({
       // ignore
     }
     setLoadingTemplates(false);
+  };
+
+  const deleteTemplate = async (e: React.MouseEvent, templateId: string) => {
+    e.stopPropagation();
+    setDeletingTemplateId(templateId);
+    try {
+      await leadImportApi.deleteTemplate(templateId);
+      setAllTemplates(prev => prev ? prev.filter(t => t.id !== templateId) : null);
+      setTemplates(prev => prev.filter(t => t.id !== templateId));
+    } catch {
+      // ignore
+    }
+    setDeletingTemplateId(null);
   };
 
   const applyTemplate = (template: MappingTemplate) => {
@@ -116,13 +130,22 @@ export default function StepMapping({
                     <p className="text-xs text-gray-500 p-2">No saved templates</p>
                   ) : (
                     allTemplates.map(t => (
-                      <button
-                        key={t.id}
-                        onClick={() => { applyTemplate(t); setAllTemplates(null); }}
-                        className="w-full text-left px-3 py-2 text-sm rounded hover:bg-gray-100 dark:hover:bg-slate-800"
-                      >
-                        {t.name}
-                      </button>
+                      <div key={t.id} className="flex items-center group">
+                        <button
+                          onClick={() => { applyTemplate(t); setAllTemplates(null); }}
+                          className="flex-1 text-left px-3 py-2 text-sm rounded-l hover:bg-gray-100 dark:hover:bg-slate-800"
+                        >
+                          {t.name}
+                        </button>
+                        <button
+                          onClick={e => deleteTemplate(e, t.id)}
+                          disabled={deletingTemplateId === t.id}
+                          className="px-2 py-2 text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-r opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                          title="Delete template"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     ))
                   )}
                 </div>
