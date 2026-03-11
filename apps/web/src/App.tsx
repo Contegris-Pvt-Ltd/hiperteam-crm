@@ -44,6 +44,7 @@ import { ReportBuilderPage } from './features/reports/ReportBuilderPage';
 import { AccountForecastPage } from './features/reports/AccountForecastPage';
 import { BatchJobsPage } from './features/batch-jobs/BatchJobsPage';
 import { ApprovalRulesPage } from './features/admin/ApprovalRulesPage';
+import { GeneralSettingsPage } from './features/admin/GeneralSettingsPage';
 import { IntegrationsPage } from './features/admin/IntegrationsPage';
 import { XeroContactMatchingPage } from './features/admin/XeroContactMatchingPage';
 import { ApprovalsQueuePage } from './features/approvals/ApprovalsQueuePage';
@@ -179,6 +180,7 @@ function App() {
           <Route path="targets" element={<TargetsSettingsPage />} />
           <Route path="batch-jobs" element={<BatchJobsPage />} />
           <Route path="approval-rules" element={<ApprovalRulesPage />} />
+          <Route path="general-settings" element={<GeneralSettingsPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="xero-matching" element={<XeroContactMatchingPage />} />
           <Route path="xero/callback" element={<XeroCallbackPage />} />

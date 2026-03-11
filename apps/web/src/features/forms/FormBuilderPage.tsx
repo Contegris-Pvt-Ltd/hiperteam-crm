@@ -22,9 +22,11 @@ import {
   Eye,
   Wand2,
   Copy,
+  Code2,
 } from 'lucide-react';
 import { formsApi } from '../../api/forms.api';
 import type { FormRecord, FormField, FormSubmitAction, FormSettings, FormBranding } from '../../api/forms.api';
+import { EmbedModal } from './EmbedModal';
 
 const FIELD_TYPES = [
   { type: 'text', label: 'Text', icon: Type },
@@ -69,6 +71,7 @@ export function FormBuilderPage() {
   const [selectedFieldIdx, setSelectedFieldIdx] = useState<number | null>(null);
   const [rightTab, setRightTab] = useState<Tab>('fields');
   const [dirty, setDirty] = useState(false);
+  const [showEmbed, setShowEmbed] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -215,6 +218,12 @@ export function FormBuilderPage() {
                 className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
               >
                 <Copy className="w-4 h-4" /> Copy Link
+              </button>
+              <button
+                onClick={() => setShowEmbed(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
+              >
+                <Code2 className="w-4 h-4" /> Embed
               </button>
             </>
           )}
@@ -426,6 +435,10 @@ export function FormBuilderPage() {
           </div>
         </div>
       </div>
+
+      {showEmbed && form && (
+        <EmbedModal form={form} onClose={() => setShowEmbed(false)} />
+      )}
     </div>
   );
 }
@@ -646,6 +659,15 @@ function SettingsPanel({ settings, onChange }: { settings: FormSettings; onChang
           className="rounded text-purple-600"
         />
         Allow multiple submissions
+      </label>
+      <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <input
+          type="checkbox"
+          checked={settings.requireCaptcha ?? false}
+          onChange={(e) => onChange({ ...settings, requireCaptcha: e.target.checked })}
+          className="rounded text-purple-600"
+        />
+        Require CAPTCHA verification
       </label>
       <div>
         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Notification Emails</label>

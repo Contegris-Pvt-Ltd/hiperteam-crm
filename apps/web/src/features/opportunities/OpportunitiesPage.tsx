@@ -7,7 +7,7 @@ import {
   Plus, Search, LayoutList, LayoutGrid,
   Flame, Thermometer, Snowflake, Sun, Minus,
   Filter, X, DollarSign, TrendingUp,
-  Loader2, AlertTriangle,
+  Loader2, AlertTriangle, Eye, Pencil, Trash2,
 } from 'lucide-react';
 import type {
   Opportunity, OpportunitiesQuery, OpportunityStage, OpportunityPriority,
@@ -56,6 +56,7 @@ export function OpportunitiesPage() {
   const [searchInput, setSearchInput] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
 
   // Sync table preferences into query
   useEffect(() => {
@@ -68,6 +69,18 @@ export function OpportunitiesPage() {
       }));
     }
   }, [tablePrefs.loading]);
+
+  // ── Debounce column search into query ──
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(prev => ({
+        ...prev,
+        columnSearch: Object.values(columnSearch).some(v => v.trim()) ? columnSearch : undefined,
+        page: 1,
+      }));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [columnSearch]);
 
   // Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -133,6 +146,15 @@ export function OpportunitiesPage() {
       setLoading(false);
     }
   }, [query, viewMode, selectedPipelineId]);
+
+  const handleColumnSearchChange = useCallback((key: string, value: string) => {
+    setColumnSearch(prev => {
+      const next = { ...prev };
+      if (value) next[key] = value;
+      else delete next[key];
+      return next;
+    });
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -473,6 +495,10 @@ export function OpportunitiesPage() {
             }}
             onColumnsChange={tablePrefs.setVisibleColumns}
             onColumnWidthsChange={tablePrefs.setColumnWidths}
+            pinnedColumn={tablePrefs.pinnedColumn}
+            onPinnedColumnChange={tablePrefs.setPinnedColumn}
+            columnSearch={columnSearch}
+            onColumnSearchChange={handleColumnSearchChange}
             onRowClick={(row) => navigate(`/opportunities/${row.id}`)}
             emptyMessage="No opportunities found. Try adjusting your search or filters."
             renderCell={(col, _value, row) => {
@@ -585,29 +611,26 @@ export function OpportunitiesPage() {
 
               return undefined;
             }}
-            renderActions={canEdit('deals') || canDelete('deals') ? (row) => {
+            renderActions={(row) => {
               const opp = row as unknown as Opportunity;
               return (
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); navigate(`/opportunities/${opp.id}`); }}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg"
-                    title="View"
-                  >
-                    <TrendingUp size={14} />
+                <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                  <button onClick={() => navigate(`/opportunities/${opp.id}`)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded" title="View">
+                    <Eye size={16} />
                   </button>
-                  {canDelete('deals') && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(opp.id); }}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-                      title="Delete"
-                    >
-                      <X size={14} />
+                  {canEdit('opportunities') && (
+                    <button onClick={() => navigate(`/opportunities/${opp.id}/edit`)} className="p-1.5 text-gray-400 hover:text-green-600 rounded" title="Edit">
+                      <Pencil size={16} />
+                    </button>
+                  )}
+                  {canDelete('opportunities') && (
+                    <button onClick={() => setShowDeleteConfirm(opp.id)} className="p-1.5 text-gray-400 hover:text-red-600 rounded" title="Delete">
+                      <Trash2 size={16} />
                     </button>
                   )}
                 </div>
               );
-            } : undefined}
+            }}
           />
         </>
       )}

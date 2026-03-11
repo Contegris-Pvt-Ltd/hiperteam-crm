@@ -5,7 +5,7 @@ import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   ChevronUp, ChevronDown, ChevronsUpDown,
   ChevronLeft, ChevronRight, Loader2,
-  Columns3, Search, X,
+  Columns3, Search, X, Pin,
 } from 'lucide-react';
 import type { TableColumn } from '../../../api/tablePreferences.api';
 import { ColumnSettingsModal } from './ColumnSettingsModal';
@@ -72,6 +72,10 @@ export interface DataTableProps<T = any> {
   columnSearch?: Record<string, string>;
   /** Called when a per-column search input changes */
   onColumnSearchChange?: (key: string, value: string) => void;
+  /** Key of the currently pinned (frozen) column — overrides the static frozen flag */
+  pinnedColumn?: string;
+  /** Called when user pins/unpins a column. Pass empty string to unpin. */
+  onPinnedColumnChange?: (key: string) => void;
 }
 
 // ============================================================
@@ -111,6 +115,7 @@ export function DataTable<T>({
   searchValue, onSearchChange, onSearchSubmit,
   selectedIds, onSelectionChange, idKey = 'id',
   columnSearch, onColumnSearchChange,
+  pinnedColumn, onPinnedColumnChange,
 }: DataTableProps<T>) {
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const isMobile = useIsMobile();
@@ -154,8 +159,18 @@ export function DataTable<T>({
   }, [visibleColumns, colMap]);
 
   // Split columns into frozen (card header) vs non-frozen (card body)
-  const frozenCol = useMemo(() => columns.find(c => c.frozen), [columns]);
-  const bodyColumns = useMemo(() => columns.filter(c => !c.frozen), [columns]);
+  // pinnedColumn prop overrides the static frozen flag from column definitions
+  const effectiveFrozenKey = useMemo(() => {
+    if (pinnedColumn !== undefined) {
+      // User has a saved preference (may be '' to mean "unpin everything")
+      return pinnedColumn || null;
+    }
+    // Fall back to the column marked frozen: true in the column definitions
+    return columns.find(c => c.frozen)?.key ?? null;
+  }, [pinnedColumn, columns]);
+
+  const frozenCol = useMemo(() => columns.find(c => c.key === effectiveFrozenKey), [columns, effectiveFrozenKey]);
+  const bodyColumns = useMemo(() => columns.filter(c => c.key !== effectiveFrozenKey), [columns, effectiveFrozenKey]);
 
   // ── Drag-reorder on headers ──
   const dragCol = useRef<number | null>(null);
@@ -423,21 +438,22 @@ export function DataTable<T>({
                   const isSorted = sortColumn === sortKey;
                   const isSortable = col.sortable;
                   const width = columnWidths[col.key] || col.defaultWidth || 150;
+                  const isPinned = col.key === effectiveFrozenKey;
 
                   return (
                     <th
                       key={col.key}
-                      draggable={!col.frozen}
+                      draggable={!isPinned}
                       onDragStart={() => handleHeaderDragStart(index)}
                       onDragOver={(e) => handleHeaderDragOver(e, index)}
                       onDrop={handleHeaderDrop}
                       onClick={() => isSortable && handleSort(col)}
                       className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider select-none whitespace-nowrap ${
                         isSortable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50' : ''
-                      } ${col.frozen ? 'sticky z-10 bg-white dark:bg-slate-900' : ''} ${
-                        !col.frozen ? 'cursor-grab active:cursor-grabbing' : ''
+                      } ${isPinned ? 'sticky z-10 bg-white dark:bg-slate-900' : ''} ${
+                        !isPinned ? 'cursor-grab active:cursor-grabbing' : ''
                       } ${isSorted ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400'}`}
-                      style={col.frozen ? { width, minWidth: width, left: selectable ? 40 : 0 } : { width, minWidth: 80 }}
+                      style={isPinned ? { width, minWidth: width, left: selectable ? 40 : 0 } : { width, minWidth: 80 }}
                       title={isSortable ? `Sort by ${col.label}` : col.label}
                     >
                       <div className={`flex items-center gap-1 ${col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : ''}`}>
@@ -450,6 +466,19 @@ export function DataTable<T>({
                               <ChevronsUpDown className="w-3 h-3 opacity-40" />
                             )}
                           </span>
+                        )}
+                        {onPinnedColumnChange && (
+                          <button
+                            onClick={e => { e.stopPropagation(); onPinnedColumnChange(isPinned ? '' : col.key); }}
+                            className={`ml-1 p-0.5 rounded transition-colors ${
+                              isPinned
+                                ? 'text-blue-500'
+                                : 'text-gray-300 dark:text-slate-600 hover:text-blue-400 dark:hover:text-blue-400'
+                            }`}
+                            title={isPinned ? 'Unpin column' : 'Pin column (freeze left)'}
+                          >
+                            <Pin className="w-3 h-3" />
+                          </button>
                         )}
                       </div>
                     </th>
@@ -470,11 +499,12 @@ export function DataTable<T>({
                   )}
                   {columns.map((col) => {
                     const w = columnWidths[col.key] || col.defaultWidth || 150;
+                    const isSearchPinned = col.key === effectiveFrozenKey;
                     return (
                       <th
                         key={col.key}
-                        className={`px-2 py-1.5 ${col.frozen ? 'sticky z-10 bg-gray-50 dark:bg-slate-800/60' : ''}`}
-                        style={col.frozen ? { width: w, minWidth: w, left: selectable ? 40 : 0 } : { width: w }}
+                        className={`px-2 py-1.5 ${isSearchPinned ? 'sticky z-10 bg-gray-50 dark:bg-slate-800/60' : ''}`}
+                        style={isSearchPinned ? { width: w, minWidth: w, left: selectable ? 40 : 0 } : { width: w }}
                       >
                         <div className="relative">
                           <input
@@ -530,6 +560,7 @@ export function DataTable<T>({
                     </td>
                   )}
                   {columns.map((col) => {
+                    const isColPinned = col.key === effectiveFrozenKey;
                     const value = getNestedValue(row as Record<string, unknown>, col.key);
                     // Check for custom render override
                     const custom = renderCell?.(col, value, row);
@@ -538,8 +569,8 @@ export function DataTable<T>({
                       return (
                         <td
                           key={col.key}
-                          className={`px-4 py-3 text-sm ${col.frozen ? 'sticky z-10 bg-white dark:bg-slate-900' : ''}`}
-                          style={col.frozen ? { width: w, minWidth: w, left: selectable ? 40 : 0 } : { width: w }}
+                          className={`px-4 py-3 text-sm ${isColPinned ? 'sticky z-10 bg-white dark:bg-slate-900' : ''}`}
+                          style={isColPinned ? { width: w, minWidth: w, left: selectable ? 40 : 0 } : { width: w }}
                         >
                           {custom}
                         </td>
@@ -549,8 +580,8 @@ export function DataTable<T>({
                     return (
                       <td
                         key={col.key}
-                        className={`px-4 py-3 text-sm ${col.frozen ? 'sticky z-10 bg-white dark:bg-slate-900' : ''} ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : ''}`}
-                        style={col.frozen ? { width: columnWidths[col.key] || col.defaultWidth || 150, minWidth: columnWidths[col.key] || col.defaultWidth || 150, left: selectable ? 40 : 0 } : { width: columnWidths[col.key] || col.defaultWidth || 150 }}
+                        className={`px-4 py-3 text-sm ${isColPinned ? 'sticky z-10 bg-white dark:bg-slate-900' : ''} ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : ''}`}
+                        style={isColPinned ? { width: columnWidths[col.key] || col.defaultWidth || 150, minWidth: columnWidths[col.key] || col.defaultWidth || 150, left: selectable ? 40 : 0 } : { width: columnWidths[col.key] || col.defaultWidth || 150 }}
                       >
                         <CellRenderer column={col} value={value} />
                       </td>
@@ -640,6 +671,7 @@ export function DataTable<T>({
           allColumns={allColumns}
           visibleColumns={visibleColumns}
           defaultVisibleKeys={defaultVisibleKeys}
+          pinnedColumn={pinnedColumn}
           onSave={onColumnsChange}
           onClose={() => setShowColumnSettings(false)}
         />

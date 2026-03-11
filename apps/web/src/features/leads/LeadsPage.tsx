@@ -750,6 +750,8 @@ export function LeadsPage() {
             }}
             onColumnsChange={tablePrefs.setVisibleColumns}
             onColumnWidthsChange={tablePrefs.setColumnWidths}
+            pinnedColumn={tablePrefs.pinnedColumn}
+            onPinnedColumnChange={tablePrefs.setPinnedColumn}
             onRowClick={(row) => navigate(`/leads/${row.id}`)}
             columnSearch={columnSearch}
             onColumnSearchChange={handleColumnSearchChange}

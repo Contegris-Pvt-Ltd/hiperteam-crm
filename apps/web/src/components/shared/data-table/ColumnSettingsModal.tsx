@@ -11,12 +11,13 @@ interface ColumnSettingsModalProps {
   allColumns: TableColumn[];
   visibleColumns: string[];
   defaultVisibleKeys: string[];
+  pinnedColumn?: string;
   onSave: (columns: string[]) => void;
   onClose: () => void;
 }
 
 export function ColumnSettingsModal({
-  allColumns, visibleColumns, defaultVisibleKeys, onSave, onClose,
+  allColumns, visibleColumns, defaultVisibleKeys, pinnedColumn, onSave, onClose,
 }: ColumnSettingsModalProps) {
   // Build ordered list: visible first (in order), then hidden
   const [ordered, setOrdered] = useState<string[]>(() => {
@@ -30,6 +31,11 @@ export function ColumnSettingsModal({
   const dragOverItem = useRef<number | null>(null);
 
   const colMap = new Map<string, TableColumn>(allColumns.map(c => [c.key, c]));
+
+  // Effective pinned key: user pref overrides static frozen flag
+  const effectivePinnedKey = pinnedColumn !== undefined
+    ? (pinnedColumn || null)
+    : (allColumns.find(c => c.frozen)?.key ?? null);
 
   // ── Drag handlers ──
   const handleDragStart = (index: number) => {
@@ -53,8 +59,7 @@ export function ColumnSettingsModal({
 
   // ── Toggle visibility ──
   const toggleColumn = (key: string) => {
-    const col = colMap.get(key);
-    if (col?.frozen) return; // Can't hide frozen columns
+    if (key === effectivePinnedKey) return; // Can't hide the pinned column
     setChecked(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -108,7 +113,7 @@ export function ColumnSettingsModal({
             const col = colMap.get(key);
             if (!col) return null;
             const isVisible = checked.has(key);
-            const isFrozen = col.frozen;
+            const isFrozen = key === effectivePinnedKey;
 
             return (
               <div

@@ -11,12 +11,14 @@ interface UseTablePreferencesReturn {
   sortColumn: string;
   sortOrder: 'ASC' | 'DESC';
   columnWidths: Record<string, number>;
+  pinnedColumn: string;
   loading: boolean;
   setVisibleColumns: (cols: string[]) => void;
   setPageSize: (size: number) => void;
   setSortColumn: (col: string) => void;
   setSortOrder: (order: 'ASC' | 'DESC') => void;
   setColumnWidths: (widths: Record<string, number>) => void;
+  setPinnedColumn: (key: string) => void;
   resetToDefaults: () => void;
 }
 
@@ -38,6 +40,7 @@ export function useTablePreferences(
   const [sortColumn, setSortColumnState] = useState('created_at');
   const [sortOrder, setSortOrderState] = useState<'ASC' | 'DESC'>('DESC');
   const [columnWidths, setColumnWidthsState] = useState<Record<string, number>>({});
+  const [pinnedColumn, setPinnedColumnState] = useState('');
   const [loading, setLoading] = useState(true);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,6 +78,7 @@ export function useTablePreferences(
           if (prefs.defaultSortColumn) setSortColumnState(prefs.defaultSortColumn);
           if (prefs.defaultSortOrder) setSortOrderState(prefs.defaultSortOrder);
           if (prefs.columnWidths) setColumnWidthsState(prefs.columnWidths);
+          if (prefs.pinnedColumn) setPinnedColumnState(prefs.pinnedColumn);
         }
       } catch (err) {
         console.warn('Failed to load table preferences:', err);
@@ -130,12 +134,18 @@ export function useTablePreferences(
     saveToBackend({ columnWidths: widths });
   }, [saveToBackend]);
 
+  const setPinnedColumn = useCallback((key: string) => {
+    setPinnedColumnState(key);
+    saveToBackend({ pinnedColumn: key });
+  }, [saveToBackend]);
+
   const resetToDefaults = useCallback(async () => {
     setVisibleColumnsState(defaultVisibleKeys);
     setPageSizeState(25);
     setSortColumnState('created_at');
     setSortOrderState('DESC');
     setColumnWidthsState({});
+    setPinnedColumnState('');
     try {
       await tableApi.resetPreferences(module);
     } catch (err) {
@@ -149,8 +159,8 @@ export function useTablePreferences(
   }, []);
 
   return {
-    visibleColumns, pageSize, sortColumn, sortOrder, columnWidths, loading,
-    setVisibleColumns, setPageSize, setSortColumn, setSortOrder, setColumnWidths,
+    visibleColumns, pageSize, sortColumn, sortOrder, columnWidths, pinnedColumn, loading,
+    setVisibleColumns, setPageSize, setSortColumn, setSortOrder, setColumnWidths, setPinnedColumn,
     resetToDefaults,
   };
 }

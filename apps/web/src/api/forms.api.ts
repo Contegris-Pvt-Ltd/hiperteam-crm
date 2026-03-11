@@ -94,6 +94,10 @@ export const formsApi = {
     const { data } = await api.get(`/forms/${formId}/submissions`, { params });
     return data;
   },
+  getAnalytics: async (formId: string) => {
+    const { data } = await api.get(`/forms/${formId}/analytics`);
+    return data;
+  },
   // Public (no auth)
   getPublicForm: async (tenantSlug: string, token: string) => {
     const { data } = await api.get(`/forms/public/${tenantSlug}/${token}`);

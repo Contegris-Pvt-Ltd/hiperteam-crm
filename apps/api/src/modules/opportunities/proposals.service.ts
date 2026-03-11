@@ -320,6 +320,38 @@ export class ProposalsService {
         `UPDATE "${schemaName}".proposals SET total_amount = $1, updated_at = NOW() WHERE id = $2`,
         [totalAmount, proposalId],
       );
+
+      // ── Discount threshold check ──────────────────────────────
+      const maxDiscount = await this.getMaxDiscountPercent(schemaName, proposalId);
+      if (maxDiscount > 0) {
+        const rule = await this.approvalService.findActiveRule(
+          schemaName,
+          'proposals',
+          'discount_threshold',
+        );
+        if (rule && rule.conditions?.maxDiscountPercent) {
+          const threshold = parseFloat(rule.conditions.maxDiscountPercent);
+          if (maxDiscount > threshold) {
+            await this.approvalService.cancelStaleRequest(
+              schemaName,
+              'proposals',
+              proposalId,
+              'discount_threshold',
+            );
+            try {
+              await this.approvalService.createRequest(
+                schemaName,
+                'proposals',
+                proposalId,
+                'discount_threshold',
+                userId,
+              );
+            } catch {
+              // Already pending — that's fine
+            }
+          }
+        }
+      }
     }
 
     // 3. Audit
@@ -411,6 +443,19 @@ export class ProposalsService {
     if (!isAdmin && !isOwner && !isTeamLead && !isManager) {
       throw new ForbiddenException(
         'Only the opportunity owner, team lead, manager, or admin can publish proposals',
+      );
+    }
+
+    // Block publish if a discount approval is still pending
+    const pendingDiscount = await this.approvalService.getEntityRequest(
+      schemaName,
+      'proposals',
+      proposalId,
+      'discount_threshold',
+    );
+    if (pendingDiscount && pendingDiscount.status === 'pending') {
+      throw new BadRequestException(
+        'This proposal has a discount that requires approval before it can be published.',
       );
     }
 
@@ -745,6 +790,35 @@ export class ProposalsService {
   // ============================================================
   // HELPERS
   // ============================================================
+
+  private async getMaxDiscountPercent(
+    schemaName: string,
+    proposalId: string,
+  ): Promise<number> {
+    const items = await this.dataSource.query(
+      `SELECT discount, discount_type, unit_price, quantity
+       FROM "${schemaName}".proposal_line_items
+       WHERE proposal_id = $1`,
+      [proposalId],
+    );
+    if (!items.length) return 0;
+    let max = 0;
+    for (const item of items) {
+      const discount = parseFloat(item.discount) || 0;
+      if (item.discount_type === 'percentage') {
+        if (discount > max) max = discount;
+      } else if (item.discount_type === 'fixed') {
+        const unitPrice = parseFloat(item.unit_price) || 0;
+        const qty = parseFloat(item.quantity) || 1;
+        const subtotal = unitPrice * qty;
+        if (subtotal > 0) {
+          const pct = (discount / subtotal) * 100;
+          if (pct > max) max = pct;
+        }
+      }
+    }
+    return max;
+  }
 
   private calculateLineTotal(
     quantity: number,

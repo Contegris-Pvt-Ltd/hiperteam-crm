@@ -33,7 +33,7 @@ const TRIGGER_LABELS: Record<string, string> = {
 };
 
 const TRIGGER_OPTIONS: Record<string, TriggerEvent[]> = {
-  proposals: ['publish', 'manual'],
+  proposals: ['publish', 'discount_threshold', 'manual'],
   opportunities: ['close_won', 'discount_threshold', 'manual'],
   deals: ['close_won', 'discount_threshold', 'manual'],
   leads: ['manual'],
@@ -249,6 +249,11 @@ export function ApprovalRulesPage() {
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 rounded text-xs">
                         {TRIGGER_LABELS[rule.triggerEvent] || rule.triggerEvent}
                       </span>
+                      {rule.triggerEvent === 'discount_threshold' && rule.conditions?.maxDiscountPercent && (
+                        <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                          Max: {rule.conditions.maxDiscountPercent}%
+                        </span>
+                      )}
                       <span>{rule.stepCount ?? rule.steps?.length ?? 0} step{(rule.stepCount ?? rule.steps?.length ?? 0) !== 1 ? 's' : ''}</span>
                     </div>
                   </div>
@@ -314,6 +319,9 @@ function RuleForm({
   const [entityType, setEntityType] = useState<EntityType>(rule?.entityType || 'proposals');
   const [triggerEvent, setTriggerEvent] = useState<TriggerEvent>(rule?.triggerEvent || 'publish');
   const [isActive, setIsActive] = useState(rule?.isActive ?? true);
+  const [maxDiscountPercent, setMaxDiscountPercent] = useState<number | ''>(
+    rule?.conditions?.maxDiscountPercent ?? '',
+  );
   const [steps, setSteps] = useState<Array<{
     stepOrder: number;
     approverType: 'user' | 'role';
@@ -393,6 +401,11 @@ function RuleForm({
       }
     }
 
+    if (triggerEvent === 'discount_threshold' && (maxDiscountPercent === '' || Number(maxDiscountPercent) <= 0)) {
+      setError('Please enter a valid maximum discount percentage greater than 0');
+      return;
+    }
+
     setSaving(true);
     try {
       const dto = {
@@ -400,6 +413,9 @@ function RuleForm({
         entityType,
         triggerEvent,
         isActive,
+        conditions: triggerEvent === 'discount_threshold'
+          ? { maxDiscountPercent: maxDiscountPercent === '' ? 0 : Number(maxDiscountPercent) }
+          : rule?.conditions ?? undefined,
         steps: steps.map((s) => ({
           stepOrder: s.stepOrder,
           approverType: s.approverType,
@@ -489,6 +505,31 @@ function RuleForm({
           </select>
         </div>
       </div>
+
+      {/* Discount Threshold Input */}
+      {triggerEvent === 'discount_threshold' && (
+        <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            Maximum Discount % (before approval required)
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.5"
+              value={maxDiscountPercent}
+              onChange={(e) => setMaxDiscountPercent(e.target.value === '' ? '' : parseFloat(e.target.value))}
+              placeholder="e.g. 15"
+              className="w-32 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500"
+            />
+            <span className="text-sm text-gray-500 dark:text-slate-400">%</span>
+          </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+            Any line item with a discount above this value will require approval before the proposal can be published.
+          </p>
+        </div>
+      )}
 
       {/* Active Toggle */}
       <div className="flex items-center gap-3 mb-6">

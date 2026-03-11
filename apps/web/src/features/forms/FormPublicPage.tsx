@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { formsApi } from '../../api/forms.api';
@@ -13,6 +13,8 @@ export function FormPublicPage() {
   const [error, setError] = useState('');
   const [values, setValues] = useState<Record<string, any>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!tenantSlug || !token) return;
@@ -20,6 +22,36 @@ export function FormPublicPage() {
       .then((f) => { setForm(f); setLoading(false); })
       .catch(() => { setError('Form not found or no longer active'); setLoading(false); });
   }, [tenantSlug, token]);
+
+  const renderCaptcha = (siteKey: string) => {
+    if (!captchaRef.current) return;
+    if (captchaRef.current.childElementCount > 0) return;
+    (window as any).grecaptcha?.render(captchaRef.current, {
+      sitekey: siteKey,
+      callback: (token: string) => setCaptchaToken(token),
+      'expired-callback': () => setCaptchaToken(null),
+    });
+  };
+
+  useEffect(() => {
+    if (!form?.settings?.requireCaptcha) return;
+
+    const SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LcJVYcsAAAAAGkdkQ02f2rRgNwNGis2pKeI2ngt';
+
+    if (document.getElementById('recaptcha-script')) {
+      renderCaptcha(SITE_KEY);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'recaptcha-script';
+    script.src = 'https://www.google.com/recaptcha/api.js?render=explicit&onload=onRecaptchaLoad';
+    script.async = true;
+    script.defer = true;
+
+    (window as any).onRecaptchaLoad = () => renderCaptcha(SITE_KEY);
+    document.head.appendChild(script);
+  }, [form]);
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
@@ -39,6 +71,11 @@ export function FormPublicPage() {
     e.preventDefault();
     if (!validate() || !tenantSlug || !token) return;
 
+    if (form?.settings?.requireCaptcha && !captchaToken) {
+      setError('Please complete the CAPTCHA verification.');
+      return;
+    }
+
     setSubmitting(true);
     setError('');
     try {
@@ -48,6 +85,7 @@ export function FormPublicPage() {
         return;
       }
       setSubmitted(true);
+      setCaptchaToken(null);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Submission failed. Please try again.');
     } finally {
@@ -134,6 +172,12 @@ export function FormPublicPage() {
                 />
               ))}
             </div>
+
+            {form.settings?.requireCaptcha && (
+              <div className="pt-2">
+                <div ref={captchaRef} />
+              </div>
+            )}
 
             <button
               type="submit"

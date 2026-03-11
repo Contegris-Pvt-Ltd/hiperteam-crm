@@ -512,6 +512,26 @@ export class ApprovalService {
   }
 
   // ============================================================
+  // CANCEL STALE REQUEST (by entity + trigger, no auth check)
+  // ============================================================
+  async cancelStaleRequest(
+    schemaName: string,
+    entityType: string,
+    entityId: string,
+    triggerEvent: string,
+  ): Promise<void> {
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".approval_requests
+       SET status = 'cancelled', updated_at = NOW()
+       WHERE entity_type = $1
+         AND entity_id = $2
+         AND trigger_event = $3
+         AND status IN ('pending', 'rejected')`,
+      [entityType, entityId, triggerEvent],
+    );
+  }
+
+  // ============================================================
   // RULE CRUD
   // ============================================================
   async getRules(schemaName: string, entityType?: string): Promise<any[]> {
@@ -615,19 +635,6 @@ export class ApprovalService {
     },
   ): Promise<any> {
     await this.getRuleById(schemaName, ruleId);
-
-    // Block update if active pending requests use this rule
-    const pending = await this.dataSource.query(
-      `SELECT id FROM "${schemaName}".approval_requests
-       WHERE rule_id = $1 AND status = 'pending'
-       LIMIT 1`,
-      [ruleId],
-    );
-    if (pending.length > 0) {
-      throw new BadRequestException(
-        'Cannot update rule with active pending requests',
-      );
-    }
 
     await this.dataSource.query(
       `UPDATE "${schemaName}".approval_rules

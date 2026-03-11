@@ -227,6 +227,53 @@ export class FormsService {
     };
   }
 
+  // ── Get analytics ───────────────────────────────────────────
+  async getAnalytics(schemaName: string, formId: string) {
+    await this.findById(schemaName, formId);
+
+    const [totals] = await this.dataSource.query(
+      `SELECT
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::int AS last7,
+         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')::int AS last30
+       FROM "${schemaName}".form_submissions
+       WHERE form_id = $1`,
+      [formId],
+    );
+
+    const daily = await this.dataSource.query(
+      `SELECT
+         DATE(created_at) AS date,
+         COUNT(*)::int    AS count
+       FROM "${schemaName}".form_submissions
+       WHERE form_id = $1
+         AND created_at >= NOW() - INTERVAL '30 days'
+       GROUP BY DATE(created_at)
+       ORDER BY date ASC`,
+      [formId],
+    );
+
+    const actionRows = await this.dataSource.query(
+      `SELECT
+         elem->>'type'   AS action_type,
+         elem->>'status' AS status,
+         COUNT(*)::int   AS count
+       FROM "${schemaName}".form_submissions,
+            jsonb_array_elements(action_results::jsonb) AS elem
+       WHERE form_id = $1
+       GROUP BY elem->>'type', elem->>'status'`,
+      [formId],
+    );
+
+    return {
+      total: totals.total,
+      last7Days: totals.last7,
+      last30Days: totals.last30,
+      dailyTrend: daily,
+      actionBreakdown: actionRows,
+    };
+  }
+
   // ── Resolve public form by tenantSlug + token ───────────────
   async resolvePublicForm(tenantSlug: string, token: string) {
     // Find tenant schema from slug

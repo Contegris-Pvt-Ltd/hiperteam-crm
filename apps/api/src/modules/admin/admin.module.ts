@@ -10,6 +10,7 @@ import { ModuleLayoutSettingsService } from './module-layout-settings.service';
 import { ModuleLayoutSettingsController } from './module-layout-settings.controller';
 import { SharedModule } from '../shared/shared.module';
 import { OpportunitiesModule } from '../opportunities/opportunities.module';
+import { AdminService } from './admin.service';
 
 @Module({
   imports: [SharedModule, OpportunitiesModule],
@@ -19,6 +20,7 @@ import { OpportunitiesModule } from '../opportunities/opportunities.module';
     ModuleLayoutSettingsController,
   ],
   providers: [
+    AdminService,
     CustomFieldsService,
     ProfileCompletionService,
     CustomTabsService,
@@ -27,6 +29,7 @@ import { OpportunitiesModule } from '../opportunities/opportunities.module';
     ModuleLayoutSettingsService,
   ],
   exports: [
+    AdminService,
     CustomFieldsService,
     ProfileCompletionService,
     CustomTabsService,

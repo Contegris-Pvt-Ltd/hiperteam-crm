@@ -5,8 +5,14 @@ import { Settings, ListPlus, BarChart3, Users, Building2, Shield, ShieldCheck,
 } from 'lucide-react';
 
 const adminNavItems = [
-  { 
-    label: 'Custom Fields', 
+  {
+    label: 'General Settings',
+    path: '/admin/general-settings',
+    icon: Building2,
+    description: 'Company profile, industries & picklists',
+  },
+  {
+    label: 'Custom Fields',
     path: '/admin/custom-fields',
     icon: ListPlus,
     description: 'Manage custom fields for all modules'

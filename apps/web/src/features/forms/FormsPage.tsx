@@ -11,9 +11,11 @@ import {
   Loader2,
   MoreVertical,
   Eye,
+  Code2,
 } from 'lucide-react';
 import { formsApi } from '../../api/forms.api';
 import type { FormRecord } from '../../api/forms.api';
+import { EmbedModal } from './EmbedModal';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
@@ -30,6 +32,7 @@ export function FormsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 25, totalPages: 0 });
+  const [embedForm, setEmbedForm] = useState<FormRecord | null>(null);
 
   const loadForms = async (page = 1) => {
     setLoading(true);
@@ -244,6 +247,12 @@ export function FormsPage() {
                   >
                     <ExternalLink className="w-3.5 h-3.5" /> Copy Link
                   </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setEmbedForm(form); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
+                  >
+                    <Code2 className="w-3.5 h-3.5" /> Embed
+                  </button>
                 </div>
               )}
 
@@ -255,6 +264,10 @@ export function FormsPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {embedForm && (
+        <EmbedModal form={embedForm} onClose={() => setEmbedForm(null)} />
       )}
 
       {/* Pagination */}

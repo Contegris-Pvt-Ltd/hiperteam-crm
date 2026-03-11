@@ -12,6 +12,7 @@ export interface TablePreferences {
   pageSize: number;
   defaultSortColumn: string;
   defaultSortOrder: 'ASC' | 'DESC';
+  pinnedColumn?: string;
 }
 
 @Injectable()
@@ -41,6 +42,7 @@ export class TablePreferencesService {
       pageSize: row.page_size || 25,
       defaultSortColumn: row.default_sort_column || 'created_at',
       defaultSortOrder: row.default_sort_order || 'DESC',
+      pinnedColumn: row.pinned_column || undefined,
     };
   }
 
@@ -55,14 +57,15 @@ export class TablePreferencesService {
   ): Promise<TablePreferences> {
     const [result] = await this.dataSource.query(
       `INSERT INTO "${schemaName}".user_table_preferences
-         (user_id, module, visible_columns, column_widths, page_size, default_sort_column, default_sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (user_id, module, visible_columns, column_widths, page_size, default_sort_column, default_sort_order, pinned_column)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (user_id, module) DO UPDATE SET
          visible_columns = COALESCE($3, user_table_preferences.visible_columns),
          column_widths = COALESCE($4, user_table_preferences.column_widths),
          page_size = COALESCE($5, user_table_preferences.page_size),
          default_sort_column = COALESCE($6, user_table_preferences.default_sort_column),
          default_sort_order = COALESCE($7, user_table_preferences.default_sort_order),
+         pinned_column = CASE WHEN $8 IS NOT NULL THEN $8 ELSE user_table_preferences.pinned_column END,
          updated_at = NOW()
        RETURNING *`,
       [
@@ -73,6 +76,7 @@ export class TablePreferencesService {
         prefs.pageSize || null,
         prefs.defaultSortColumn || null,
         prefs.defaultSortOrder || null,
+        prefs.pinnedColumn !== undefined ? (prefs.pinnedColumn || '') : null,
       ],
     );
 
@@ -84,6 +88,7 @@ export class TablePreferencesService {
       pageSize: result.page_size || 25,
       defaultSortColumn: result.default_sort_column || 'created_at',
       defaultSortOrder: result.default_sort_order || 'DESC',
+      pinnedColumn: result.pinned_column || undefined,
     };
   }
 

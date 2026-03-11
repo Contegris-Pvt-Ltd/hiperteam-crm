@@ -94,6 +94,54 @@ export interface LayoutCheckResult {
 
 // ==================== API ====================
 
+// ── Company Settings ─────────────────────────────────────────────
+export interface CompanySettings {
+  companyName?: string;
+  tagline?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  logoUrl?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postalCode?: string;
+  taxId?: string;
+  registrationNo?: string;
+  currency?: string;
+  updatedAt?: string;
+}
+
+export interface Industry {
+  id: string;
+  name: string;
+  isActive: boolean;
+  isSystem: boolean;
+  sortOrder: number;
+}
+
+export const generalSettingsApi = {
+  getCompanySettings: (): Promise<CompanySettings> =>
+    api.get('/admin/company-settings').then(r => r.data),
+
+  updateCompanySettings: (data: Partial<CompanySettings>): Promise<CompanySettings> =>
+    api.put('/admin/company-settings', data).then(r => r.data),
+
+  getIndustries: (): Promise<Industry[]> =>
+    api.get('/admin/industries').then(r => r.data),
+
+  createIndustry: (name: string): Promise<Industry> =>
+    api.post('/admin/industries', { name }).then(r => r.data),
+
+  updateIndustry: (id: string, data: Partial<Industry>): Promise<Industry> =>
+    api.put(`/admin/industries/${id}`, data).then(r => r.data),
+
+  deleteIndustry: (id: string): Promise<void> =>
+    api.delete(`/admin/industries/${id}`).then(r => r.data),
+};
+
 export const adminApi = {
   // ==================== CUSTOM FIELDS ====================
   

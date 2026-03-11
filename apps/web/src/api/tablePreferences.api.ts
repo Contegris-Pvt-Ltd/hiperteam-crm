@@ -34,6 +34,7 @@ export interface TablePreferences {
   pageSize: number;
   defaultSortColumn: string;
   defaultSortOrder: 'ASC' | 'DESC';
+  pinnedColumn?: string;
 }
 
 // ============================================================

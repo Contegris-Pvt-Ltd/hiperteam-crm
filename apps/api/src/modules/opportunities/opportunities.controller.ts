@@ -61,7 +61,16 @@ export class OpportunitiesController {
     @Request() req: { user: JwtPayload },
     @Query() query: QueryOpportunitiesDto,
   ) {
-    return this.opportunitiesService.findAll(req.user.tenantSchema, query, req.user.sub);
+    const rawQuery = (req as any).query as Record<string, string>;
+    const columnSearch: Record<string, string> = {};
+    for (const [k, v] of Object.entries(rawQuery)) {
+      if (k.startsWith('cs_') && v) columnSearch[k.slice(3)] = v;
+    }
+    return this.opportunitiesService.findAll(
+      req.user.tenantSchema,
+      { ...query, columnSearch: Object.keys(columnSearch).length ? columnSearch : undefined },
+      req.user.sub,
+    );
   }
 
   @Get('forecast')

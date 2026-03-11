@@ -22,6 +22,7 @@ import { Request } from 'express';
 import { DataSource } from 'typeorm';
 import { MigrationRunnerService } from '../../database/migration-runner.service';
 import { XeroService } from '../opportunities/xero.service';
+import { AdminService } from './admin.service';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -47,6 +48,7 @@ export class AdminController {
     private readonly auditService: AuditService,
     private readonly dataSource: DataSource,
     private readonly xeroService: XeroService,
+    private readonly adminService: AdminService,
   ) {}
 
   // ==================== CUSTOM FIELDS ====================
@@ -402,6 +404,53 @@ export class AdminController {
       limit: limit ? Math.min(parseInt(limit), 100) : 50,
       sortOrder: sortOrder === 'ASC' ? 'ASC' : 'DESC',
     });
+  }
+
+  // ==================== COMPANY SETTINGS ====================
+
+  @Get('company-settings')
+  async getCompanySettings(@Req() req: AuthenticatedRequest) {
+    return this.adminService.getCompanySettings(req.user.tenantSchema);
+  }
+
+  @Put('company-settings')
+  async updateCompanySettings(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.updateCompanySettings(req.user.tenantSchema, body);
+  }
+
+  // ==================== INDUSTRIES ====================
+
+  @Get('industries')
+  async getIndustries(@Req() req: AuthenticatedRequest) {
+    return this.adminService.getIndustries(req.user.tenantSchema);
+  }
+
+  @Post('industries')
+  async createIndustry(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { name: string },
+  ) {
+    return this.adminService.createIndustry(req.user.tenantSchema, body.name);
+  }
+
+  @Put('industries/:id')
+  async updateIndustry(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: { name?: string; isActive?: boolean; sortOrder?: number },
+  ) {
+    return this.adminService.updateIndustry(req.user.tenantSchema, id, body);
+  }
+
+  @Delete('industries/:id')
+  async deleteIndustry(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    return this.adminService.deleteIndustry(req.user.tenantSchema, id);
   }
 
   @Get('audit-logs/:entityType/:entityId')

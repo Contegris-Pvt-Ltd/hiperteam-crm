@@ -72,6 +72,15 @@ export class FormsController {
     return this.formsService.duplicate(req.user.tenantSchema, req.user.sub, id);
   }
 
+  @Get(':id/analytics')
+  @RequirePermission('forms', 'view')
+  async getAnalytics(
+    @Request() req: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.formsService.getAnalytics(req.user.tenantSchema, id);
+  }
+
   @Get(':id/submissions')
   @RequirePermission('forms', 'view')
   async getSubmissions(
