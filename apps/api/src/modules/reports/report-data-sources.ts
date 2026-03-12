@@ -78,6 +78,7 @@ export const DATA_SOURCES: Record<string, DataSourceDefinition> = {
       { key: 'closed_at', label: 'Closed Date', type: 'datetime', sqlExpr: 'COALESCE(o.won_at, o.lost_at)', groupable: true, filterable: true, computed: true },
       { key: 'source', label: 'Source', type: 'text', sqlExpr: 'o.source', groupable: true, filterable: true },
       { key: 'type', label: 'Type', type: 'text', sqlExpr: 'o.type', groupable: true, filterable: true },
+      { key: 'industry', label: 'Industry', type: 'text', sqlExpr: 'o.industry', groupable: true, filterable: true },
       { key: 'forecast_category', label: 'Forecast Category', type: 'text', sqlExpr: 'o.forecast_category', groupable: true, filterable: true },
       { key: 'currency', label: 'Currency', type: 'text', sqlExpr: 'o.currency', groupable: true, filterable: true },
       { key: 'next_step', label: 'Next Step', type: 'text', sqlExpr: 'o.next_step', filterable: true },

@@ -2554,6 +2554,102 @@ async function runTenantMigrations() {
                 ADD COLUMN IF NOT EXISTS industry VARCHAR(255);
             `,
           },
+          {
+            name: '046_sales_reports',
+            sql: `
+              -- ── Ensure folder exists ──
+              INSERT INTO "${schema}".report_folders (name, is_system)
+              SELECT 'Revenue & Forecasting', true
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".report_folders
+                WHERE name = 'Revenue & Forecasting' AND is_system = true
+              );
+
+              -- 1. Rep Performance Summary
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Rep Performance Summary',
+                'Closed-won deals, total revenue, average deal size and win rate per sales rep',
+                'revenue', 'summary', 'table', 'opportunities',
+                '{"measures":[{"field":"id","aggregate":"count","label":"Deals Won","format":"number"},{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"},{"field":"amount","aggregate":"avg","label":"Avg Deal Size","format":"currency"},{"field":"days_to_close","aggregate":"avg","label":"Avg Days to Close","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Rep"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}]}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Revenue & Forecasting' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Rep Performance Summary' AND is_system = true
+              );
+
+              -- 2. Revenue by Quarter
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Revenue by Quarter',
+                'Closed-won revenue totals grouped by quarter — tracks YTD and seasonal trends',
+                'revenue', 'summary', 'bar', 'opportunities',
+                '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"},{"field":"id","aggregate":"count","label":"Deals Won","format":"number"}],"dimensions":[{"field":"won_at","type":"date","dateGranularity":"quarter","label":"Quarter"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"won_at","direction":"ASC"}]}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Revenue & Forecasting' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Revenue by Quarter' AND is_system = true
+              );
+
+              -- 3. Rep Quarterly Breakdown
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Rep Quarterly Breakdown',
+                'Revenue contribution per sales rep grouped by quarter — shows seasonal and individual trends',
+                'revenue', 'summary', 'stacked_bar', 'opportunities',
+                '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[{"field":"won_at","type":"date","dateGranularity":"quarter","label":"Quarter"},{"field":"owner_name","type":"field","label":"Rep"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"won_at","direction":"ASC"}]}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Revenue & Forecasting' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Rep Quarterly Breakdown' AND is_system = true
+              );
+
+              -- 4. Revenue by Industry
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Revenue by Industry',
+                'Closed-won revenue split by industry — identifies highest-value verticals',
+                'revenue', 'summary', 'pie', 'opportunities',
+                '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"},{"field":"id","aggregate":"count","label":"Deals","format":"number"}],"dimensions":[{"field":"industry","type":"field","label":"Industry"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}],"limit":10}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Revenue & Forecasting' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Revenue by Industry' AND is_system = true
+              );
+
+              -- 5. Revenue by Deal Type
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Revenue by Deal Type',
+                'Closed-won revenue split by deal type — e.g. New Business vs Cross-sell vs Renewal',
+                'revenue', 'summary', 'pie', 'opportunities',
+                '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"},{"field":"id","aggregate":"count","label":"Deals","format":"number"}],"dimensions":[{"field":"type","type":"field","label":"Deal Type"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}]}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Revenue & Forecasting' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Revenue by Deal Type' AND is_system = true
+              );
+
+              -- 6. Closed Deals List
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Closed Deals List',
+                'All closed-won deals with rep, account, industry, type and revenue — exportable transactions log',
+                'revenue', 'tabular', 'table', 'opportunities',
+                '{"measures":[],"dimensions":[],"fields":["owner_name","account_name","industry","type","amount","won_at"],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"won_at","direction":"DESC"}],"limit":200}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Revenue & Forecasting' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Closed Deals List' AND is_system = true
+              );
+            `,
+          },
         ];
 
         // ── Execute pending migrations ────────────────────────────
