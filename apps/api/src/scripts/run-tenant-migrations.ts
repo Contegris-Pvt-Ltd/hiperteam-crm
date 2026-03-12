@@ -2650,6 +2650,88 @@ async function runTenantMigrations() {
               );
             `,
           },
+          {
+            name: '047_task_reports',
+            sql: `
+              -- Ensure folder exists
+              INSERT INTO "${schema}".report_folders (name, is_system)
+              SELECT 'Activities & Productivity', true
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".report_folders
+                WHERE name = 'Activities & Productivity' AND is_system = true
+              );
+
+              -- 1. Tasks by Type per User
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Tasks by Type per User',
+                'Count of tasks grouped by task type and assigned user — filter by type to see demos, calls, meetings etc. per rep',
+                'activity', 'summary', 'bar', 'tasks',
+                '{"measures":[{"field":"id","aggregate":"count","label":"Tasks","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Assigned To"},{"field":"task_type_name","type":"field","label":"Task Type"}],"filters":[],"orderBy":[{"field":"id_count","direction":"DESC"}]}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Activities & Productivity' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Tasks by Type per User' AND is_system = true
+              );
+
+              -- 2. Task Volume Trend by Type
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Task Volume Trend by Type',
+                'Monthly task creation trend split by task type — see which activity types are growing or declining',
+                'activity', 'summary', 'stacked_bar', 'tasks',
+                '{"measures":[{"field":"id","aggregate":"count","label":"Tasks","format":"number"}],"dimensions":[{"field":"created_at","type":"date","dateGranularity":"month","label":"Month"},{"field":"task_type_name","type":"field","label":"Task Type"}],"filters":[],"orderBy":[{"field":"created_at","direction":"ASC"}]}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Activities & Productivity' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Task Volume Trend by Type' AND is_system = true
+              );
+
+              -- 3. Task Completion Rate by User
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Task Completion Rate by User',
+                'Total, completed and overdue tasks per user — measures follow-through on all task types',
+                'activity', 'summary', 'table', 'tasks',
+                '{"measures":[{"field":"id","aggregate":"count","label":"Total Tasks","format":"number"},{"field":"completed_at","aggregate":"count","label":"Completed","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Assigned To"}],"filters":[],"orderBy":[{"field":"id_count","direction":"DESC"}]}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Activities & Productivity' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Task Completion Rate by User' AND is_system = true
+              );
+
+              -- 4. Overdue Tasks by User
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Overdue Tasks by User',
+                'Open tasks past their due date grouped by assigned user — identifies follow-up gaps',
+                'activity', 'summary', 'bar', 'tasks',
+                '{"measures":[{"field":"id","aggregate":"count","label":"Overdue Tasks","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Assigned To"}],"filters":[{"field":"task_status","operator":"eq","value":"Overdue"}],"orderBy":[{"field":"id_count","direction":"DESC"}]}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Activities & Productivity' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Overdue Tasks by User' AND is_system = true
+              );
+
+              -- 5. Tasks Linked to Leads by Type
+              INSERT INTO "${schema}".reports
+                (name, description, category, report_type, chart_type, data_source, config, is_system, is_public, folder_id)
+              SELECT
+                'Tasks Linked to Leads by Type',
+                'Tasks created against leads, grouped by task type per user — shows lead gen activity breakdown',
+                'activity', 'summary', 'bar', 'tasks',
+                '{"measures":[{"field":"id","aggregate":"count","label":"Tasks","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Assigned To"},{"field":"task_type_name","type":"field","label":"Task Type"}],"filters":[{"field":"entity_type","operator":"eq","value":"leads"}],"orderBy":[{"field":"id_count","direction":"DESC"}]}'::jsonb,
+                true, true,
+                (SELECT id FROM "${schema}".report_folders WHERE name = 'Activities & Productivity' AND is_system = true LIMIT 1)
+              WHERE NOT EXISTS (
+                SELECT 1 FROM "${schema}".reports WHERE name = 'Tasks Linked to Leads by Type' AND is_system = true
+              );
+            `,
+          },
         ];
 
         // ── Execute pending migrations ────────────────────────────
