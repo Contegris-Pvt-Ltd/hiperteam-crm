@@ -11,6 +11,7 @@ import { LeadScoringService } from './lead-scoring.service';
 import { RecordTeamService } from '../shared/record-team.service';
 import { FieldValidationService } from '../shared/field-validation.service';
 import { SlaService } from './sla.service';
+import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
 
 @Injectable()
 export class LeadsService {
@@ -31,6 +32,7 @@ export class LeadsService {
     private recordTeamService: RecordTeamService,
     private fieldValidationService: FieldValidationService,
     private slaService: SlaService,
+    private workflowRunner: WorkflowRunnerService,
   ) {}
 
   // ============================================================
@@ -103,16 +105,9 @@ export class LeadsService {
       }
     }
 
-    // 5. Determine owner and team (routing or explicit or creator)
+    // 5. Determine owner and team
     let ownerId = dto.ownerId || userId;
     let teamId = dto.teamId || null;
-    const routingResult = await this.runRoutingRules(schemaName, dto);
-    if (routingResult) {
-      ownerId = routingResult.userId;
-      if (routingResult.teamId) {
-        teamId = routingResult.teamId;
-      }
-    }
 
     // 6. Insert lead
     const [lead] = await this.dataSource.query(
@@ -237,7 +232,9 @@ export class LeadsService {
     }
 
     // 11. Return final formatted lead
-    return this.findOne(schemaName, lead.id);
+    const created = await this.findOne(schemaName, lead.id);
+    this.workflowRunner.trigger(schemaName, 'leads', 'lead_created', lead.id, created).catch(() => {});
+    return created;
   }
 
   // ============================================================
@@ -717,6 +714,9 @@ export class LeadsService {
   // ============================================================
   async update(schemaName: string, id: string, userId: string, dto: UpdateLeadDto) {
     const existing = await this.findOneRaw(schemaName, id);
+    const prevOwnerId = existing.ownerId;
+    const prevStageId = existing.stageId;
+    const prevScore = existing.score;
 
     // Check if converted (read-only check)
     if (existing.convertedAt) {
@@ -897,6 +897,16 @@ export class LeadsService {
       });
     }
 
+    this.workflowRunner.trigger(schemaName, 'leads', 'lead_updated', id, updated).catch(() => {});
+    if (updated.ownerId && updated.ownerId !== prevOwnerId) {
+      this.workflowRunner.trigger(schemaName, 'leads', 'lead_assigned', id, updated).catch(() => {});
+    }
+    if (updated.stageId && updated.stageId !== prevStageId) {
+      this.workflowRunner.trigger(schemaName, 'leads', 'lead_stage_changed', id, updated).catch(() => {});
+    }
+    if (updated.score !== undefined && updated.score !== prevScore) {
+      this.workflowRunner.trigger(schemaName, 'leads', 'lead_score_changed', id, updated).catch(() => {});
+    }
     return updated;
   }
 
@@ -1668,8 +1678,10 @@ export class LeadsService {
       performedBy: userId,
     });
 
+    const convertedLead = await this.findOne(schemaName, id);
+    this.workflowRunner.trigger(schemaName, 'leads', 'lead_converted', id, { ...convertedLead, contactId, accountId, opportunityId }).catch(() => {});
     return {
-      lead: await this.findOne(schemaName, id),
+      lead: convertedLead,
       contactId,
       accountId,
       opportunityId,
@@ -1887,95 +1899,6 @@ export class LeadsService {
     }
 
     return duplicates;
-  }
-
-  // ============================================================
-  // ROUTING RULES ENGINE
-  // ============================================================
-  private async runRoutingRules(schemaName: string, dto: CreateLeadDto): Promise<{ userId: string; teamId: string | null } | null> {
-    const rules = await this.dataSource.query(
-      `SELECT * FROM "${schemaName}".lead_routing_rules
-       WHERE is_active = true ORDER BY priority DESC`,
-    );
-
-    for (const rule of rules) {
-      const conditions = rule.conditions || [];
-      const match = this.evaluateConditions(dto, conditions);
-
-      if (match) {
-        if (rule.assignment_type === 'specific_user') {
-          const users = rule.assigned_to || [];
-          const uid = users[0] || null;
-          return uid ? { userId: uid, teamId: null } : null;
-        }
-
-        if (rule.assignment_type === 'round_robin') {
-          const users = rule.assigned_to || [];
-          if (users.length === 0) continue;
-
-          const index = (rule.round_robin_index || 0) % users.length;
-          const assignedUser = users[index];
-
-          // Update round robin index
-          await this.dataSource.query(
-            `UPDATE "${schemaName}".lead_routing_rules SET round_robin_index = $1 WHERE id = $2`,
-            [index + 1, rule.id],
-          );
-
-          return { userId: assignedUser, teamId: null };
-        }
-
-        if (rule.assignment_type === 'team') {
-          const teamId = rule.assigned_to?.[0];
-          if (!teamId) continue;
-
-          // Get team members and round-robin
-          const members = await this.dataSource.query(
-            `SELECT user_id FROM "${schemaName}".user_teams WHERE team_id = $1`,
-            [teamId],
-          );
-          if (members.length === 0) continue;
-
-          const index = (rule.round_robin_index || 0) % members.length;
-          await this.dataSource.query(
-            `UPDATE "${schemaName}".lead_routing_rules SET round_robin_index = $1 WHERE id = $2`,
-            [index + 1, rule.id],
-          );
-
-          return { userId: members[index].user_id, teamId };
-        }
-      }
-    }
-
-    return null;
-  }
-
-  private evaluateConditions(dto: Record<string, any>, conditions: any[]): boolean {
-    if (!conditions || conditions.length === 0) return true;
-
-    for (const cond of conditions) {
-      const value = dto[cond.field];
-      const targetValue = cond.value;
-
-      switch (cond.operator) {
-        case 'equals':
-          if (String(value).toLowerCase() !== String(targetValue).toLowerCase()) return false;
-          break;
-        case 'contains':
-          if (!String(value || '').toLowerCase().includes(String(targetValue).toLowerCase())) return false;
-          break;
-        case 'in':
-          if (!Array.isArray(targetValue) || !targetValue.includes(value)) return false;
-          break;
-        case 'is_not_empty':
-          if (!value || String(value).trim() === '') return false;
-          break;
-        default:
-          break;
-      }
-    }
-
-    return true;
   }
 
   // ============================================================

@@ -58,6 +58,9 @@ import { ProjectDetailPage } from './features/projects/ProjectDetailPage';
 import { ClientPortalPage } from './features/projects/ClientPortalPage';
 import { FormsPage, FormBuilderPage, FormSubmissionsPage, FormPublicPage } from './features/forms';
 import { InboxPage, EmailSettingsPage, InboxRulesPage } from './features/email';
+import { WorkflowListPage } from './features/workflows/WorkflowListPage';
+import { WorkflowBuilderPage } from './features/workflows/WorkflowBuilderPage';
+import { WorkflowRunsPage } from './features/workflows/WorkflowRunsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -136,6 +139,12 @@ function App() {
           <Route path="/forms" element={<FormsPage />} />
           <Route path="/forms/:id/builder" element={<FormBuilderPage />} />
           <Route path="/forms/:id/submissions" element={<FormSubmissionsPage />} />
+
+          {/* Workflows */}
+          <Route path="/workflows" element={<WorkflowListPage />} />
+          <Route path="/workflows/new" element={<WorkflowBuilderPage />} />
+          <Route path="/workflows/:id/edit" element={<WorkflowBuilderPage />} />
+          <Route path="/workflows/:id/runs" element={<WorkflowRunsPage />} />
 
           {/* Email Inbox */}
           <Route path="/inbox" element={<InboxPage />} />

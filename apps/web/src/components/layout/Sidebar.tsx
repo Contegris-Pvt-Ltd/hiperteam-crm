@@ -22,6 +22,7 @@ import {
   FolderKanban,
   FileText,
   Mail,
+  Zap,
 } from 'lucide-react';
 
 const navigation = [
@@ -38,6 +39,7 @@ const navigation = [
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Approvals', href: '/approvals', icon: ClipboardCheck },
   { name: 'Forms', href: '/forms', icon: FileText },
+  { name: 'Workflows', href: '/workflows', icon: Zap },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
 ];
 

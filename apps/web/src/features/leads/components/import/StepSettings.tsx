@@ -3,10 +3,11 @@ import { leadSettingsApi } from '../../../../api/leads.api';
 import type { Pipeline, LeadStage, LeadPriority } from '../../../../api/leads.api';
 import { teamsApi } from '../../../../api/teams.api';
 import type { TeamLookupItem } from '../../../../api/teams.api';
+import { COUNTRIES } from '../../../../data/countries';
 
 interface ImportSettings {
   duplicateStrategy: 'skip' | 'update' | 'import';
-  assignmentStrategy: 'specific_user' | 'routing_rules' | 'unassigned';
+  assignmentStrategy: 'specific_user' | 'unassigned';
   ownerId: string;
   countryCode: string;
   pipelineId: string;
@@ -21,33 +22,6 @@ interface StepSettingsProps {
   settings: ImportSettings;
   onSettingsChange: (settings: ImportSettings) => void;
 }
-
-const COUNTRY_CODES = [
-  { code: 'PK', name: 'Pakistan', dial: '+92' },
-  { code: 'US', name: 'United States', dial: '+1' },
-  { code: 'GB', name: 'United Kingdom', dial: '+44' },
-  { code: 'AE', name: 'UAE', dial: '+971' },
-  { code: 'SA', name: 'Saudi Arabia', dial: '+966' },
-  { code: 'IN', name: 'India', dial: '+91' },
-  { code: 'CA', name: 'Canada', dial: '+1' },
-  { code: 'AU', name: 'Australia', dial: '+61' },
-  { code: 'DE', name: 'Germany', dial: '+49' },
-  { code: 'FR', name: 'France', dial: '+33' },
-  { code: 'MY', name: 'Malaysia', dial: '+60' },
-  { code: 'SG', name: 'Singapore', dial: '+65' },
-  { code: 'QA', name: 'Qatar', dial: '+974' },
-  { code: 'KW', name: 'Kuwait', dial: '+965' },
-  { code: 'BH', name: 'Bahrain', dial: '+973' },
-  { code: 'OM', name: 'Oman', dial: '+968' },
-  { code: 'EG', name: 'Egypt', dial: '+20' },
-  { code: 'TR', name: 'Turkey', dial: '+90' },
-  { code: 'NG', name: 'Nigeria', dial: '+234' },
-  { code: 'ZA', name: 'South Africa', dial: '+27' },
-  { code: 'BD', name: 'Bangladesh', dial: '+880' },
-  { code: 'PH', name: 'Philippines', dial: '+63' },
-  { code: 'CN', name: 'China', dial: '+86' },
-  { code: 'JP', name: 'Japan', dial: '+81' },
-];
 
 export default function StepSettings({ settings, onSettingsChange }: StepSettingsProps) {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
@@ -172,7 +146,6 @@ export default function StepSettings({ settings, onSettingsChange }: StepSetting
         <div className="space-y-2">
           {[
             { value: 'specific_user', label: 'Assign to specific user', desc: 'All imported leads will be assigned to the selected user' },
-            { value: 'routing_rules', label: 'Use routing rules', desc: 'Apply existing lead routing rules for automatic assignment' },
             { value: 'unassigned', label: 'Leave unassigned', desc: 'Import leads without an owner' },
           ].map(opt => (
             <label key={opt.value} className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer">
@@ -215,8 +188,8 @@ export default function StepSettings({ settings, onSettingsChange }: StepSetting
           onChange={e => update('countryCode', e.target.value)}
           className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
         >
-          {COUNTRY_CODES.map(c => (
-            <option key={c.code} value={c.code}>{c.name} ({c.dial})</option>
+          {COUNTRIES.map(c => (
+            <option key={c.code} value={c.code}>{c.name} ({c.dialCode})</option>
           ))}
         </select>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">

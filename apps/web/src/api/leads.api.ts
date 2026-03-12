@@ -663,24 +663,6 @@ export const leadSettingsApi = {
     return data;
   },
 
-  // Routing
-  getRoutingRules: async () => {
-    const { data } = await api.get('/lead-settings/routing');
-    return data;
-  },
-  createRoutingRule: async (ruleData: any) => {
-    const { data } = await api.post('/lead-settings/routing', ruleData);
-    return data;
-  },
-  updateRoutingRule: async (id: string, ruleData: any) => {
-    const { data } = await api.put(`/lead-settings/routing/${id}`, ruleData);
-    return data;
-  },
-  deleteRoutingRule: async (id: string) => {
-    const { data } = await api.delete(`/lead-settings/routing/${id}`);
-    return data;
-  },
-
   // Qualification
   getQualificationFrameworks: async () => {
     const { data } = await api.get('/lead-settings/qualification');

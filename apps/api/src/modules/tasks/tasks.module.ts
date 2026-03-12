@@ -8,9 +8,10 @@ import { TasksService } from './tasks.service';
 import { SharedModule } from '../shared/shared.module';
 import { NotificationModule } from '../notifications/notification.module';
 import { CalendarSyncModule } from '../calendar-sync/calendar-sync.module';
+import { WorkflowsModule } from '../workflows/workflows.module';
 
 @Module({
-  imports: [SharedModule, NotificationModule, CalendarSyncModule],
+  imports: [SharedModule, NotificationModule, CalendarSyncModule, WorkflowsModule],
   controllers: [TasksController],
   providers: [TasksService],
   exports: [TasksService],

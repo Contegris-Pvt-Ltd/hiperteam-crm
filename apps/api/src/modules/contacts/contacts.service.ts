@@ -8,6 +8,7 @@ import { DataAccessService } from '../shared/data-access.service';
 import { ProfileCompletionService } from '../admin/profile-completion.service';
 import { CustomFieldsService } from '../admin/custom-fields.service';
 import { FieldValidationService } from '../shared/field-validation.service';
+import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
 
 @Injectable()
 export class ContactsService {
@@ -26,6 +27,7 @@ export class ContactsService {
     private profileCompletionService: ProfileCompletionService,
     private customFieldsService: CustomFieldsService,
     private fieldValidationService: FieldValidationService,
+    private workflowRunner: WorkflowRunnerService,
   ) {}
 
   async create(schemaName: string, userId: string, dto: CreateContactDto) {
@@ -121,6 +123,7 @@ export class ContactsService {
       performedBy: userId,
     });
 
+    this.workflowRunner.trigger(schemaName, 'contacts', 'contact_created', contact.id, formatted).catch(() => {});
     return formatted;
   }
 
@@ -269,6 +272,7 @@ export class ContactsService {
 
   async update(schemaName: string, id: string, userId: string, dto: UpdateContactDto) {
     const existing = await this.findOneRaw(schemaName, id);
+    const prevOwnerId = existing.ownerId;
     const country = dto.country || (existing.country as string) || 'PK';
 
     // Format phones in the phones array if provided
@@ -383,6 +387,10 @@ export class ContactsService {
       });
     }
 
+    this.workflowRunner.trigger(schemaName, 'contacts', 'contact_updated', id, formatted).catch(() => {});
+    if (formatted.ownerId && formatted.ownerId !== prevOwnerId) {
+      this.workflowRunner.trigger(schemaName, 'contacts', 'contact_assigned', id, formatted).catch(() => {});
+    }
     return formatted;
   }
 

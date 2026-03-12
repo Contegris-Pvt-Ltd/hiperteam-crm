@@ -26,7 +26,7 @@ export interface StartImportData {
   fileId: string;
   columnMapping: Record<string, string>;
   duplicateStrategy: 'skip' | 'update' | 'import';
-  assignmentStrategy: 'specific_user' | 'routing_rules' | 'unassigned';
+  assignmentStrategy: 'specific_user' | 'unassigned';
   ownerId?: string;
   countryCode: string;
   pipelineId?: string;

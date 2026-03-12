@@ -13,8 +13,10 @@ import { ActivityService } from '../shared/activity.service';
 import { DocumentsService } from '../shared/documents.service';
 import { NotesService } from '../shared/notes.service';
 import { SlaService } from './sla.service';
+import { WorkflowsModule } from '../workflows/workflows.module';
 
 @Module({
+  imports: [WorkflowsModule],
   controllers: [LeadsController, LeadSettingsController],
   providers: [
     LeadsService,

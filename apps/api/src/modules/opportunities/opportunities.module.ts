@@ -20,9 +20,10 @@ import { InvoicesService } from './invoices.service';
 import { InvoicesController, InvoicesPublicController } from './invoices.controller';
 import { XeroService } from './xero.service';
 import { EmailModule } from '../email/email.module';
+import { WorkflowsModule } from '../workflows/workflows.module';
 
 @Module({
-  imports: [EmailModule],
+  imports: [EmailModule, WorkflowsModule],
   controllers: [OpportunitiesController, OpportunitySettingsController, ProposalsController, ProposalsPublicController, ContractsController, ContractsPublicController, InvoicesController, InvoicesPublicController],
   providers: [OpportunitiesService, OpportunitySettingsService, RecordTeamService, ProposalsService, ContractsService, DocuSignService, InvoicesService, XeroService],
   exports: [OpportunitiesService, OpportunitySettingsService, ProposalsService, ContractsService, DocuSignService, InvoicesService, XeroService],

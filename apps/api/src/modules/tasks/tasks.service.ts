@@ -8,6 +8,7 @@ import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
 import { NotificationService } from '../notifications/notification.service';
 import { CalendarSyncService } from '../calendar-sync/calendar-sync.service';
+import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
 
 // ============================================================
 // TYPES
@@ -79,6 +80,7 @@ export class TasksService {
     private activityService: ActivityService,
     private notificationService: NotificationService,
     private calendarSyncService: CalendarSyncService,
+    private workflowRunner: WorkflowRunnerService,
   ) {}
 
   // ============================================================
@@ -248,6 +250,7 @@ export class TasksService {
         .catch(err => this.logger.error(`Calendar sync failed (create): ${err.message}`));
     }
 
+    this.workflowRunner.trigger(schemaName, 'tasks', 'task_created', task.id, formatted).catch(() => {});
     return formatted;
   }
 
@@ -552,6 +555,9 @@ export class TasksService {
   // ============================================================
   async update(schemaName: string, id: string, userId: string, dto: UpdateTaskDto): Promise<any> {
     const existing = await this.findOne(schemaName, id);
+    const prevOwnerId = existing.ownerId;
+    const prevAssignedTo = existing.assignedTo;
+    const prevStatusId = existing.statusId;
 
     const fieldMap: Record<string, string> = {
       title: 'title',
@@ -732,6 +738,13 @@ export class TasksService {
         .catch(err => this.logger.error(`Calendar sync failed (update): ${err.message}`));
     }
 
+    this.workflowRunner.trigger(schemaName, 'tasks', 'task_updated', id, updated).catch(() => {});
+    if ((updated.ownerId && updated.ownerId !== prevOwnerId) || (updated.assignedTo && updated.assignedTo !== prevAssignedTo)) {
+      this.workflowRunner.trigger(schemaName, 'tasks', 'task_assigned', id, updated).catch(() => {});
+    }
+    if (updated.statusId && updated.statusId !== prevStatusId && updated.completedAt) {
+      this.workflowRunner.trigger(schemaName, 'tasks', 'task_completed', id, updated).catch(() => {});
+    }
     return updated;
   }
 

@@ -11,6 +11,7 @@ import { DataSource } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { ActivityService } from '../shared/activity.service';
 import { ApprovalService } from '../shared/approval.service';
+import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
 
 // ============================================================
 // TYPES
@@ -26,6 +27,7 @@ export class ProjectsService {
     private readonly dataSource: DataSource,
     private readonly activityService: ActivityService,
     private readonly approvalService: ApprovalService,
+    private readonly workflowRunner: WorkflowRunnerService,
   ) {}
 
   // ============================================================
@@ -715,7 +717,9 @@ export class ProjectsService {
     } catch { /* ignore */ }
 
     // e. Return full project
-    return this.getProjectById(schemaName, project.id);
+    const created = await this.getProjectById(schemaName, project.id);
+    this.workflowRunner.trigger(schemaName, 'projects', 'project_created', project.id, created).catch(() => {});
+    return created;
   }
 
   // ============================================================
@@ -842,10 +846,12 @@ export class ProjectsService {
   ) {
     // Fetch existing for change detection
     const [existingProject] = await this.dataSource.query(
-      `SELECT p.status_id FROM "${schemaName}".projects p
+      `SELECT p.status_id, p.owner_id FROM "${schemaName}".projects p
        WHERE p.id = $1 AND p.deleted_at IS NULL`,
       [projectId],
     );
+    const prevStatusId = existingProject?.status_id;
+    const prevOwnerId = existingProject?.owner_id;
 
     const fieldMap: Record<string, string> = {
       name: 'name',
@@ -922,6 +928,15 @@ export class ProjectsService {
       }
     }
 
+    if (updated) {
+      this.workflowRunner.trigger(schemaName, 'projects', 'project_updated', projectId, updated).catch(() => {});
+      if (updated.ownerId && updated.ownerId !== prevOwnerId) {
+        this.workflowRunner.trigger(schemaName, 'projects', 'project_assigned', projectId, updated).catch(() => {});
+      }
+      if (updated.statusId && updated.statusId !== prevStatusId) {
+        this.workflowRunner.trigger(schemaName, 'projects', 'project_status_changed', projectId, updated).catch(() => {});
+      }
+    }
     return updated || null;
   }
 

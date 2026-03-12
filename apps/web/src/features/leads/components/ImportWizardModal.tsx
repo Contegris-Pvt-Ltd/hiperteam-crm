@@ -37,7 +37,7 @@ export default function ImportWizardModal({ onClose }: ImportWizardModalProps) {
   // Step 3 state
   const [importSettings, setImportSettings] = useState({
     duplicateStrategy: 'skip' as 'skip' | 'update' | 'import',
-    assignmentStrategy: 'specific_user' as 'specific_user' | 'routing_rules' | 'unassigned',
+    assignmentStrategy: 'specific_user' as 'specific_user' | 'unassigned',
     ownerId: '',
     countryCode: 'PK',
     pipelineId: '',

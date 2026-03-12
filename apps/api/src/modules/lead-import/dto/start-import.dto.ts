@@ -22,8 +22,8 @@ export class StartImportDto {
   duplicateStrategy: 'skip' | 'update' | 'import';
 
   @ApiProperty({ description: 'Assignment strategy' })
-  @IsIn(['specific_user', 'routing_rules', 'unassigned'])
-  assignmentStrategy: 'specific_user' | 'routing_rules' | 'unassigned';
+  @IsIn(['specific_user', 'unassigned'])
+  assignmentStrategy: 'specific_user' | 'unassigned';
 
   @ApiPropertyOptional({ description: 'Owner user ID when assignmentStrategy is specific_user' })
   @IsUUID()

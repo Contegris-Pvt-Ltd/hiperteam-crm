@@ -32,6 +32,7 @@ import { ProjectsModule } from './modules/projects/projects.module';
 import { FormsModule } from './modules/forms/forms.module';
 import { EmailInboxModule } from './modules/email-inbox/email-inbox.module';
 import { GeneralSettingsModule } from './modules/general-settings/general-settings.module';
+import { WorkflowsModule } from './modules/workflows/workflows.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { GeneralSettingsModule } from './modules/general-settings/general-settin
     TargetsModule,
     ReportsModule,
     LeadImportModule,
+    WorkflowsModule,
     ProjectsModule,
     FormsModule,
     EmailInboxModule,

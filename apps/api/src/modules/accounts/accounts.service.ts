@@ -10,6 +10,7 @@ import { ActivityService } from '../shared/activity.service';
 import { ProfileCompletionService } from '../admin/profile-completion.service';
 import { CustomFieldsService } from '../admin/custom-fields.service';
 import { DataAccessService } from '../shared/data-access.service';
+import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
 
 @Injectable()
 export class AccountsService {
@@ -27,6 +28,7 @@ export class AccountsService {
     private dataAccessService: DataAccessService,
     private profileCompletionService: ProfileCompletionService,
     private customFieldsService: CustomFieldsService,
+    private workflowRunner: WorkflowRunnerService,
   ) {}
 
   async create(schemaName: string, userId: string, dto: CreateAccountDto) {
@@ -97,6 +99,7 @@ export class AccountsService {
       performedBy: userId,
     });
 
+    this.workflowRunner.trigger(schemaName, 'accounts', 'account_created', account.id, formatted).catch(() => {});
     return formatted;
   }
 
@@ -263,6 +266,7 @@ export class AccountsService {
 
   async update(schemaName: string, id: string, userId: string, dto: UpdateAccountDto) {
     const existing = await this.findOneRaw(schemaName, id);
+    const prevOwnerId = existing.ownerId;
 
     const updates: string[] = [];
     const params: unknown[] = [];
@@ -371,6 +375,10 @@ export class AccountsService {
       });
     }
 
+    this.workflowRunner.trigger(schemaName, 'accounts', 'account_updated', id, formatted).catch(() => {});
+    if (formatted.ownerId && formatted.ownerId !== prevOwnerId) {
+      this.workflowRunner.trigger(schemaName, 'accounts', 'account_assigned', id, formatted).catch(() => {});
+    }
     return formatted;
   }
 

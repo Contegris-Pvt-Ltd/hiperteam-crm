@@ -15,6 +15,7 @@ import { DataSource } from 'typeorm';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
 import { ApprovalService } from '../shared/approval.service';
+import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
 import {
   CreateOpportunityDto,
   UpdateOpportunityDto,
@@ -41,6 +42,7 @@ export class OpportunitiesService {
     private auditService: AuditService,
     private activityService: ActivityService,
     private approvalService: ApprovalService,
+    private workflowRunner: WorkflowRunnerService,
   ) {}
 
   // ============================================================
@@ -151,7 +153,9 @@ export class OpportunitiesService {
       performedBy: userId,
     });
 
-    return this.findOne(schemaName, opp.id);
+    const created = await this.findOne(schemaName, opp.id);
+    this.workflowRunner.trigger(schemaName, 'opportunities', 'opportunity_created', opp.id, created).catch(() => {});
+    return created;
   }
 
   // ============================================================
@@ -540,6 +544,8 @@ export class OpportunitiesService {
   // ============================================================
   async update(schemaName: string, id: string, userId: string, dto: UpdateOpportunityDto) {
     const existing = await this.findOneRaw(schemaName, id);
+    const prevOwnerId = existing.ownerId;
+    const prevStageId = existing.stageId;
 
     const fieldMap: Record<string, string> = {
       name: 'name',
@@ -616,6 +622,13 @@ export class OpportunitiesService {
       });
     }
 
+    this.workflowRunner.trigger(schemaName, 'opportunities', 'opportunity_updated', id, updated).catch(() => {});
+    if (updated.ownerId && updated.ownerId !== prevOwnerId) {
+      this.workflowRunner.trigger(schemaName, 'opportunities', 'opportunity_assigned', id, updated).catch(() => {});
+    }
+    if (updated.stageId && updated.stageId !== prevStageId) {
+      this.workflowRunner.trigger(schemaName, 'opportunities', 'opportunity_stage_changed', id, updated).catch(() => {});
+    }
     return updated;
   }
 
@@ -732,7 +745,9 @@ export class OpportunitiesService {
       performedBy: userId,
     });
 
-    return this.findOne(schemaName, id);
+    const stageChanged = await this.findOne(schemaName, id);
+    this.workflowRunner.trigger(schemaName, 'opportunities', 'opportunity_stage_changed', id, stageChanged).catch(() => {});
+    return stageChanged;
   }
 
   // ============================================================
@@ -812,7 +827,9 @@ export class OpportunitiesService {
       performedBy: userId,
     });
 
-    return this.findOne(schemaName, id);
+    const won = await this.findOne(schemaName, id);
+    this.workflowRunner.trigger(schemaName, 'opportunities', 'opportunity_won', id, won).catch(() => {});
+    return won;
   }
 
   // ============================================================
@@ -878,7 +895,9 @@ export class OpportunitiesService {
       performedBy: userId,
     });
 
-    return this.findOne(schemaName, id);
+    const lost = await this.findOne(schemaName, id);
+    this.workflowRunner.trigger(schemaName, 'opportunities', 'opportunity_lost', id, lost).catch(() => {});
+    return lost;
   }
 
   // ============================================================

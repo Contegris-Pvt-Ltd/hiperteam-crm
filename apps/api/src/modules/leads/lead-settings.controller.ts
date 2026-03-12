@@ -290,42 +290,6 @@ export class LeadSettingsController {
   }
 
   // ============================================================
-  // ROUTING RULES (unchanged)
-  // ============================================================
-
-  @Get('routing')
-  @RequirePermission('leads', 'view')
-  @ApiOperation({ summary: 'Get all routing rules' })
-  async getRoutingRules(@Request() req: { user: JwtPayload }) {
-    return this.settingsService.getRoutingRules(req.user.tenantSchema);
-  }
-
-  @Post('routing')
-  @AdminOnly()
-  @ApiOperation({ summary: 'Create a routing rule' })
-  async createRoutingRule(@Request() req: { user: JwtPayload }, @Body() body: any) {
-    return this.settingsService.createRoutingRule(req.user.tenantSchema, body);
-  }
-
-  @Put('routing/:id')
-  @AdminOnly()
-  @ApiOperation({ summary: 'Update a routing rule' })
-  async updateRoutingRule(
-    @Request() req: { user: JwtPayload },
-    @Param('id') id: string,
-    @Body() body: any,
-  ) {
-    return this.settingsService.updateRoutingRule(req.user.tenantSchema, id, body);
-  }
-
-  @Delete('routing/:id')
-  @AdminOnly()
-  @ApiOperation({ summary: 'Delete a routing rule' })
-  async deleteRoutingRule(@Request() req: { user: JwtPayload }, @Param('id') id: string) {
-    return this.settingsService.deleteRoutingRule(req.user.tenantSchema, id);
-  }
-
-  // ============================================================
   // QUALIFICATION FRAMEWORKS (unchanged)
   // ============================================================
 

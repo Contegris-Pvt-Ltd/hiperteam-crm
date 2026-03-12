@@ -2802,6 +2802,104 @@ async function runTenantMigrations() {
                 ADD COLUMN IF NOT EXISTS phone_country_code  VARCHAR(2) DEFAULT NULL;
             `,
           },
+          {
+            name: '049_workflow_engine',
+            sql: `
+              -- Drop old routing table (no customers, safe to drop)
+              DROP TABLE IF EXISTS "${schema}".lead_routing_rules;
+
+              -- ── WORKFLOWS ─────────────────────────────────────────────
+              CREATE TABLE IF NOT EXISTS "${schema}".workflows (
+                id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name            VARCHAR(255) NOT NULL,
+                description     TEXT,
+                trigger_module  VARCHAR(50)  NOT NULL,
+                trigger_type    VARCHAR(100) NOT NULL,
+                trigger_filters JSONB        NOT NULL DEFAULT '{"match":"all","items":[]}',
+                is_active       BOOLEAN      NOT NULL DEFAULT true,
+                version         INT          NOT NULL DEFAULT 1,
+                created_by      UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_workflows_module
+                ON "${schema}".workflows(trigger_module);
+              CREATE INDEX IF NOT EXISTS idx_workflows_active
+                ON "${schema}".workflows(is_active);
+              CREATE INDEX IF NOT EXISTS idx_workflows_trigger
+                ON "${schema}".workflows(trigger_module, trigger_type);
+
+              -- ── WORKFLOW ACTIONS ──────────────────────────────────────
+              CREATE TABLE IF NOT EXISTS "${schema}".workflow_actions (
+                id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                workflow_id      UUID NOT NULL
+                                   REFERENCES "${schema}".workflows(id) ON DELETE CASCADE,
+                action_type      VARCHAR(50) NOT NULL,
+                config           JSONB       NOT NULL DEFAULT '{}',
+                sort_order       INT         NOT NULL DEFAULT 0,
+                parent_action_id UUID REFERENCES "${schema}".workflow_actions(id) ON DELETE CASCADE,
+                branch           VARCHAR(10) DEFAULT NULL,
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_workflow_actions_workflow
+                ON "${schema}".workflow_actions(workflow_id);
+              CREATE INDEX IF NOT EXISTS idx_workflow_actions_parent
+                ON "${schema}".workflow_actions(parent_action_id);
+              CREATE INDEX IF NOT EXISTS idx_workflow_actions_order
+                ON "${schema}".workflow_actions(workflow_id, sort_order);
+
+              -- ── WORKFLOW RUNS ─────────────────────────────────────────
+              CREATE TABLE IF NOT EXISTS "${schema}".workflow_runs (
+                id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                workflow_id       UUID NOT NULL
+                                    REFERENCES "${schema}".workflows(id) ON DELETE CASCADE,
+                trigger_module    VARCHAR(50)  NOT NULL,
+                trigger_type      VARCHAR(100) NOT NULL,
+                trigger_entity_id UUID,
+                trigger_payload   JSONB        NOT NULL DEFAULT '{}',
+                status            VARCHAR(20)  NOT NULL DEFAULT 'running',
+                error             TEXT,
+                started_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                finished_at       TIMESTAMPTZ
+              );
+              CREATE INDEX IF NOT EXISTS idx_workflow_runs_workflow
+                ON "${schema}".workflow_runs(workflow_id);
+              CREATE INDEX IF NOT EXISTS idx_workflow_runs_entity
+                ON "${schema}".workflow_runs(trigger_entity_id);
+              CREATE INDEX IF NOT EXISTS idx_workflow_runs_status
+                ON "${schema}".workflow_runs(status);
+              CREATE INDEX IF NOT EXISTS idx_workflow_runs_started
+                ON "${schema}".workflow_runs(started_at DESC);
+
+              -- ── WORKFLOW RUN STEPS ────────────────────────────────────
+              CREATE TABLE IF NOT EXISTS "${schema}".workflow_run_steps (
+                id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                run_id      UUID NOT NULL
+                              REFERENCES "${schema}".workflow_runs(id) ON DELETE CASCADE,
+                action_id   UUID REFERENCES "${schema}".workflow_actions(id) ON DELETE SET NULL,
+                action_type VARCHAR(50)  NOT NULL,
+                status      VARCHAR(20)  NOT NULL DEFAULT 'pending',
+                result      JSONB,
+                error       TEXT,
+                started_at  TIMESTAMPTZ,
+                finished_at TIMESTAMPTZ
+              );
+              CREATE INDEX IF NOT EXISTS idx_workflow_run_steps_run
+                ON "${schema}".workflow_run_steps(run_id);
+              CREATE INDEX IF NOT EXISTS idx_workflow_run_steps_action
+                ON "${schema}".workflow_run_steps(action_id);
+
+              -- ── RBAC: add automation permission to roles ──────────────
+              UPDATE "${schema}".roles
+              SET permissions = permissions || '{"automation":{"view":true,"create":true,"edit":true,"delete":true}}'::jsonb
+              WHERE name = 'admin';
+
+              UPDATE "${schema}".roles
+              SET permissions = permissions || '{"automation":{"view":true,"create":false,"edit":false,"delete":false}}'::jsonb
+              WHERE name IN ('manager', 'user');
+            `,
+          },
         ];
 
         // ── Execute pending migrations ────────────────────────────

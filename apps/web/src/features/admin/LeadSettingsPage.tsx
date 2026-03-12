@@ -50,18 +50,6 @@ interface ScoringRule {
   sortOrder: number;
 }
 
-interface RoutingRule {
-  id: string;
-  name: string;
-  description?: string;
-  priority: number;
-  conditions: any[];
-  assignmentType: string;
-  assignedTo: any[];
-  roundRobinIndex: number;
-  isActive: boolean;
-}
-
 interface QualificationFramework {
   id: string;
   name: string;
@@ -117,7 +105,6 @@ const TABS = [
   { id: 'stage-ownership', label: 'Stage Ownership', icon: Users },
   { id: 'priorities', label: 'Priorities', icon: Flame },
   { id: 'scoring', label: 'Scoring', icon: Zap },
-  { id: 'routing', label: 'Routing', icon: Route },
   { id: 'qualification', label: 'Qualification', icon: Award },
   { id: 'sources', label: 'Sources & Reasons', icon: Globe },
   { id: 'sla', label: 'SLA', icon: Timer },
@@ -152,7 +139,6 @@ export function LeadSettingsPage() {
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
   const [priorities, setPriorities] = useState<LeadPriority[]>([]);
   const [scoringTemplates, setScoringTemplates] = useState<ScoringTemplate[]>([]);
-  const [routingRules, setRoutingRules] = useState<RoutingRule[]>([]);
   const [qualificationFrameworks, setQualificationFrameworks] = useState<QualificationFramework[]>([]);
   const [disqualificationReasons, setDisqualificationReasons] = useState<DisqualificationReason[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
@@ -205,9 +191,6 @@ export function LeadSettingsPage() {
         case 'scoring':
           setScoringTemplates(await leadSettingsApi.getScoringTemplates());
           break;
-        case 'routing':
-          setRoutingRules(await leadSettingsApi.getRoutingRules());
-          break;
         case 'qualification':
           setQualificationFrameworks(await leadSettingsApi.getQualificationFrameworks());
           break;
@@ -251,7 +234,7 @@ export function LeadSettingsPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Lead Settings</h1>
-            <p className="text-gray-600 dark:text-slate-400">Configure stages, scoring, routing, and more</p>
+            <p className="text-gray-600 dark:text-slate-400">Configure stages, scoring, qualification, and more</p>
           </div>
         </div>
       </div>
@@ -319,9 +302,6 @@ export function LeadSettingsPage() {
           )}
           {activeTab === 'scoring' && (
             <ScoringTab templates={scoringTemplates} onReload={() => loadTabData('scoring')} />
-          )}
-          {activeTab === 'routing' && (
-            <RoutingTab rules={routingRules} onReload={() => loadTabData('routing')} />
           )}
           {activeTab === 'qualification' && (
             <QualificationTab frameworks={qualificationFrameworks} onReload={() => loadTabData('qualification')} />
@@ -1580,146 +1560,6 @@ function ScoringTab({ templates, onReload }: { templates: ScoringTemplate[]; onR
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-// ============================================================
-// TAB 4: ROUTING
-// ============================================================
-
-function RoutingTab({ rules, onReload }: { rules: RoutingRule[]; onReload: () => void }) {
-  const [creating, setCreating] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    name: '', description: '', assignmentType: 'round_robin', assignedTo: '',
-  });
-
-  const handleCreate = async () => {
-    setSaving(true);
-    try {
-      await leadSettingsApi.createRoutingRule({
-        name: form.name,
-        description: form.description,
-        assignmentType: form.assignmentType,
-        conditions: [],
-        assignedTo: form.assignedTo ? form.assignedTo.split(',').map(s => s.trim()) : [],
-      });
-      setCreating(false);
-      setForm({ name: '', description: '', assignmentType: 'round_robin', assignedTo: '' });
-      onReload();
-    } catch (err) {
-      console.error('Failed to create routing rule:', err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleToggle = async (id: string, isActive: boolean) => {
-    try {
-      await leadSettingsApi.updateRoutingRule(id, { isActive: !isActive });
-      onReload();
-    } catch (err) {
-      console.error('Failed to toggle routing rule:', err);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this routing rule?')) return;
-    try {
-      await leadSettingsApi.deleteRoutingRule(id);
-      onReload();
-    } catch (err) {
-      console.error('Failed to delete routing rule:', err);
-    }
-  };
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Lead Routing</h2>
-          <p className="text-sm text-gray-500 dark:text-slate-400">Auto-assign new leads to the right owner based on rules</p>
-        </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-        >
-          <Plus className="w-4 h-4" /> Add Rule
-        </button>
-      </div>
-
-      {creating && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Rule Name</label>
-              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Enterprise leads → Team A"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm" autoFocus />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Assignment Type</label>
-              <select value={form.assignmentType} onChange={(e) => setForm({ ...form, assignmentType: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm">
-                <option value="round_robin">Round Robin</option>
-                <option value="specific_user">Specific User</option>
-                <option value="team_lead">Team Lead</option>
-                <option value="weighted">Weighted</option>
-              </select>
-            </div>
-          </div>
-          <div className="mb-3">
-            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Description (optional)</label>
-            <input type="text" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm" />
-          </div>
-          <div className="flex gap-2">
-            <button onClick={handleCreate} disabled={!form.name.trim() || saving}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Create
-            </button>
-            <button onClick={() => setCreating(false)} className="px-4 py-2 text-gray-600 dark:text-slate-400 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-slate-800">
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-3">
-        {rules.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-8 text-center text-sm text-gray-400 dark:text-slate-500">
-            No routing rules configured. New leads will be assigned to the creator.
-          </div>
-        ) : (
-          rules.map((rule, idx) => (
-            <div key={rule.id} className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-3">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-mono text-gray-400 dark:text-slate-500 w-6">#{idx + 1}</span>
-                <button onClick={() => handleToggle(rule.id, rule.isActive)}>
-                  {rule.isActive
-                    ? <ToggleRight className="w-6 h-6 text-green-500" />
-                    : <ToggleLeft className="w-6 h-6 text-gray-400" />
-                  }
-                </button>
-                <div className="flex-1">
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">{rule.name}</span>
-                  {rule.description && <p className="text-xs text-gray-400 dark:text-slate-500">{rule.description}</p>}
-                </div>
-                <span className="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400">
-                  {rule.assignmentType.replace(/_/g, ' ')}
-                </span>
-                <span className="text-xs text-gray-400 dark:text-slate-500">
-                  {rule.conditions.length} condition{rule.conditions.length !== 1 ? 's' : ''}
-                </span>
-                <button onClick={() => handleDelete(rule.id)} className="p-1 text-gray-400 hover:text-red-600">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
     </div>
   );
 }
