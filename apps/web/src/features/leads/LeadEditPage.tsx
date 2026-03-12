@@ -26,6 +26,11 @@ import { moduleSettingsApi } from '../../api/module-settings.api';
 import type { FieldValidationConfig } from '../../api/module-settings.api';
 import { validateFields } from '../../utils/field-validation';
 import { LeadProductsTab } from './components/LeadProductsTab';
+import { PhoneInput } from '../../components/shared/PhoneInput';
+import { CountrySelect } from '../../components/shared/CountrySelect';
+import { CitySelect } from '../../components/shared/CitySelect';
+import { useGeneralSettings } from '../../hooks/useGeneralSettings';
+import { COUNTRIES, getCountryCodeByName } from '../../data/countries';
 
 type TabType = 'basic' | 'lead-details' | 'products' | 'qualification' | 'address' | 'communication' | 'other' | string;
 
@@ -85,6 +90,10 @@ export function LeadEditPage() {
   // Page Designer hook
   const { useCustomLayout: _useCustomLayout, loading: _layoutLoading } = useModuleLayout('leads', 'edit');
 
+  // General settings (base country for phone input)
+  const { settings: tenantSettings } = useGeneralSettings();
+  const baseCountry = tenantSettings.baseCountry ?? 'US';
+
   // Form data
   const [formData, setFormData] = useState<CreateLeadData>({
     firstName: '',
@@ -101,6 +110,9 @@ export function LeadEditPage() {
     state: '',
     postalCode: '',
     country: '',
+    countryCode: '',
+    phoneCountryCode: '',
+    mobileCountryCode: '',
     industry: '',
     source: '',
     stageId: '',
@@ -115,7 +127,7 @@ export function LeadEditPage() {
     doNotCall: false,
     ownerId: '',
     teamId: '',
-  });
+  } as any);
 
   const [tagInput, setTagInput] = useState('');
 
@@ -210,6 +222,9 @@ export function LeadEditPage() {
         state: data.state || '',
         postalCode: data.postalCode || '',
         country: data.country || '',
+        countryCode: data.countryCode || getCountryCodeByName(data.country) || '',
+        phoneCountryCode: data.phoneCountryCode || '',
+        mobileCountryCode: data.mobileCountryCode || '',
         industry: data.industry || '',
         source: data.source || '',
         stageId: data.stageId || '',
@@ -225,7 +240,7 @@ export function LeadEditPage() {
         ownerId: data.ownerId || '',
         teamId: data.teamId || '',
         socialProfiles: data.socialProfiles || {},
-      });
+      } as any);
 
       // Set custom field values from lead data
       setCustomFieldValues(data.customFields || {});
@@ -445,8 +460,14 @@ export function LeadEditPage() {
     setSaving(true);
     setError('');
     try {
-      // Strip empty strings from UUID fields so backend validation passes
       const dataToSave: Record<string, any> = { ...formData };
+
+      // Strip empty strings so backend validators (e.g. @IsEmail) don't reject ''
+      Object.keys(dataToSave).forEach(key => {
+        if (dataToSave[key] === '') delete dataToSave[key];
+      });
+
+      // Strip falsy UUID fields
       ['ownerId', 'teamId', 'priorityId', 'qualificationFrameworkId'].forEach(key => {
         if (!dataToSave[key]) delete dataToSave[key];
       });
@@ -491,7 +512,7 @@ export function LeadEditPage() {
           const isCollapsed = collapsedGroups.has(group.id);
 
           return (
-            <div key={group.id} className="border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
+            <div key={group.id} className="border border-gray-200 dark:border-slate-700 rounded-xl">
               <button
                 onClick={() => toggleGroup(group.id)}
                 className="w-full flex items-center gap-2 px-4 py-2.5 bg-gray-50 dark:bg-slate-800/50 hover:bg-gray-100 dark:hover:bg-slate-800 text-left transition-colors"
@@ -666,8 +687,14 @@ export function LeadEditPage() {
                 <input type="email" value={formData.email || ''} onChange={(e) => handleChange('email', e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Phone</label>
-                <input type="text" value={formData.phone || ''} onChange={(e) => handleChange('phone', e.target.value)} className={inputClass} />
+                <PhoneInput
+                  label="Phone"
+                  value={formData.phone || ''}
+                  defaultCountry={(formData as any).phoneCountryCode || baseCountry}
+                  onChange={(e164, countryCode) => {
+                    setFormData(prev => ({ ...prev, phone: e164, phoneCountryCode: countryCode } as any));
+                  }}
+                />
               </div>
               <div>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Company</label>
@@ -682,8 +709,14 @@ export function LeadEditPage() {
                 <input type="text" value={formData.website || ''} onChange={(e) => handleChange('website', e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Mobile</label>
-                <input type="text" value={formData.mobile || ''} onChange={(e) => handleChange('mobile', e.target.value)} className={inputClass} />
+                <PhoneInput
+                  label="Mobile"
+                  value={formData.mobile || ''}
+                  defaultCountry={(formData as any).mobileCountryCode || baseCountry}
+                  onChange={(e164, countryCode) => {
+                    setFormData(prev => ({ ...prev, mobile: e164, mobileCountryCode: countryCode } as any));
+                  }}
+                />
               </div>
             </div>
 
@@ -873,30 +906,46 @@ export function LeadEditPage() {
         {activeTab === 'address' && (
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4">Address</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
+            <div className="space-y-4">
+              <div>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Address Line 1</label>
                 <input type="text" value={formData.addressLine1 || ''} onChange={(e) => handleChange('addressLine1', e.target.value)} className={inputClass} />
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Address Line 2</label>
                 <input type="text" value={formData.addressLine2 || ''} onChange={(e) => handleChange('addressLine2', e.target.value)} className={inputClass} />
               </div>
-              <div>
-                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">City</label>
-                <input type="text" value={formData.city || ''} onChange={(e) => handleChange('city', e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">State / Province</label>
-                <input type="text" value={formData.state || ''} onChange={(e) => handleChange('state', e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Postal Code</label>
-                <input type="text" value={formData.postalCode || ''} onChange={(e) => handleChange('postalCode', e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Country</label>
-                <input type="text" value={formData.country || ''} onChange={(e) => handleChange('country', e.target.value)} className={inputClass} />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Country</label>
+                  <CountrySelect
+                    value={(formData as any).countryCode ?? ''}
+                    onChange={code => setFormData(prev => ({
+                      ...prev,
+                      countryCode: code,
+                      country: COUNTRIES.find(c => c.code === code)?.name ?? code,
+                      city: '',
+                    } as any))}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">City</label>
+                  <CitySelect
+                    countryCode={(formData as any).countryCode ?? ''}
+                    value={formData.city || ''}
+                    onChange={city => setFormData(prev => ({ ...prev, city }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">State / Province</label>
+                  <input type="text" value={formData.state || ''} onChange={(e) => handleChange('state', e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-gray-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Postal Code</label>
+                  <input type="text" value={formData.postalCode || ''} onChange={(e) => handleChange('postalCode', e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-gray-900 dark:text-white" />
+                </div>
               </div>
             </div>
 

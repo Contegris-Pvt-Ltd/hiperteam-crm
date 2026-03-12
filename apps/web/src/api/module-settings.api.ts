@@ -10,6 +10,7 @@ export interface ValidationRule {
   label: string;
   message: string;
   isActive: boolean;
+  appliesTo?: 'business' | 'individual'; // Accounts only: restrict rule to a classification (omit = all)
 }
 
 export interface FieldValidationConfig {

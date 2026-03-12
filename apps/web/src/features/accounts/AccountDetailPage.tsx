@@ -534,14 +534,14 @@ export function AccountDetailPage() {
                 <p className="text-lg text-gray-600 dark:text-slate-400">{account.industry}</p>
               )}
               {account.website && (
-                <a 
-                  href={account.website} 
-                  target="_blank" 
+                <a
+                  href={account.website.startsWith('http') ? account.website : `https://${account.website}`}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 mt-1"
                 >
                   <Globe className="w-4 h-4" />
-                  {new URL(account.website).hostname}
+                  {(() => { try { return new URL(account.website.startsWith('http') ? account.website : `https://${account.website}`).hostname; } catch { return account.website; } })()}
                 </a>
               )}
               <div className="flex items-center gap-2 mt-3 flex-wrap">

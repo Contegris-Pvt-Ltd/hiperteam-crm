@@ -162,6 +162,26 @@ export class CreateAccountDto {
   @IsOptional()
   logoUrl?: string;
 
+  // ============ Country Codes ============
+
+  @ApiPropertyOptional({ example: 'PK' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(10)
+  countryCode?: string;
+
+  @ApiPropertyOptional({ example: 'PK' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(10)
+  phoneCountryCode?: string;
+
+  @ApiPropertyOptional({ example: 'PK' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(10)
+  mobileCountryCode?: string;
+
   // ============ Tags, Custom, Source ============
 
   @ApiPropertyOptional({ example: ['enterprise', 'priority'] })
@@ -206,6 +226,9 @@ export class UpdateAccountDto {
   @IsOptional() @IsObject() customFields?: Record<string, unknown>;
   @IsOptional() @IsString() source?: string;
   @IsOptional() @IsUUID() ownerId?: string;
+  @IsOptional() @IsString() @MaxLength(10) countryCode?: string;
+  @IsOptional() @IsString() @MaxLength(10) phoneCountryCode?: string;
+  @IsOptional() @IsString() @MaxLength(10) mobileCountryCode?: string;
 
   // B2B/B2C fields
   @IsOptional() @IsEnum(AccountClassification) accountClassification?: AccountClassification;

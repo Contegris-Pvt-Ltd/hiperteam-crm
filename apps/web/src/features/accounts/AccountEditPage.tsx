@@ -16,7 +16,7 @@
  * - Real-time validation
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, X, Plus, Trash2, ChevronDown, ChevronRight, Building2, User } from 'lucide-react';
 import { accountsApi } from '../../api/accounts.api';
@@ -44,6 +44,12 @@ import { useIndustries } from '../../hooks/useIndustries';
 import { moduleSettingsApi } from '../../api/module-settings.api';
 import type { FieldValidationConfig } from '../../api/module-settings.api';
 import { validateFields } from '../../utils/field-validation';
+import { ACCOUNTS_SYSTEM_FIELDS } from '../../config/field-registry';
+import { CountrySelect } from '../../components/shared/CountrySelect';
+import { CitySelect } from '../../components/shared/CitySelect';
+import { PhoneInput } from '../../components/shared/PhoneInput';
+import { useGeneralSettings } from '../../hooks/useGeneralSettings';
+import { COUNTRIES, getCountryCodeByName } from '../../data/countries';
 
 type TabType = 'basic' | 'contact' | 'address' | 'social' | 'other' | string;
 
@@ -90,7 +96,7 @@ export function AccountEditPage() {
   const [showQuickCreateContact, setShowQuickCreateContact] = useState(false);
 
   const [fieldValidationConfig, setFieldValidationConfig] = useState<FieldValidationConfig>({ rules: [] });
-  
+
   // Validation
   const [validationErrors, setValidationErrors] = useState<{
     name?: string;
@@ -99,6 +105,10 @@ export function AccountEditPage() {
     duplicateEmailIndexes?: Set<number>;
     duplicatePhoneIndexes?: Set<number>;
   }>({});
+
+  // General settings (base country)
+  const { settings: tenantSettings } = useGeneralSettings();
+  const baseCountry = tenantSettings.baseCountry ?? 'US';
 
   // ============ PAGE DESIGNER HOOK ============
   const { } = useModuleLayout('accounts', isNew ? 'create' : 'edit');
@@ -127,6 +137,27 @@ export function AccountEditPage() {
 
   const [tagInput, setTagInput] = useState('');
 
+  // Compute which fields are required based on classification + validation rules
+  const requiredFields = useMemo(() => {
+    const classification = formData.accountClassification === 'individual' ? 'individual' : 'business';
+    const oppositeClassification = classification === 'business' ? 'individual' : 'business';
+    const oppositeFieldKeys = new Set(
+      (ACCOUNTS_SYSTEM_FIELDS || [])
+        .filter(f => f.classification === oppositeClassification)
+        .map(f => f.fieldKey)
+    );
+    const required = new Set<string>();
+    for (const rule of fieldValidationConfig.rules) {
+      if (!rule.isActive) continue;
+      if (rule.appliesTo && rule.appliesTo !== classification) continue;
+      if (!rule.appliesTo && rule.fields.length > 0 && rule.fields.every(f => oppositeFieldKeys.has(f))) continue;
+      if (rule.type === 'required' || rule.type === 'all') {
+        rule.fields.forEach(f => { if (!oppositeFieldKeys.has(f)) required.add(f); });
+      }
+    }
+    return required;
+  }, [fieldValidationConfig, formData.accountClassification]);
+
   // Fetch custom fields, tabs, and groups
   useEffect(() => {
     const fetchCustomConfig = async () => {
@@ -140,7 +171,7 @@ export function AccountEditPage() {
         setCustomTabs(tabsData.filter(t => t.isActive));
         setCustomGroups(groupsData.filter(g => g.isActive));
         
-        moduleSettingsApi.getFieldValidation('contacts')
+        moduleSettingsApi.getFieldValidation('accounts')
           .then(setFieldValidationConfig)
           .catch(err => console.error('Failed to load validation rules:', err));
           
@@ -197,8 +228,9 @@ export function AccountEditPage() {
             state: a.state || '',
             postalCode: a.postalCode || '',
             country: a.country || '',
+            countryCode: a.countryCode || getCountryCodeByName(a.country) || '',
             primary: a.primary || false
-          }))
+          } as any))
         : [];
 
       setFormData({
@@ -314,8 +346,14 @@ export function AccountEditPage() {
   const validateForm = (): boolean => {
     const errors: typeof validationErrors = {};
 
-    if (!formData.name.trim()) {
-      errors.name = 'Account name is required';
+    if (formData.accountClassification === 'individual') {
+      if (!formData.firstName?.trim()) {
+        errors.name = 'First name is required';
+      }
+    } else {
+      if (!formData.name.trim()) {
+        errors.name = 'Account name is required';
+      }
     }
 
     // Check for duplicate emails
@@ -340,7 +378,40 @@ export function AccountEditPage() {
     e.preventDefault();
     setError('');
 
-    const fieldErrors = validateFields(fieldValidationConfig, formData as Record<string, any>, formData.customFields as Record<string, any>);
+    // Strip empty strings so backend validators don't reject ''
+    const validationData: Record<string, any> = { ...formData };
+    Object.keys(validationData).forEach(key => {
+      if (validationData[key] === '') delete validationData[key];
+    });
+
+    // Filter rules by account classification
+    // 1. Skip rules with explicit appliesTo that doesn't match
+    // 2. For rules without appliesTo, also skip if ALL their fields belong to the opposite classification
+    const classification = formData.accountClassification === 'individual' ? 'individual' : 'business';
+    const oppositeClassification = classification === 'business' ? 'individual' : 'business';
+    const oppositeFields = new Set(
+      (ACCOUNTS_SYSTEM_FIELDS || [])
+        .filter(f => f.classification === oppositeClassification)
+        .map(f => f.fieldKey)
+    );
+    const effectiveConfig = {
+      rules: fieldValidationConfig.rules
+        .filter(rule => {
+          // Explicit appliesTo — respect it
+          if (rule.appliesTo) return rule.appliesTo === classification;
+          // No appliesTo — skip if every field in the rule belongs to the opposite classification
+          if (rule.fields.length > 0 && rule.fields.every(f => oppositeFields.has(f))) return false;
+          return true;
+        })
+        .map(rule => ({
+          ...rule,
+          // Also strip individual opposite-classification fields from multi-field rules
+          fields: rule.fields.filter(f => !oppositeFields.has(f)),
+        }))
+        .filter(rule => rule.fields.length > 0),
+    };
+
+    const fieldErrors = validateFields(effectiveConfig, validationData, formData.customFields as Record<string, any>);
     if (fieldErrors.length > 0) {
       setError(fieldErrors.map(e => e.message).join('. '));
       return;
@@ -680,7 +751,7 @@ export function AccountEditPage() {
             const isCollapsed = collapsedGroups.has(group.id);
 
             return (
-              <div key={group.id} className="border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
+              <div key={group.id} className="border border-gray-200 dark:border-slate-700 rounded-xl">
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.id)}
@@ -798,7 +869,7 @@ export function AccountEditPage() {
       )}
 
       <form onSubmit={handleSubmit}>
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800">
           {/* Tab Navigation */}
           <div className="border-b border-gray-100 dark:border-slate-800 px-6">
             <div className="flex gap-1 overflow-x-auto">
@@ -874,49 +945,46 @@ export function AccountEditPage() {
                     type="account"
                     size="lg"
                   />
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      {formData.accountClassification === 'individual' ? (
-                      // Individual: First Name + Last Name
-                      <div className="flex-1 grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                            First Name <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.firstName || ''}
-                            onChange={(e) => handleChange('firstName', e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                            placeholder="First name"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                            Last Name <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.lastName || ''}
-                            onChange={(e) => handleChange('lastName', e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                            placeholder="Last name"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      // Business: Company Name (original)
-                      <div className="flex-1">
+                  {formData.accountClassification === 'individual' ? (
+                    <div className="flex-1 grid grid-cols-2 gap-4">
+                      <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                          Account Name <span className="text-red-500">*</span>
+                          First Name {requiredFields.has('firstName') && <span className="text-red-500">*</span>}
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.firstName || ''}
+                          onChange={(e) => handleChange('firstName', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                          placeholder="First name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                          Last Name {requiredFields.has('lastName') && <span className="text-red-500">*</span>}
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.lastName || ''}
+                          onChange={(e) => handleChange('lastName', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                          placeholder="Last name"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                          Account Name {requiredFields.has('name') && <span className="text-red-500">*</span>}
                         </label>
                         <input
                           type="text"
                           value={formData.name}
                           onChange={(e) => handleChange('name', e.target.value)}
                           className={`w-full px-4 py-2.5 border rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent ${
-                            validationErrors.name 
-                              ? 'border-red-300 dark:border-red-700' 
+                            validationErrors.name
+                              ? 'border-red-300 dark:border-red-700'
                               : 'border-gray-200 dark:border-slate-700'
                           }`}
                           placeholder="Enter company name"
@@ -925,29 +993,26 @@ export function AccountEditPage() {
                           <p className="mt-1 text-sm text-red-500">{validationErrors.name}</p>
                         )}
                       </div>
-                    )}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => handleChange('name', e.target.value)}
-                      className={`w-full px-4 py-2.5 border rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent ${
-                        validationErrors.name 
-                          ? 'border-red-300 dark:border-red-700' 
-                          : 'border-gray-200 dark:border-slate-700'
-                      }`}
-                      placeholder="Enter company name"
-                    />
-                    {validationErrors.name && (
-                      <p className="mt-1 text-sm text-red-500">{validationErrors.name}</p>
-                    )}
-                  </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                          Website Domain {requiredFields.has('website') && <span className="text-red-500">*</span>}
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.website || ''}
+                          onChange={(e) => handleChange('website', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                          placeholder="example.com"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Account Type — always shown, options change by classification */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Account Type</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Account Type {requiredFields.has('accountType') && <span className="text-red-500">*</span>}</label>
                     <select
                       value={formData.accountType}
                       onChange={(e) => handleChange('accountType', e.target.value)}
@@ -963,7 +1028,7 @@ export function AccountEditPage() {
                   {formData.accountClassification !== 'individual' && (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Industry</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Industry {requiredFields.has('industry') && <span className="text-red-500">*</span>}</label>
                         <select
                           value={formData.industry}
                           onChange={(e) => handleChange('industry', e.target.value)}
@@ -976,7 +1041,7 @@ export function AccountEditPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Company Size</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Company Size {requiredFields.has('companySize') && <span className="text-red-500">*</span>}</label>
                         <select
                           value={formData.companySize}
                           onChange={(e) => handleChange('companySize', e.target.value)}
@@ -989,7 +1054,7 @@ export function AccountEditPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Annual Revenue</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Annual Revenue {requiredFields.has('annualRevenue') && <span className="text-red-500">*</span>}</label>
                         <input
                           type="number"
                           value={formData.annualRevenue || ''}
@@ -1005,7 +1070,7 @@ export function AccountEditPage() {
                   {formData.accountClassification === 'individual' && (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Date of Birth</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Date of Birth {requiredFields.has('dateOfBirth') && <span className="text-red-500">*</span>}</label>
                         <input
                           type="date"
                           value={formData.dateOfBirth || ''}
@@ -1014,7 +1079,7 @@ export function AccountEditPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Gender</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Gender {requiredFields.has('gender') && <span className="text-red-500">*</span>}</label>
                         <select
                           value={formData.gender || ''}
                           onChange={(e) => handleChange('gender', e.target.value)}
@@ -1027,7 +1092,7 @@ export function AccountEditPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">National ID / Personal ID</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">National ID / Personal ID {requiredFields.has('nationalId') && <span className="text-red-500">*</span>}</label>
                         <input
                           type="text"
                           value={formData.nationalId || ''}
@@ -1070,7 +1135,7 @@ export function AccountEditPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Description</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Description {requiredFields.has('description') && <span className="text-red-500">*</span>}</label>
                   <textarea
                     value={formData.description}
                     onChange={(e) => handleChange('description', e.target.value)}
@@ -1171,17 +1236,14 @@ export function AccountEditPage() {
                             >
                               {phoneTypes.map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
-                            <input
-                              type="tel"
-                              value={phone.number}
-                              onChange={e => updatePhone(index, 'number', e.target.value)}
-                              className={`flex-1 px-4 py-2.5 bg-white dark:bg-slate-800 border rounded-xl ${
-                                isDuplicate
-                                  ? 'border-red-500 focus:ring-red-500'
-                                  : 'border-gray-200 dark:border-slate-700'
-                              }`}
-                              placeholder="+1 (555) 000-0000"
-                            />
+                            <div className={`flex-1 ${isDuplicate ? 'ring-2 ring-red-500 rounded-xl' : ''}`}>
+                              <PhoneInput
+                                value={phone.number}
+                                defaultCountry={baseCountry}
+                                onChange={(e164) => updatePhone(index, 'number', e164)}
+                                placeholder="Phone number"
+                              />
+                            </div>
                             <label className="flex items-center gap-1.5 px-3 py-2.5 text-sm">
                               <input type="radio" checked={phone.primary} onChange={() => updatePhone(index, 'primary', true)} className="text-emerald-600" />
                               Primary
@@ -1237,10 +1299,21 @@ export function AccountEditPage() {
                         <input type="text" value={address.line1 || ''} onChange={e => updateAddress(index, 'line1', e.target.value)} className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl" placeholder="Address Line 1" />
                         <input type="text" value={address.line2 || ''} onChange={e => updateAddress(index, 'line2', e.target.value)} className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl" placeholder="Address Line 2" />
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <input type="text" value={address.city || ''} onChange={e => updateAddress(index, 'city', e.target.value)} className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl" placeholder="City" />
+                          <CountrySelect
+                            value={(address as any).countryCode ?? ''}
+                            onChange={code => {
+                              updateAddress(index, 'country', COUNTRIES.find(c => c.code === code)?.name ?? code);
+                              updateAddress(index, 'countryCode' as any, code);
+                              updateAddress(index, 'city', '');
+                            }}
+                          />
+                          <CitySelect
+                            countryCode={(address as any).countryCode ?? ''}
+                            value={address.city || ''}
+                            onChange={city => updateAddress(index, 'city', city)}
+                          />
                           <input type="text" value={address.state || ''} onChange={e => updateAddress(index, 'state', e.target.value)} className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl" placeholder="State" />
                           <input type="text" value={address.postalCode || ''} onChange={e => updateAddress(index, 'postalCode', e.target.value)} className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl" placeholder="Postal Code" />
-                          <input type="text" value={address.country || ''} onChange={e => updateAddress(index, 'country', e.target.value)} className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl" placeholder="Country" />
                         </div>
                       </div>
                     ))}

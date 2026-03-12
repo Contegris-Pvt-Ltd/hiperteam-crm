@@ -50,15 +50,16 @@ export class ContactsService {
     })) || [];
 
     const [contact] = await this.dataSource.query(
-      `INSERT INTO "${schemaName}".contacts 
+      `INSERT INTO "${schemaName}".contacts
        (first_name, last_name, email, phone, mobile, avatar_url,
         company, job_title, website,
         address_line1, address_line2, city, state, postal_code, country,
+        country_code, phone_country_code, mobile_country_code,
         emails, phones, addresses,
         source, lead_source_details, tags, notes, custom_fields, social_profiles,
         do_not_contact, do_not_email, do_not_call, account_id, owner_id, created_by,
         industry)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
        RETURNING *`,
       [
         dto.firstName,
@@ -76,6 +77,9 @@ export class ContactsService {
         dto.state || null,
         dto.postalCode || null,
         dto.country || null,
+        dto.countryCode || null,
+        dto.phoneCountryCode || null,
+        dto.mobileCountryCode || null,
         JSON.stringify(dto.emails || []),
         JSON.stringify(formattedPhones),
         JSON.stringify(dto.addresses || []),
@@ -295,6 +299,9 @@ export class ContactsService {
       state: 'state',
       postalCode: 'postal_code',
       country: 'country',
+      countryCode: 'country_code',
+      phoneCountryCode: 'phone_country_code',
+      mobileCountryCode: 'mobile_country_code',
       emails: 'emails',
       phones: 'phones',
       addresses: 'addresses',
@@ -495,6 +502,9 @@ export class ContactsService {
       state: contact.state,
       postalCode: contact.postal_code,
       country: contact.country,
+      countryCode: contact.country_code || null,
+      phoneCountryCode: contact.phone_country_code || null,
+      mobileCountryCode: contact.mobile_country_code || null,
       emails: typeof contact.emails === 'string' ? JSON.parse(contact.emails) : (contact.emails || []),
       phones: typeof contact.phones === 'string' ? JSON.parse(contact.phones) : (contact.phones || []),
       addresses: typeof contact.addresses === 'string' ? JSON.parse(contact.addresses) : (contact.addresses || []),

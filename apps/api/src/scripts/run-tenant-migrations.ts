@@ -2732,6 +2732,76 @@ async function runTenantMigrations() {
               );
             `,
           },
+          {
+            name: '048_general_settings_country_currency',
+            sql: `
+              -- ── company_settings: add locale columns ─────────────────
+              ALTER TABLE "${schema}".company_settings
+                ADD COLUMN IF NOT EXISTS base_country      VARCHAR(2)   DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS base_city         VARCHAR(100) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS default_currency  VARCHAR(3)   DEFAULT 'USD',
+                ADD COLUMN IF NOT EXISTS timezone          VARCHAR(50)  DEFAULT 'UTC';
+
+              -- ── currencies ────────────────────────────────────────────
+              CREATE TABLE IF NOT EXISTS "${schema}".currencies (
+                id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                code           VARCHAR(3)   NOT NULL,
+                name           VARCHAR(100) NOT NULL,
+                symbol         VARCHAR(10)  NOT NULL,
+                decimal_places INT          NOT NULL DEFAULT 2,
+                is_active      BOOLEAN      NOT NULL DEFAULT true,
+                is_default     BOOLEAN      NOT NULL DEFAULT false,
+                sort_order     INT          NOT NULL DEFAULT 0,
+                created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                UNIQUE(code)
+              );
+              CREATE INDEX IF NOT EXISTS idx_currencies_active  ON "${schema}".currencies(is_active);
+              CREATE INDEX IF NOT EXISTS idx_currencies_default ON "${schema}".currencies(is_default);
+
+              INSERT INTO "${schema}".currencies
+                (code, name, symbol, decimal_places, is_active, is_default, sort_order)
+              VALUES
+                ('USD','US Dollar',         '$',   2,true,true, 1),
+                ('EUR','Euro',              '€',   2,true,false, 2),
+                ('GBP','British Pound',     '£',   2,true,false, 3),
+                ('AED','UAE Dirham',        'د.إ', 2,true,false, 4),
+                ('SAR','Saudi Riyal',       '﷼',   2,true,false, 5),
+                ('PKR','Pakistani Rupee',   '₨',   0,true,false, 6),
+                ('INR','Indian Rupee',      '₹',   2,true,false, 7),
+                ('CAD','Canadian Dollar',   'CA$', 2,true,false, 8),
+                ('AUD','Australian Dollar', 'A$',  2,true,false, 9),
+                ('CHF','Swiss Franc',       'Fr',  2,true,false,10),
+                ('JPY','Japanese Yen',      '¥',   0,true,false,11),
+                ('CNY','Chinese Yuan',      '¥',   2,true,false,12),
+                ('SGD','Singapore Dollar',  'S$',  2,true,false,13),
+                ('HKD','Hong Kong Dollar',  'HK$', 2,true,false,14),
+                ('SEK','Swedish Krona',     'kr',  2,true,false,15),
+                ('NOK','Norwegian Krone',   'kr',  2,true,false,16),
+                ('DKK','Danish Krone',      'kr',  2,true,false,17),
+                ('MYR','Malaysian Ringgit', 'RM',  2,true,false,18),
+                ('QAR','Qatari Riyal',      'QR',  2,true,false,19),
+                ('KWD','Kuwaiti Dinar',     'KD',  3,true,false,20)
+              ON CONFLICT (code) DO NOTHING;
+
+              -- ── contacts: add country_code + phone_country_code ───────
+              ALTER TABLE "${schema}".contacts
+                ADD COLUMN IF NOT EXISTS country_code        VARCHAR(2) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS phone_country_code  VARCHAR(2) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS mobile_country_code VARCHAR(2) DEFAULT NULL;
+
+              -- ── leads: add country_code + phone_country_code ──────────
+              ALTER TABLE "${schema}".leads
+                ADD COLUMN IF NOT EXISTS country_code        VARCHAR(2) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS phone_country_code  VARCHAR(2) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS mobile_country_code VARCHAR(2) DEFAULT NULL;
+
+              -- ── accounts: add country_code + phone_country_code ───────
+              ALTER TABLE "${schema}".accounts
+                ADD COLUMN IF NOT EXISTS country_code        VARCHAR(2) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS phone_country_code  VARCHAR(2) DEFAULT NULL;
+            `,
+          },
         ];
 
         // ── Execute pending migrations ────────────────────────────

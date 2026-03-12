@@ -11,6 +11,7 @@ export interface ValidationRule {
   label: string;
   message: string;
   isActive: boolean;
+  appliesTo?: 'business' | 'individual'; // Accounts only: restrict rule to a classification (omit = all)
 }
 
 export interface FieldValidationConfig {
@@ -67,6 +68,7 @@ export class FieldValidationService {
     module: string,
     data: Record<string, any>,
     customFields?: Record<string, any>,
+    accountClassification?: string,
   ): Promise<void> {
     const config = await this.getRules(schemaName, module);
     if (!config.rules || config.rules.length === 0) return;
@@ -75,6 +77,13 @@ export class FieldValidationService {
 
     for (const rule of config.rules) {
       if (!rule.isActive) continue;
+
+      // For accounts: skip rules that don't apply to this classification
+      if (rule.appliesTo && accountClassification) {
+        const classMap: Record<string, string> = { business: 'business', individual: 'individual', b2b: 'business', b2c: 'individual' };
+        const normalized = classMap[accountClassification.toLowerCase()] || accountClassification;
+        if (rule.appliesTo !== normalized) continue;
+      }
 
       const values = rule.fields.map(fieldKey => {
         // Check main data first, then customFields

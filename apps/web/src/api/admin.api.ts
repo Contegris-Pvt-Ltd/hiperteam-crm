@@ -111,6 +111,10 @@ export interface CompanySettings {
   taxId?: string;
   registrationNo?: string;
   currency?: string;
+  baseCountry?: string;
+  baseCity?: string;
+  defaultCurrency?: string;
+  timezone?: string;
   updatedAt?: string;
 }
 

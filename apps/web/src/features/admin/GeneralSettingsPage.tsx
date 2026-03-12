@@ -1,15 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowLeft, Building2, Loader2, Save, Plus, Trash2,
-  Globe, Phone, MapPin, Tag, ToggleLeft, ToggleRight,
+  ArrowLeft, Building2, Loader2, Save, Plus, Trash2, Star,
+  Globe, Phone, MapPin, Tag, ToggleLeft, ToggleRight, DollarSign, Upload,
 } from 'lucide-react';
 import { generalSettingsApi } from '../../api/admin.api';
 import type { CompanySettings, Industry } from '../../api/admin.api';
+import { generalSettingsApi as newSettingsApi } from '../../api/generalSettings.api';
+import { uploadApi } from '../../api/upload.api';
+import { CountrySelect } from '../../components/shared/CountrySelect';
+import { CitySelect } from '../../components/shared/CitySelect';
+import { invalidateGeneralSettingsCache } from '../../hooks/useGeneralSettings';
+import { getCountryByCode, getCountryCodeByName } from '../../data/countries';
+import { PhoneInput } from '../../components/shared/PhoneInput';
+import { TimezoneSelect } from '../../components/shared/TimezoneSelect';
 
 const TABS = [
   { id: 'company', label: 'Company Profile', icon: Building2 },
   { id: 'industries', label: 'Industries', icon: Tag },
+  { id: 'currencies', label: 'Currencies', icon: DollarSign },
 ] as const;
 type TabId = typeof TABS[number]['id'];
 
@@ -55,6 +64,7 @@ export function GeneralSettingsPage() {
 
       {activeTab === 'company'    && <CompanyProfileTab />}
       {activeTab === 'industries' && <IndustriesTab />}
+      {activeTab === 'currencies' && <CurrenciesTab />}
     </div>
   );
 }
@@ -66,11 +76,19 @@ function CompanyProfileTab() {
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
   const [form, setForm]       = useState<CompanySettings>({});
+  const [activeCurrencies, setActiveCurrencies] = useState<any[]>([]);
+  const [logoError, setLogoError] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    generalSettingsApi.getCompanySettings()
-      .then(d => setForm(d ?? {}))
-      .finally(() => setLoading(false));
+    Promise.all([
+      newSettingsApi.getCompany(),
+      newSettingsApi.getActiveCurrencies(),
+    ]).then(([settings, currencies]) => {
+      setForm(settings ?? {});
+      setActiveCurrencies(currencies ?? []);
+    }).finally(() => setLoading(false));
   }, []);
 
   const set = (key: keyof CompanySettings, value: string) =>
@@ -79,7 +97,8 @@ function CompanyProfileTab() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await generalSettingsApi.updateCompanySettings(form);
+      await newSettingsApi.updateCompany(form);
+      invalidateGeneralSettingsCache();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } finally {
@@ -115,22 +134,71 @@ function CompanyProfileTab() {
             className={inputCls}
           />
         </Field>
-        <Field label="Logo URL" span={2}>
-          <input
-            value={form.logoUrl ?? ''}
-            onChange={e => set('logoUrl', e.target.value)}
-            placeholder="https://..."
-            className={inputCls}
-          />
-          {form.logoUrl && (
-            <img
-              src={form.logoUrl}
-              alt="logo preview"
-              className="mt-2 h-12 object-contain rounded border border-gray-200 dark:border-slate-600"
-            />
-          )}
+        <Field label="Logo" span={2}>
+          <div className="flex items-start gap-4">
+            {/* Preview */}
+            <div className="w-24 h-16 flex items-center justify-center rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-700 overflow-hidden shrink-0">
+              {form.logoUrl && !logoError ? (
+                <img
+                  key={form.logoUrl}
+                  src={form.logoUrl}
+                  alt="logo"
+                  referrerPolicy="no-referrer"
+                  className="max-h-14 max-w-20 object-contain"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <Building2 className="w-6 h-6 text-gray-300 dark:text-slate-500" />
+              )}
+            </div>
+            <div className="flex-1 space-y-2">
+              {/* Upload button */}
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setLogoUploading(true);
+                  setLogoError(false);
+                  try {
+                    const result = await uploadApi.uploadFile(file);
+                    set('logoUrl', result.url);
+                  } catch {
+                    setLogoError(true);
+                  } finally {
+                    setLogoUploading(false);
+                    if (logoInputRef.current) logoInputRef.current.value = '';
+                  }
+                }}
+              />
+              <button
+                type="button"
+                disabled={logoUploading}
+                onClick={() => logoInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+              >
+                {logoUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                {logoUploading ? 'Uploading...' : 'Upload Logo'}
+              </button>
+              {/* Or paste URL */}
+              <div className="flex items-center gap-2">
+                <input
+                  value={form.logoUrl ?? ''}
+                  onChange={e => { set('logoUrl', e.target.value); setLogoError(false); }}
+                  placeholder="Or paste image URL..."
+                  className={`${inputCls} text-xs`}
+                />
+              </div>
+              {logoError && form.logoUrl && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">Could not load preview. Try uploading the image instead.</p>
+              )}
+            </div>
+          </div>
         </Field>
-        <Field label="Website" span={1}>
+        <Field label="Website" span={2}>
           <input
             value={form.website ?? ''}
             onChange={e => set('website', e.target.value)}
@@ -138,13 +206,43 @@ function CompanyProfileTab() {
             className={inputCls}
           />
         </Field>
+      </Section>
+
+      {/* Locale */}
+      <Section title="Locale & Defaults" icon={Globe}>
+        <Field label="Base Country" span={1}>
+          <CountrySelect
+            value={form.baseCountry ?? ''}
+            onChange={code => setForm(prev => ({ ...prev, baseCountry: code, baseCity: '' }))}
+          />
+          {form.baseCountry && (
+            <p className="text-xs text-gray-400 mt-1">
+              Default phone code: {getCountryByCode(form.baseCountry)?.dialCode}
+            </p>
+          )}
+        </Field>
+        <Field label="Base City" span={1}>
+          <CitySelect
+            countryCode={form.baseCountry ?? ''}
+            value={form.baseCity ?? ''}
+            onChange={city => setForm(prev => ({ ...prev, baseCity: city }))}
+          />
+        </Field>
         <Field label="Default Currency" span={1}>
-          <input
-            value={form.currency ?? ''}
-            onChange={e => set('currency', e.target.value)}
-            placeholder="PKR"
-            className={inputCls}
-            maxLength={10}
+          <select
+            value={form.defaultCurrency ?? 'USD'}
+            onChange={e => setForm(prev => ({ ...prev, defaultCurrency: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+          >
+            {activeCurrencies.map((c: any) => (
+              <option key={c.code} value={c.code}>{c.code} — {c.name} ({c.symbol})</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Timezone" span={1}>
+          <TimezoneSelect
+            value={form.timezone ?? 'UTC'}
+            onChange={tz => set('timezone', tz)}
           />
         </Field>
       </Section>
@@ -161,11 +259,11 @@ function CompanyProfileTab() {
           />
         </Field>
         <Field label="Phone" span={1}>
-          <input
+          <PhoneInput
             value={form.phone ?? ''}
-            onChange={e => set('phone', e.target.value)}
-            placeholder="+92 300 0000000"
-            className={inputCls}
+            defaultCountry={form.baseCountry ?? 'US'}
+            onChange={(e164) => set('phone', e164)}
+            placeholder="Phone number"
           />
         </Field>
       </Section>
@@ -205,11 +303,13 @@ function CompanyProfileTab() {
           />
         </Field>
         <Field label="Country" span={1}>
-          <input
-            value={form.country ?? ''}
-            onChange={e => set('country', e.target.value)}
-            placeholder="Pakistan"
-            className={inputCls}
+          <CountrySelect
+            value={getCountryCodeByName(form.country ?? '') || form.country || ''}
+            onChange={code => {
+              const name = getCountryByCode(code)?.name ?? code;
+              setForm(prev => ({ ...prev, country: name }));
+            }}
+            placeholder="Select country..."
           />
         </Field>
         <Field label="Postal Code" span={1}>
@@ -385,6 +485,139 @@ function IndustriesTab() {
         {industries.length === 0 && (
           <div className="px-4 py-8 text-center text-sm text-gray-400">No industries yet.</div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Currencies Tab ──────────────────────────────────────────────
+
+function CurrenciesTab() {
+  const [currencies, setCurrencies] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [newForm, setNewForm] = useState({ code: '', name: '', symbol: '', decimalPlaces: 2 });
+
+  const load = () => {
+    setLoading(true);
+    newSettingsApi.getCurrencies().then(data => { setCurrencies(data); setLoading(false); });
+  };
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async () => {
+    if (!newForm.code || !newForm.name || !newForm.symbol) return;
+    setSaving(true);
+    try {
+      await newSettingsApi.createCurrency(newForm);
+      setNewForm({ code: '', name: '', symbol: '', decimalPlaces: 2 });
+      setAdding(false);
+      load();
+    } finally { setSaving(false); }
+  };
+
+  const toggle = async (c: any) => {
+    await newSettingsApi.updateCurrency(c.id, { isActive: !c.is_active });
+    load();
+  };
+
+  const setDefault = async (c: any) => {
+    await newSettingsApi.setDefaultCurrency(c.id);
+    load();
+  };
+
+  const remove = async (c: any) => {
+    if (!window.confirm(`Delete ${c.code}?`)) return;
+    await newSettingsApi.deleteCurrency(c.id);
+    load();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">Currencies</h3>
+          <p className="text-sm text-gray-500 dark:text-slate-400">Manage currencies available across the CRM</p>
+        </div>
+        <button onClick={() => setAdding(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700">
+          <Plus className="w-4 h-4" /> Add Currency
+        </button>
+      </div>
+
+      {adding && (
+        <div className="grid grid-cols-4 gap-3 p-4 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Code *</label>
+            <input maxLength={3} value={newForm.code}
+              onChange={e => setNewForm(p => ({ ...p, code: e.target.value.toUpperCase() }))}
+              placeholder="USD" className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Name *</label>
+            <input value={newForm.name}
+              onChange={e => setNewForm(p => ({ ...p, name: e.target.value }))}
+              placeholder="US Dollar" className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Symbol *</label>
+            <input value={newForm.symbol}
+              onChange={e => setNewForm(p => ({ ...p, symbol: e.target.value }))}
+              placeholder="$" className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Decimals</label>
+            <select value={newForm.decimalPlaces}
+              onChange={e => setNewForm(p => ({ ...p, decimalPlaces: Number(e.target.value) }))}
+              className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white">
+              <option value={0}>0</option>
+              <option value={2}>2</option>
+              <option value={3}>3</option>
+            </select>
+          </div>
+          <div className="col-span-4 flex gap-2 justify-end">
+            <button onClick={() => setAdding(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800">Cancel</button>
+            <button onClick={handleAdd} disabled={saving}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+              {saving ? 'Saving...' : 'Add'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-gray-400 text-sm">Loading...</div>
+        ) : currencies.map((c, idx) => (
+          <div key={c.id} className={`flex items-center gap-4 px-4 py-3 ${idx > 0 ? 'border-t border-gray-100 dark:border-slate-800' : ''}`}>
+            <span className="text-base font-bold text-gray-900 dark:text-white w-12">{c.code}</span>
+            <span className="text-sm text-gray-500 dark:text-slate-400 w-8 text-center">{c.symbol}</span>
+            <span className="flex-1 text-sm text-gray-700 dark:text-slate-300">{c.name}</span>
+            <span className="text-xs text-gray-400">{c.decimal_places} dec.</span>
+
+            {/* Default star */}
+            <button onClick={() => !c.is_default && setDefault(c)}
+              title={c.is_default ? 'Default currency' : 'Set as default'}
+              className={`p-1.5 rounded-lg transition-colors ${c.is_default ? 'text-yellow-500' : 'text-gray-300 dark:text-slate-600 hover:text-yellow-400'}`}>
+              <Star className="w-4 h-4" fill={c.is_default ? 'currentColor' : 'none'} />
+            </button>
+
+            {/* Active toggle */}
+            <button onClick={() => !c.is_default && toggle(c)} disabled={c.is_default}
+              title={c.is_default ? 'Default currency cannot be deactivated' : (c.is_active ? 'Deactivate' : 'Activate')}
+              className="disabled:opacity-40">
+              {c.is_active
+                ? <ToggleRight className="w-7 h-7 text-blue-600" />
+                : <ToggleLeft className="w-7 h-7 text-gray-400" />}
+            </button>
+
+            {/* Delete */}
+            <button onClick={() => remove(c)} disabled={c.is_default}
+              className="p-1.5 text-gray-300 dark:text-slate-600 hover:text-red-500 disabled:opacity-30 transition-colors rounded-lg">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

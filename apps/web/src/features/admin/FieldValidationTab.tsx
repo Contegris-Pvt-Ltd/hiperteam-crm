@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import {
   Plus, Trash2, Save, Loader2, AlertTriangle,
   ToggleLeft, ToggleRight, Check, Pencil, GripVertical,
-  Shield, Info,
+  Shield, Info, Building2, User,
 } from 'lucide-react';
 import { moduleSettingsApi } from '../../api/module-settings.api';
 import type { ValidationRule } from '../../api/module-settings.api';
@@ -19,14 +19,20 @@ interface FieldValidationTabProps {
 }
 
 // Available fields for the field picker — built from field-registry + extras
-function getAvailableFields(module: string): { key: string; label: string }[] {
+function getAvailableFields(module: string): { key: string; label: string; classification?: 'business' | 'individual' }[] {
   const systemFields = SYSTEM_FIELDS_BY_MODULE[module] || [];
   const fields = systemFields
     .filter(f => f.isEditable) // Only editable fields make sense as required
-    .map(f => ({ key: f.fieldKey, label: f.fieldLabel }));
+    .map(f => ({ key: f.fieldKey, label: f.fieldLabel, classification: f.classification }));
 
   return fields;
 }
+
+const APPLIES_TO_OPTIONS = [
+  { value: undefined, label: 'All', description: 'Both B2B & B2C' },
+  { value: 'business' as const, label: 'B2B Only', description: 'Business accounts' },
+  { value: 'individual' as const, label: 'B2C Only', description: 'Individual accounts' },
+];
 
 const RULE_TYPE_OPTIONS = [
   { value: 'required', label: 'Required', description: 'This field must be filled' },
@@ -194,6 +200,15 @@ export function FieldValidationTab({ module }: FieldValidationTabProps) {
           <strong>Required</strong> — a single field must be filled.{' '}
           <strong>At Least One</strong> — any one of the selected fields must be filled (e.g. email OR phone).{' '}
           <strong>All Required</strong> — every selected field must be filled.
+          {module === 'accounts' && (
+            <>
+              <br /><br />
+              <strong>Account Classification:</strong>{' '}
+              Fields marked <span className="inline-flex items-center text-[10px] px-1 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">B2B</span> are for Business accounts,{' '}
+              <span className="inline-flex items-center text-[10px] px-1 rounded bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">B2C</span> for Individual.{' '}
+              Use "Applies To" on each rule to restrict it to a specific classification.
+            </>
+          )}
         </div>
       </div>
 
@@ -248,6 +263,15 @@ export function FieldValidationTab({ module }: FieldValidationTabProps) {
                       }`}>
                         {rule.type === 'required' ? 'Required' : rule.type === 'any_one' ? 'Any One' : 'All'}
                       </span>
+                      {module === 'accounts' && rule.appliesTo && (
+                        <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
+                          rule.appliesTo === 'business'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        }`}>
+                          {rule.appliesTo === 'business' ? <><Building2 size={10} /> B2B</> : <><User size={10} /> B2C</>}
+                        </span>
+                      )}
                       <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
                         {rule.label || autoLabel(rule.fields) || '(no fields selected)'}
                       </span>
@@ -318,10 +342,39 @@ export function FieldValidationTab({ module }: FieldValidationTabProps) {
                       </div>
                     </div>
 
+                    {/* Applies To — accounts module only */}
+                    {module === 'accounts' && (
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1.5">
+                          Applies To <span className="text-gray-400 font-normal">(account classification)</span>
+                        </label>
+                        <div className="flex gap-2">
+                          {APPLIES_TO_OPTIONS.map(opt => (
+                            <button
+                              key={opt.label}
+                              onClick={() => updateRule(rule.id, { appliesTo: opt.value })}
+                              className={`flex-1 px-3 py-2 text-xs rounded-lg border transition-colors ${
+                                rule.appliesTo === opt.value || (!rule.appliesTo && !opt.value)
+                                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-medium'
+                                  : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              <div className="font-medium flex items-center justify-center gap-1">
+                                {opt.value === 'business' && <Building2 size={12} />}
+                                {opt.value === 'individual' && <User size={12} />}
+                                {opt.label}
+                              </div>
+                              <div className="text-[10px] mt-0.5 opacity-70">{opt.description}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Fields selector */}
                     <div>
                       <label className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1.5">
-                        {rule.type === 'required' ? 'Field' : 'Fields'} 
+                        {rule.type === 'required' ? 'Field' : 'Fields'}
                         {rule.type !== 'required' && <span className="text-gray-400 font-normal"> (select multiple)</span>}
                       </label>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-48 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-slate-800">
@@ -357,6 +410,12 @@ export function FieldValidationTab({ module }: FieldValidationTabProps) {
                               <span className="flex items-center gap-1">
                                 {isSelected && <Check size={10} />}
                                 {f.label}
+                                {module === 'accounts' && f.classification === 'business' && (
+                                  <span className="ml-0.5 text-[9px] px-1 py-px rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">B2B</span>
+                                )}
+                                {module === 'accounts' && f.classification === 'individual' && (
+                                  <span className="ml-0.5 text-[9px] px-1 py-px rounded bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">B2C</span>
+                                )}
                               </span>
                             </button>
                           );

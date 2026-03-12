@@ -22,6 +22,9 @@ import { useModuleLayout } from '../../hooks/useModuleLayout';
 import { useIndustries } from '../../hooks/useIndustries';
 import { teamsApi } from '../../api/teams.api';
 import type { TeamLookupItem } from '../../api/teams.api';
+import { moduleSettingsApi } from '../../api/module-settings.api';
+import type { FieldValidationConfig } from '../../api/module-settings.api';
+import { validateFields } from '../../utils/field-validation';
 
 type TabType = 'basic' | 'deal-details' | 'address' | 'other' | string;
 
@@ -70,6 +73,7 @@ export function OpportunityEditPage() {
   const [customGroups, setCustomGroups] = useState<CustomFieldGroup[]>([]);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [fieldValidationConfig, setFieldValidationConfig] = useState<FieldValidationConfig>({ rules: [] });
 
   // Stage change — required fields modal
   const [stageFieldsModal, setStageFieldsModal] = useState<{
@@ -124,7 +128,9 @@ export function OpportunityEditPage() {
         headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
       }).then(r => r.json()).then(d => d.data || []).catch(() => []),
       teamsApi.getLookup().catch(() => []),
-    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData, cfData, ctData, cgData, usersData, teamsData]) => {
+      moduleSettingsApi.getFieldValidation('opportunities').catch(() => ({ rules: [] })),
+    ]).then(([pipelinesData, stagesData, prioritiesData, sourcesData, cfData, ctData, cgData, usersData, teamsData, validationData]) => {
+      setFieldValidationConfig(validationData as FieldValidationConfig);
       setPipelines(pipelinesData);
       setPriorities(prioritiesData);
       setSources(sourcesData);
@@ -370,6 +376,19 @@ export function OpportunityEditPage() {
       return;
     }
 
+    // Strip empty strings so backend validators don't reject ''
+    const validationData: Record<string, any> = { ...formData };
+    Object.keys(validationData).forEach(key => {
+      if (validationData[key] === '') delete validationData[key];
+    });
+
+    // Run field validation rules
+    const fieldErrors = validateFields(fieldValidationConfig, validationData, formData.customFields as Record<string, any>);
+    if (fieldErrors.length > 0) {
+      setError(fieldErrors.map(e => e.message).join('. '));
+      return;
+    }
+
     setSaving(true);
     setError('');
     try {
@@ -381,6 +400,10 @@ export function OpportunityEditPage() {
       // Strip empty optional fields
       if (!dataToSave.amount && dataToSave.amount !== 0) delete dataToSave.amount;
       if (!dataToSave.probability && dataToSave.probability !== 0) delete dataToSave.probability;
+      // Strip empty strings for backend validators
+      Object.keys(dataToSave).forEach(key => {
+        if (dataToSave[key] === '') delete dataToSave[key];
+      });
 
       if (isNew) {
         const created = await opportunitiesApi.create(dataToSave as CreateOpportunityData);
@@ -413,7 +436,7 @@ export function OpportunityEditPage() {
             if (groupFields.length === 0) return null;
             const isCollapsed = collapsedGroups.has(group.id);
             return (
-              <div key={group.id} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <div key={group.id} className="border border-gray-200 dark:border-gray-700 rounded-lg">
                 <button
                   onClick={() => setCollapsedGroups(prev => {
                     const next = new Set(prev);

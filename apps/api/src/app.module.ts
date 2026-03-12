@@ -31,6 +31,7 @@ import { LeadImportModule } from './modules/lead-import/lead-import.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { FormsModule } from './modules/forms/forms.module';
 import { EmailInboxModule } from './modules/email-inbox/email-inbox.module';
+import { GeneralSettingsModule } from './modules/general-settings/general-settings.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { EmailInboxModule } from './modules/email-inbox/email-inbox.module';
     ProjectsModule,
     FormsModule,
     EmailInboxModule,
+    GeneralSettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

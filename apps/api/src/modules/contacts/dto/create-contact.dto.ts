@@ -247,6 +247,30 @@ export class CreateContactDto {
   @IsOptional()
   addresses?: AddressDto[];
 
+  @ApiPropertyOptional({ example: 'Technology' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(255)
+  industry?: string;
+
+  @ApiPropertyOptional({ example: 'PK' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(10)
+  countryCode?: string;
+
+  @ApiPropertyOptional({ example: 'PK' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(10)
+  phoneCountryCode?: string;
+
+  @ApiPropertyOptional({ example: 'PK' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(10)
+  mobileCountryCode?: string;
+
   @ApiPropertyOptional({ example: 'Website' })
   @IsString()
   @IsOptional()

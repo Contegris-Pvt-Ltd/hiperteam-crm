@@ -33,6 +33,11 @@ import type { QuickCreateAccountResult } from '../../components/shared/QuickCrea
 import { moduleSettingsApi } from '../../api/module-settings.api';
 import type { FieldValidationConfig } from '../../api/module-settings.api';
 import { validateFields } from '../../utils/field-validation';
+import { PhoneInput } from '../../components/shared/PhoneInput';
+import { CountrySelect } from '../../components/shared/CountrySelect';
+import { CitySelect } from '../../components/shared/CitySelect';
+import { useGeneralSettings } from '../../hooks/useGeneralSettings';
+import { COUNTRIES, getCountryCodeByName } from '../../data/countries';
 
 type TabType = 'basic' | 'contact' | 'address' | 'social' | 'other' | string;
 
@@ -81,6 +86,10 @@ export function ContactEditPage() {
     duplicatePhoneIndexes?: Set<number>;
   }>({});
 
+  // General settings (base country for phone input)
+  const { settings: tenantSettings } = useGeneralSettings();
+  const baseCountry = tenantSettings.baseCountry ?? 'US';
+
   // ============ PAGE DESIGNER HOOK ============
   // Check if admin has enabled custom layout for edit pages
   // Note: For now, we don't render custom layout for edit pages
@@ -105,6 +114,9 @@ export function ContactEditPage() {
     state: '',
     postalCode: '',
     country: '',
+    countryCode: '',
+    phoneCountryCode: '',
+    mobileCountryCode: '',
     emails: [],
     phones: [],
     addresses: [],
@@ -116,7 +128,7 @@ export function ContactEditPage() {
     doNotContact: false,
     doNotEmail: false,
     doNotCall: false,
-  });
+  } as any);
 
   const [tagInput, setTagInput] = useState('');
 
@@ -175,9 +187,26 @@ export function ContactEditPage() {
         state: data.state || '',
         postalCode: data.postalCode || '',
         country: data.country || '',
+        countryCode: data.countryCode || getCountryCodeByName(data.country) || '',
+        phoneCountryCode: data.phoneCountryCode || '',
+        mobileCountryCode: data.mobileCountryCode || '',
         emails: data.emails || [],
-        phones: data.phones || [],
-        addresses: data.addresses || [],
+        phones: (() => {
+          const arr = data.phones || [];
+          // Merge simple phone/mobile fields into phones array if not already present
+          const numbers = new Set(arr.map((p: any) => p.number));
+          if (data.phone && !numbers.has(data.phone)) {
+            arr.unshift({ type: 'work', number: data.phone, primary: arr.length === 0 });
+          }
+          if (data.mobile && !numbers.has(data.mobile)) {
+            arr.push({ type: 'mobile', number: data.mobile, primary: false });
+          }
+          return arr;
+        })(),
+        addresses: (data.addresses || []).map((a: any) => ({
+          ...a,
+          countryCode: a.countryCode || getCountryCodeByName(a.country) || '',
+        })),
         industry: data.industry || '',
         source: data.source || '',
         tags: data.tags || [],
@@ -186,7 +215,7 @@ export function ContactEditPage() {
         doNotContact: data.doNotContact || false,
         doNotEmail: data.doNotEmail || false,
         doNotCall: data.doNotCall || false,
-      });
+      } as any);
       setAvatarUrl(data.avatarUrl || null);
       setCustomFieldValues(data.customFields || {});
       
@@ -473,11 +502,16 @@ export function ContactEditPage() {
     setSaving(true);
 
     try {
-      const dataToSave = {
+      const dataToSave: Record<string, any> = {
         ...formData,
         accountId: selectedAccount?.id || undefined,
         customFields: customFieldValues,
       };
+
+      // Strip empty strings so backend validators (e.g. @IsEmail) don't reject ''
+      Object.keys(dataToSave).forEach(key => {
+        if (dataToSave[key] === '') delete dataToSave[key];
+      });
 
       let contactId: string;
       
@@ -755,7 +789,7 @@ export function ContactEditPage() {
       )}
 
       <form onSubmit={handleSubmit}>
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800">
           {/* Avatar Section */}
           <div className="p-6 border-b border-gray-100 dark:border-slate-800 flex items-center gap-6">
             <AvatarUpload
@@ -1122,17 +1156,14 @@ export function ContactEditPage() {
                             <option key={type} value={type}>{type}</option>
                           ))}
                         </select>
-                        <input
-                          type="tel"
-                          value={phone.number}
-                          onChange={(e) => updatePhone(index, 'number', e.target.value)}
-                          className={`flex-1 px-4 py-2.5 border rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white ${
-                            isDuplicate 
-                              ? 'border-red-500 focus:ring-red-500' 
-                              : 'border-gray-200 dark:border-slate-700'
-                          }`}
-                          placeholder="+1 234 567 8900"
-                        />
+                        <div className={`flex-1 ${isDuplicate ? 'ring-2 ring-red-500 rounded-xl' : ''}`}>
+                          <PhoneInput
+                            value={phone.number}
+                            defaultCountry={baseCountry}
+                            onChange={(e164) => updatePhone(index, 'number', e164)}
+                            placeholder="Phone number"
+                          />
+                        </div>
                         <label className="flex items-center gap-2 px-3">
                           <input
                             type="checkbox"
@@ -1201,59 +1232,49 @@ export function ContactEditPage() {
                 {/* Primary Address */}
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">Primary Address</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
-                      <input
-                        type="text"
-                        value={formData.addressLine1}
-                        onChange={(e) => handleChange('addressLine1', e.target.value)}
-                        placeholder="Address Line 1"
-                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  <div className="space-y-4">
+                    <input
+                      type="text"
+                      value={formData.addressLine1}
+                      onChange={(e) => handleChange('addressLine1', e.target.value)}
+                      placeholder="Address Line 1"
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    />
+                    <input
+                      type="text"
+                      value={formData.addressLine2}
+                      onChange={(e) => handleChange('addressLine2', e.target.value)}
+                      placeholder="Address Line 2"
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    />
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <CountrySelect
+                        value={(formData as any).countryCode ?? ''}
+                        onChange={code => setFormData(prev => ({
+                          ...prev,
+                          countryCode: code,
+                          country: COUNTRIES.find(c => c.code === code)?.name ?? code,
+                          city: '',
+                        } as any))}
                       />
-                    </div>
-                    <div className="md:col-span-2">
-                      <input
-                        type="text"
-                        value={formData.addressLine2}
-                        onChange={(e) => handleChange('addressLine2', e.target.value)}
-                        placeholder="Address Line 2"
-                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                      />
-                    </div>
-                    <div>
-                      <input
-                        type="text"
+                      <CitySelect
+                        countryCode={(formData as any).countryCode ?? ''}
                         value={formData.city}
-                        onChange={(e) => handleChange('city', e.target.value)}
-                        placeholder="City"
-                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                        onChange={city => setFormData(prev => ({ ...prev, city }))}
                       />
-                    </div>
-                    <div>
                       <input
                         type="text"
                         value={formData.state}
                         onChange={(e) => handleChange('state', e.target.value)}
-                        placeholder="State/Province"
-                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                        placeholder="State / Region"
+                        className="px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-gray-900 dark:text-white"
                       />
-                    </div>
-                    <div>
                       <input
                         type="text"
                         value={formData.postalCode}
                         onChange={(e) => handleChange('postalCode', e.target.value)}
-                        placeholder="Postal Code"
-                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                      />
-                    </div>
-                    <div>
-                      <input
-                        type="text"
-                        value={formData.country}
-                        onChange={(e) => handleChange('country', e.target.value)}
-                        placeholder="Country"
-                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                        placeholder="ZIP / Postal code"
+                        className="px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-gray-900 dark:text-white"
                       />
                     </div>
                   </div>
@@ -1304,49 +1325,50 @@ export function ContactEditPage() {
                           </button>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-3">
                         <input
                           type="text"
                           value={address.line1}
                           onChange={(e) => updateAddress(index, 'line1', e.target.value)}
                           placeholder="Address Line 1"
-                          className="md:col-span-2 px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
                         />
                         <input
                           type="text"
                           value={address.line2 || ''}
                           onChange={(e) => updateAddress(index, 'line2', e.target.value)}
                           placeholder="Address Line 2"
-                          className="md:col-span-2 px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
                         />
-                        <input
-                          type="text"
-                          value={address.city}
-                          onChange={(e) => updateAddress(index, 'city', e.target.value)}
-                          placeholder="City"
-                          className="px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
-                        />
-                        <input
-                          type="text"
-                          value={address.state}
-                          onChange={(e) => updateAddress(index, 'state', e.target.value)}
-                          placeholder="State"
-                          className="px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
-                        />
-                        <input
-                          type="text"
-                          value={address.postalCode}
-                          onChange={(e) => updateAddress(index, 'postalCode', e.target.value)}
-                          placeholder="Postal Code"
-                          className="px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
-                        />
-                        <input
-                          type="text"
-                          value={address.country}
-                          onChange={(e) => updateAddress(index, 'country', e.target.value)}
-                          placeholder="Country"
-                          className="px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
-                        />
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <CountrySelect
+                            value={(address as any).countryCode ?? ''}
+                            onChange={code => {
+                              updateAddress(index, 'country', COUNTRIES.find(c => c.code === code)?.name ?? code);
+                              updateAddress(index, 'countryCode' as any, code);
+                              updateAddress(index, 'city', '');
+                            }}
+                          />
+                          <CitySelect
+                            countryCode={(address as any).countryCode ?? ''}
+                            value={address.city}
+                            onChange={city => updateAddress(index, 'city', city)}
+                          />
+                          <input
+                            type="text"
+                            value={address.state}
+                            onChange={(e) => updateAddress(index, 'state', e.target.value)}
+                            placeholder="State"
+                            className="px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+                          />
+                          <input
+                            type="text"
+                            value={address.postalCode}
+                            onChange={(e) => updateAddress(index, 'postalCode', e.target.value)}
+                            placeholder="Postal Code"
+                            className="px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}

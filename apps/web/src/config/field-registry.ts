@@ -30,6 +30,7 @@ export interface SystemFieldDefinition {
   isSystem: true;
   isEditable: boolean; // Can the field be edited? (e.g., createdAt is not editable)
   component?: 'default' | 'avatar' | 'account-link' | 'tags' | 'rich-text'; // Special rendering
+  classification?: 'business' | 'individual'; // Accounts only: which classification this field belongs to (omit = both)
   validationRules?: {
     pattern?: string;
     minLength?: number;
@@ -326,7 +327,7 @@ export const CONTACTS_SYSTEM_FIELDS: SystemFieldDefinition[] = [
 // ==================== ACCOUNTS MODULE ====================
 
 export const ACCOUNTS_SYSTEM_FIELDS: SystemFieldDefinition[] = [
-  // Basic Info Section
+  // B2B Basic Info
   {
     id: 'system-name',
     fieldKey: 'name',
@@ -339,6 +340,7 @@ export const ACCOUNTS_SYSTEM_FIELDS: SystemFieldDefinition[] = [
     displayOrder: 1,
     isSystem: true,
     isEditable: true,
+    classification: 'business',
   },
   {
     id: 'system-industry',
@@ -351,11 +353,81 @@ export const ACCOUNTS_SYSTEM_FIELDS: SystemFieldDefinition[] = [
     displayOrder: 2,
     isSystem: true,
     isEditable: true,
+    classification: 'business',
+  },
+  // B2C Individual Info
+  {
+    id: 'system-firstName',
+    fieldKey: 'firstName',
+    fieldLabel: 'First Name',
+    fieldType: 'text',
+    section: 'basic',
+    isRequired: false,
+    placeholder: 'First name',
+    columnSpan: 1,
+    displayOrder: 1,
+    isSystem: true,
+    isEditable: true,
+    classification: 'individual',
   },
   {
-    id: 'system-type',
-    fieldKey: 'type',
-    fieldLabel: 'Type',
+    id: 'system-lastName',
+    fieldKey: 'lastName',
+    fieldLabel: 'Last Name',
+    fieldType: 'text',
+    section: 'basic',
+    isRequired: false,
+    placeholder: 'Last name',
+    columnSpan: 1,
+    displayOrder: 2,
+    isSystem: true,
+    isEditable: true,
+    classification: 'individual',
+  },
+  {
+    id: 'system-dateOfBirth',
+    fieldKey: 'dateOfBirth',
+    fieldLabel: 'Date of Birth',
+    fieldType: 'date',
+    section: 'basic',
+    isRequired: false,
+    columnSpan: 1,
+    displayOrder: 3,
+    isSystem: true,
+    isEditable: true,
+    classification: 'individual',
+  },
+  {
+    id: 'system-gender',
+    fieldKey: 'gender',
+    fieldLabel: 'Gender',
+    fieldType: 'select',
+    section: 'basic',
+    isRequired: false,
+    columnSpan: 1,
+    displayOrder: 4,
+    isSystem: true,
+    isEditable: true,
+    classification: 'individual',
+  },
+  {
+    id: 'system-nationalId',
+    fieldKey: 'nationalId',
+    fieldLabel: 'National ID',
+    fieldType: 'text',
+    section: 'basic',
+    isRequired: false,
+    placeholder: 'CNIC / SSN',
+    columnSpan: 1,
+    displayOrder: 5,
+    isSystem: true,
+    isEditable: true,
+    classification: 'individual',
+  },
+  {
+    id: 'system-accountType',
+    fieldKey: 'accountType',
+    fieldLabel: 'Account Type',
     fieldType: 'select',
     section: 'basic',
     isRequired: false,
@@ -365,17 +437,31 @@ export const ACCOUNTS_SYSTEM_FIELDS: SystemFieldDefinition[] = [
     isEditable: true,
   },
   {
-    id: 'system-employeeCount',
-    fieldKey: 'employeeCount',
-    fieldLabel: 'Employees',
-    fieldType: 'number',
+    id: 'system-website',
+    fieldKey: 'website',
+    fieldLabel: 'Website Domain',
+    fieldType: 'url',
     section: 'basic',
     isRequired: false,
-    placeholder: 'Number of employees',
+    placeholder: 'example.com',
+    columnSpan: 1,
+    displayOrder: 2,
+    isSystem: true,
+    isEditable: true,
+    classification: 'business',
+  },
+  {
+    id: 'system-companySize',
+    fieldKey: 'companySize',
+    fieldLabel: 'Company Size',
+    fieldType: 'select',
+    section: 'basic',
+    isRequired: false,
     columnSpan: 1,
     displayOrder: 4,
     isSystem: true,
     isEditable: true,
+    classification: 'business',
   },
   {
     id: 'system-annualRevenue',
@@ -389,8 +475,9 @@ export const ACCOUNTS_SYSTEM_FIELDS: SystemFieldDefinition[] = [
     displayOrder: 5,
     isSystem: true,
     isEditable: true,
+    classification: 'business',
   },
-  
+
   // Contact Details Section
   {
     id: 'system-phone',
@@ -415,19 +502,6 @@ export const ACCOUNTS_SYSTEM_FIELDS: SystemFieldDefinition[] = [
     placeholder: '+1 (555) 000-0000',
     columnSpan: 1,
     displayOrder: 11,
-    isSystem: true,
-    isEditable: true,
-  },
-  {
-    id: 'system-website',
-    fieldKey: 'website',
-    fieldLabel: 'Website',
-    fieldType: 'url',
-    section: 'contact',
-    isRequired: false,
-    placeholder: 'https://example.com',
-    columnSpan: 2,
-    displayOrder: 12,
     isSystem: true,
     isEditable: true,
   },
