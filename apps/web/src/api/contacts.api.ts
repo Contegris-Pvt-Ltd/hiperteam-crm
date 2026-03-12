@@ -46,6 +46,7 @@ export interface AddressEntry {
   state?: string;
   postalCode?: string;
   country?: string;
+  countryCode?: string;
   primary?: boolean;
 }
 
@@ -73,6 +74,9 @@ export interface Contact {
   state?: string;
   postalCode?: string;
   country?: string;
+  countryCode?: string;
+  phoneCountryCode?: string;
+  mobileCountryCode?: string;
   emails?: EmailEntry[];
   phones?: PhoneEntry[];
   addresses?: AddressEntry[];
@@ -149,6 +153,9 @@ export interface CreateContactData {
   state?: string;
   postalCode?: string;
   country?: string;
+  countryCode?: string;
+  phoneCountryCode?: string;
+  mobileCountryCode?: string;
   emails?: EmailEntry[];
   phones?: PhoneEntry[];
   addresses?: AddressEntry[];

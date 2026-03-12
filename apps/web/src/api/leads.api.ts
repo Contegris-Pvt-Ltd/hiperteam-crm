@@ -133,6 +133,9 @@ export interface Lead {
   state?: string;
   postalCode?: string;
   country?: string;
+  countryCode?: string;
+  phoneCountryCode?: string;
+  mobileCountryCode?: string;
   emails: { type: string; email: string; primary?: boolean }[];
   phones: { type: string; number: string; primary?: boolean }[];
   addresses: any[];
@@ -242,6 +245,9 @@ export interface CreateLeadData {
   state?: string;
   postalCode?: string;
   country?: string;
+  countryCode?: string;
+  phoneCountryCode?: string;
+  mobileCountryCode?: string;
   emails?: { type: string; email: string; primary?: boolean }[];
   phones?: { type: string; number: string; primary?: boolean }[];
   addresses?: any[];

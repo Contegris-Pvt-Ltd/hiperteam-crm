@@ -228,7 +228,7 @@ export function AccountEditPage() {
             state: a.state || '',
             postalCode: a.postalCode || '',
             country: a.country || '',
-            countryCode: a.countryCode || getCountryCodeByName(a.country) || '',
+            countryCode: a.countryCode || getCountryCodeByName(a.country || '') || '',
             primary: a.primary || false
           } as any))
         : [];

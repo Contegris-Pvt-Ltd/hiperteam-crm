@@ -222,7 +222,7 @@ export function LeadEditPage() {
         state: data.state || '',
         postalCode: data.postalCode || '',
         country: data.country || '',
-        countryCode: data.countryCode || getCountryCodeByName(data.country) || '',
+        countryCode: data.countryCode || getCountryCodeByName(data.country || '') || '',
         phoneCountryCode: data.phoneCountryCode || '',
         mobileCountryCode: data.mobileCountryCode || '',
         industry: data.industry || '',

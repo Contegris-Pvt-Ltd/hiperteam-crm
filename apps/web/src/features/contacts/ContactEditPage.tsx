@@ -187,7 +187,7 @@ export function ContactEditPage() {
         state: data.state || '',
         postalCode: data.postalCode || '',
         country: data.country || '',
-        countryCode: data.countryCode || getCountryCodeByName(data.country) || '',
+        countryCode: data.countryCode || getCountryCodeByName(data.country || '') || '',
         phoneCountryCode: data.phoneCountryCode || '',
         mobileCountryCode: data.mobileCountryCode || '',
         emails: data.emails || [],
@@ -516,7 +516,7 @@ export function ContactEditPage() {
       let contactId: string;
       
       if (isNew) {
-        const newContact = await contactsApi.create(dataToSave);
+        const newContact = await contactsApi.create(dataToSave as CreateContactData);
         contactId = newContact.id;
         
         // Link account for new contact if selected
@@ -1259,7 +1259,7 @@ export function ContactEditPage() {
                       />
                       <CitySelect
                         countryCode={(formData as any).countryCode ?? ''}
-                        value={formData.city}
+                        value={formData.city || ''}
                         onChange={city => setFormData(prev => ({ ...prev, city }))}
                       />
                       <input
@@ -1351,7 +1351,7 @@ export function ContactEditPage() {
                           />
                           <CitySelect
                             countryCode={(address as any).countryCode ?? ''}
-                            value={address.city}
+                            value={address.city || ''}
                             onChange={city => updateAddress(index, 'city', city)}
                           />
                           <input
