@@ -214,14 +214,13 @@ function ConditionRow({
 
   // Find the field definition from either system or custom
   const isCustom = condition.fieldType === 'custom';
-  const fieldDef = isCustom
-    ? customFields.find(f => f.key === condition.field)
-    : systemFields.find((f: any) => f.fieldKey === condition.field);
-  const fieldType = isCustom ? (fieldDef?.type ?? 'text') : (fieldDef?.fieldType ?? 'text');
+  const customDef = customFields.find(f => f.key === condition.field);
+  const systemDef: any = systemFields.find((f: any) => f.fieldKey === condition.field);
+  const fieldType: string = isCustom ? (customDef?.type ?? 'text') : (systemDef?.fieldType ?? 'text');
 
   // Get select options if applicable
   const selectOptions: { label: string; value: string }[] =
-    (isCustom ? fieldDef?.options : (fieldDef as any)?.options) ?? [];
+    (isCustom ? customDef?.options : systemDef?.options) ?? [];
 
   const relevantOps = CONDITION_OPERATORS.filter(op =>
     op.types.includes(
