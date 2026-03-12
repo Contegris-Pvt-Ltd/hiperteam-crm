@@ -23,9 +23,9 @@ export class RoutingAlgorithmsService {
       case 'round_robin':  return this.roundRobin(schema, actionId, pool);
       case 'weighted':     return this.weighted(pool, weights);
       case 'load_based':   return this.loadBased(schema, pool, payload);
-      case 'territory':    return this.territory(schema, pool, payload, config);
-      case 'skill_match':  return this.skillMatch(schema, pool, payload, config);
-      case 'sticky':       return this.sticky(schema, pool, payload, config);
+      case 'territory':    return this.territory(schema, pool, payload);
+      case 'skill_match':  return this.skillMatch(schema, pool, payload);
+      case 'sticky':       return this.sticky(schema, pool, payload);
       default:             return pool[0] ?? null;
     }
   }
@@ -87,7 +87,7 @@ export class RoutingAlgorithmsService {
 
   // ── Territory Match ──────────────────────────────────────────
   private async territory(
-    schema: string, pool: string[], payload: any, _config: any,
+    schema: string, pool: string[], payload: any,
   ): Promise<string | null> {
     const entityCountry = payload.entity?.country_code ?? payload.entity?.country;
     const entityCity    = payload.entity?.city;
@@ -114,7 +114,7 @@ export class RoutingAlgorithmsService {
 
   // ── Skill Match ──────────────────────────────────────────────
   private async skillMatch(
-    schema: string, pool: string[], payload: any, _config: any,
+    schema: string, pool: string[], payload: any,
   ): Promise<string | null> {
     const entityIndustry = payload.entity?.industry;
     if (!entityIndustry) return pool[0] ?? null;
@@ -136,7 +136,7 @@ export class RoutingAlgorithmsService {
 
   // ── Sticky (same owner as related account/contact) ───────────
   private async sticky(
-    schema: string, pool: string[], payload: any, _config: any,
+    schema: string, pool: string[], payload: any,
   ): Promise<string | null> {
     const entity = payload.entity ?? {};
     const accountId = entity.account_id ?? entity.accountId;
