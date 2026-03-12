@@ -36,7 +36,7 @@ export function FormPublicPage() {
   useEffect(() => {
     if (!form?.settings?.requireCaptcha) return;
 
-    const SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LcJVYcsAAAAAGkdkQ02f2rRgNwNGis2pKeI2ngt';
+    const SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI';
 
     if (document.getElementById('recaptcha-script')) {
       renderCaptcha(SITE_KEY);
