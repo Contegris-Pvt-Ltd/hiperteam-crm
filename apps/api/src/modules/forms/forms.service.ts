@@ -229,7 +229,7 @@ export class FormsService {
 
   // ── Get analytics ───────────────────────────────────────────
   async getAnalytics(schemaName: string, formId: string) {
-    await this.findById(schemaName, formId);
+    const form = await this.findById(schemaName, formId);
 
     const [totals] = await this.dataSource.query(
       `SELECT
@@ -265,12 +265,111 @@ export class FormsService {
       [formId],
     );
 
+    // Per-field distributions
+    const structuralTypes = ['heading', 'paragraph', 'divider'];
+    const choiceTypes = ['select', 'radio', 'checkbox'];
+    const numberTypes = ['number'];
+    const textTypes = ['text', 'email', 'phone', 'textarea', 'date'];
+
+    const fields = (form.fields as any[]).filter(
+      (f) => !structuralTypes.includes(f.type),
+    );
+
+    const fieldStats = await Promise.all(
+      fields.map(async (field) => {
+        const name = field.name;
+
+        if (choiceTypes.includes(field.type)) {
+          const rows = await this.dataSource.query(
+            `SELECT data->$2 AS value, COUNT(*)::int AS count
+             FROM "${schemaName}".form_submissions
+             WHERE form_id = $1 AND data->$2 IS NOT NULL AND data->$2 != 'null'::jsonb
+             GROUP BY data->$2
+             ORDER BY count DESC`,
+            [formId, name],
+          );
+          return {
+            name,
+            label: field.label,
+            type: field.type,
+            responseCount: rows.reduce((s: number, r: any) => s + r.count, 0),
+            distribution: rows.map((r: any) => ({
+              value: r.value?.replace(/^"|"$/g, '') ?? '',
+              count: r.count,
+            })),
+          };
+        }
+
+        if (numberTypes.includes(field.type)) {
+          const [stats] = await this.dataSource.query(
+            `SELECT
+               COUNT(*)::int AS response_count,
+               AVG((data->$2)::text::numeric)::numeric(10,2) AS avg,
+               MIN((data->$2)::text::numeric) AS min,
+               MAX((data->$2)::text::numeric) AS max
+             FROM "${schemaName}".form_submissions
+             WHERE form_id = $1
+               AND data->$2 IS NOT NULL
+               AND data->$2 != 'null'::jsonb
+               AND (data->$2)::text ~ '^-?[0-9]+(\\.[0-9]+)?$'`,
+            [formId, name],
+          );
+          return {
+            name,
+            label: field.label,
+            type: field.type,
+            responseCount: stats.response_count,
+            stats: {
+              avg: stats.avg ? parseFloat(stats.avg) : null,
+              min: stats.min ? parseFloat(stats.min) : null,
+              max: stats.max ? parseFloat(stats.max) : null,
+            },
+          };
+        }
+
+        if (textTypes.includes(field.type)) {
+          const [{ response_count }] = await this.dataSource.query(
+            `SELECT COUNT(*)::int AS response_count
+             FROM "${schemaName}".form_submissions
+             WHERE form_id = $1
+               AND data->$2 IS NOT NULL
+               AND data->$2 != 'null'::jsonb
+               AND data->$2 != '""'::jsonb`,
+            [formId, name],
+          );
+          const samples = await this.dataSource.query(
+            `SELECT (data->$2)::text AS value
+             FROM "${schemaName}".form_submissions
+             WHERE form_id = $1
+               AND data->$2 IS NOT NULL
+               AND data->$2 != 'null'::jsonb
+               AND data->$2 != '""'::jsonb
+             ORDER BY created_at DESC
+             LIMIT 5`,
+            [formId, name],
+          );
+          return {
+            name,
+            label: field.label,
+            type: field.type,
+            responseCount: response_count,
+            samples: samples.map((r: any) =>
+              r.value?.replace(/^"|"$/g, '') ?? '',
+            ),
+          };
+        }
+
+        return { name, label: field.label, type: field.type, responseCount: 0 };
+      }),
+    );
+
     return {
       total: totals.total,
       last7Days: totals.last7,
       last30Days: totals.last30,
       dailyTrend: daily,
       actionBreakdown: actionRows,
+      fieldStats,
     };
   }
 
