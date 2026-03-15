@@ -613,7 +613,7 @@ function ActionEditor({
               onChange={(e) => onChange({ emailFieldName: e.target.value })}
               className="w-full px-2 py-1.5 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white"
             >
-              {form?.fields.filter(f => f.type === 'email').map(f => (
+              {formFields.filter((f: FormField) => f.type === 'email').map((f: FormField) => (
                 <option key={f.name} value={f.name}>{f.label}</option>
               ))}
               <option value="email">email (default)</option>

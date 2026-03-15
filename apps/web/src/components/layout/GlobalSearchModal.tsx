@@ -29,7 +29,7 @@ export function GlobalSearchBar() {
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [open, setOpen] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // ⌘K / Ctrl+K global shortcut
   useEffect(() => {

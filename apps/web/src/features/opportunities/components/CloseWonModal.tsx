@@ -16,7 +16,7 @@ interface CloseWonModalProps {
   onClosed: (createdProjectId?: string) => void;
 }
 
-export function CloseWonModal({ opportunityId, opportunityName, currentAmount, onClose, onClosed }: CloseWonModalProps) {
+export function CloseWonModal({ opportunityId, opportunityName: _opportunityName, currentAmount, onClose, onClosed }: CloseWonModalProps) {
   const [reasons, setReasons] = useState<OpportunityCloseReason[]>([]);
   const [selectedReasonId, setSelectedReasonId] = useState('');
   const [finalAmount, setFinalAmount] = useState<string>(currentAmount?.toString() || '');
