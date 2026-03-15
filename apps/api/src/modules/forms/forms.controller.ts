@@ -88,11 +88,31 @@ export class FormsController {
     @Param('id') id: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('actionStatus') actionStatus?: string,
   ) {
     return this.formsService.getSubmissions(req.user.tenantSchema, id, {
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
+      startDate,
+      endDate,
+      actionStatus,
     });
+  }
+
+  @Post(':id/submissions/:submissionId/retry-webhook')
+  @RequirePermission('forms', 'edit')
+  async retryWebhook(
+    @Request() req: { user: JwtPayload },
+    @Param('submissionId') submissionId: string,
+    @Body() body: { actionIndex: number },
+  ) {
+    return this.formsService.retryWebhook(
+      req.user.tenantSchema,
+      submissionId,
+      body.actionIndex ?? 0,
+    );
   }
 }
 
@@ -115,6 +135,8 @@ export class FormsPublicController {
       fields: form.fields,
       settings: form.settings,
       branding: form.branding,
+      isLandingPage: form.isLandingPage,
+      landingPageConfig: form.landingPageConfig,
     };
   }
 

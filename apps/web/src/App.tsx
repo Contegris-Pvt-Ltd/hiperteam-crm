@@ -56,11 +56,12 @@ import ProjectSettingsPage from './features/admin/ProjectSettingsPage';
 import { ProjectsPage } from './features/projects/ProjectsPage';
 import { ProjectDetailPage } from './features/projects/ProjectDetailPage';
 import { ClientPortalPage } from './features/projects/ClientPortalPage';
-import { FormsPage, FormBuilderPage, FormSubmissionsPage, FormPublicPage } from './features/forms';
+import { FormsPage, FormBuilderPage, FormSubmissionsPage, FormPublicPage, LandingPagePublicPage } from './features/forms';
 import { InboxPage, EmailSettingsPage, InboxRulesPage } from './features/email';
 import { WorkflowListPage } from './features/workflows/WorkflowListPage';
 import { WorkflowBuilderPage } from './features/workflows/WorkflowBuilderPage';
 import { WorkflowRunsPage } from './features/workflows/WorkflowRunsPage';
+import { ApiKeysPage } from './features/admin/ApiKeysPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -95,6 +96,7 @@ function App() {
         <Route path="/contracts/sign/:token" element={<ContractSignPage />} />
         <Route path="/portal/:tenantSlug/:token" element={<ClientPortalPage />} />
         <Route path="/f/:tenantSlug/:token" element={<FormPublicPage />} />
+        <Route path="/lp/:tenantSlug/:token" element={<LandingPagePublicPage />} />
 
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<DashboardPage />} />
@@ -191,6 +193,7 @@ function App() {
           <Route path="approval-rules" element={<ApprovalRulesPage />} />
           <Route path="general-settings" element={<GeneralSettingsPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
+          <Route path="api-keys" element={<ApiKeysPage />} />
           <Route path="xero-matching" element={<XeroContactMatchingPage />} />
           <Route path="xero/callback" element={<XeroCallbackPage />} />
         </Route>

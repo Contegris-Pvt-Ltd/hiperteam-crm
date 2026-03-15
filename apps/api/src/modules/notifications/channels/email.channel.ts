@@ -5,6 +5,8 @@ import { EmailService } from '../../email/email.service';
 
 export interface EmailPayload {
   to: string;
+  cc?: string;
+  bcc?: string;
   subject: string;
   html?: string;
   text?: string;
@@ -35,6 +37,8 @@ export class EmailChannel {
         const result = await transporter.sendMail({
           from: `"${config.fromName || 'HiperTeam CRM'}" <${config.from || 'noreply@hiperteam.com'}>`,
           to: payload.to,
+          cc: payload.cc || undefined,
+          bcc: payload.bcc || undefined,
           subject: payload.subject,
           html: payload.html ? this.wrapInLayout(payload.html, config) : undefined,
           text: payload.text,

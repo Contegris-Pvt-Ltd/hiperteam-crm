@@ -1,6 +1,8 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AuditService } from '../shared/audit.service';
+import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
+import { EmailService } from '../email/email.service';
 import { randomBytes } from 'crypto';
 
 @Injectable()
@@ -10,6 +12,8 @@ export class FormsService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly auditService: AuditService,
+    private readonly workflowRunner: WorkflowRunnerService,
+    private readonly emailService: EmailService,
   ) {}
 
   // ── List all forms ──────────────────────────────────────────
@@ -85,8 +89,9 @@ export class FormsService {
 
     const [row] = await this.dataSource.query(
       `INSERT INTO "${schemaName}".forms
-        (name, description, slug, status, fields, settings, submit_actions, branding, token, tenant_slug, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+        (name, description, slug, status, fields, settings, submit_actions, branding,
+         token, tenant_slug, is_landing_page, landing_page_config, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
        RETURNING *`,
       [
         data.name,
@@ -99,6 +104,8 @@ export class FormsService {
         JSON.stringify(data.branding || {}),
         token,
         tenantSlug,
+        data.isLandingPage ?? false,
+        JSON.stringify(data.landingPageConfig || {}),
         userId,
       ],
     );
@@ -129,7 +136,9 @@ export class FormsService {
         settings = COALESCE($7, settings),
         submit_actions = COALESCE($8, submit_actions),
         branding = COALESCE($9, branding),
-        updated_by = $10,
+        is_landing_page = COALESCE($10, is_landing_page),
+        landing_page_config = COALESCE($11, landing_page_config),
+        updated_by = $12,
         updated_at = NOW()
        WHERE id = $1 AND deleted_at IS NULL
        RETURNING *`,
@@ -143,6 +152,8 @@ export class FormsService {
         data.settings ? JSON.stringify(data.settings) : null,
         data.submitActions ? JSON.stringify(data.submitActions) : null,
         data.branding ? JSON.stringify(data.branding) : null,
+        data.isLandingPage ?? null,
+        data.landingPageConfig ? JSON.stringify(data.landingPageConfig) : null,
         userId,
       ],
     );
@@ -198,27 +209,46 @@ export class FormsService {
   async getSubmissions(
     schemaName: string,
     formId: string,
-    query: { page?: number; limit?: number },
+    query: { page?: number; limit?: number; startDate?: string; endDate?: string; actionStatus?: string },
   ) {
     const page = query.page || 1;
     const limit = query.limit || 25;
     const offset = (page - 1) * limit;
 
-    // Verify form exists
     await this.findById(schemaName, formId);
 
+    const conditions: string[] = ['form_id = $1'];
+    const params: any[] = [formId];
+    let idx = 2;
+
+    if (query.startDate) {
+      conditions.push(`created_at >= $${idx++}`);
+      params.push(query.startDate);
+    }
+    if (query.endDate) {
+      conditions.push(`created_at <= $${idx++}`);
+      params.push(query.endDate);
+    }
+    if (query.actionStatus === 'success') {
+      conditions.push(`NOT EXISTS (SELECT 1 FROM jsonb_array_elements(action_results::jsonb) ar WHERE ar->>'status' = 'error')`);
+    } else if (query.actionStatus === 'error') {
+      conditions.push(`EXISTS (SELECT 1 FROM jsonb_array_elements(action_results::jsonb) ar WHERE ar->>'status' = 'error')`);
+    }
+
+    const where = conditions.join(' AND ');
+
     const [countResult] = await this.dataSource.query(
-      `SELECT COUNT(*) FROM "${schemaName}".form_submissions WHERE form_id = $1`,
-      [formId],
+      `SELECT COUNT(*) FROM "${schemaName}".form_submissions WHERE ${where}`,
+      params,
     );
     const total = parseInt(countResult.count, 10);
 
     const rows = await this.dataSource.query(
       `SELECT * FROM "${schemaName}".form_submissions
-       WHERE form_id = $1
+       WHERE ${where}
        ORDER BY created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [formId, limit, offset],
+       LIMIT $${idx} OFFSET $${idx + 1}`,
+      [...params, limit, offset],
     );
 
     return {
@@ -406,6 +436,24 @@ export class FormsService {
       token,
     );
 
+    // ── reCAPTCHA v3 verification ──────────────────────────
+    if (form.settings?.requireCaptcha) {
+      const captchaToken = submissionData.__recaptchaToken;
+      const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+      if (!captchaToken || !secretKey) {
+        throw new BadRequestException('CAPTCHA verification required');
+      }
+      const verifyRes = await fetch(
+        `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${captchaToken}`,
+        { method: 'POST' },
+      );
+      const verifyData: any = await verifyRes.json();
+      if (!verifyData.success || (verifyData.score !== undefined && verifyData.score < 0.5)) {
+        throw new BadRequestException('CAPTCHA verification failed');
+      }
+      delete submissionData.__recaptchaToken;
+    }
+
     const actionResults: any[] = [];
     // Context accumulates entity IDs from earlier actions so later actions can reference them
     // e.g. create_contact → contactId, then create_lead uses contactId
@@ -485,6 +533,8 @@ export class FormsService {
         return this.createAccountFromSubmission(schemaName, mappedData);
       case 'webhook':
         return this.sendWebhook(action.webhookUrl, data, form);
+      case 'send_email':
+        return this.sendEmailToSubmitter(action, data, form);
       default:
         this.logger.warn(`Unknown action type: ${action.type}`);
         return null;
@@ -518,7 +568,7 @@ export class FormsService {
       `INSERT INTO "${schemaName}".leads
         (first_name, last_name, email, phone, company, source, status, custom_fields)
        VALUES ($1, $2, $3, $4, $5, 'web_form', 'new', $6)
-       RETURNING id`,
+       RETURNING *`,
       [
         data.first_name || data.firstName || '',
         data.last_name || data.lastName || '',
@@ -530,6 +580,12 @@ export class FormsService {
           : null,
       ],
     );
+
+    // Fire workflow trigger for lead creation (fire-and-forget)
+    this.workflowRunner
+      .trigger(schemaName, 'leads', 'lead_created', row.id, row)
+      .catch(() => {});
+
     return { entityType: 'lead', entityId: row.id };
   }
 
@@ -545,7 +601,7 @@ export class FormsService {
       `INSERT INTO "${schemaName}".contacts
         (first_name, last_name, email, phone, company, account_id)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id`,
+       RETURNING *`,
       [
         data.first_name || data.firstName || '',
         data.last_name || data.lastName || '',
@@ -555,6 +611,12 @@ export class FormsService {
         accountId,
       ],
     );
+
+    // Fire workflow trigger for contact creation (fire-and-forget)
+    this.workflowRunner
+      .trigger(schemaName, 'contacts', 'contact_created', row.id, row)
+      .catch(() => {});
+
     return { entityType: 'contact', entityId: row.id };
   }
 
@@ -566,7 +628,7 @@ export class FormsService {
       `INSERT INTO "${schemaName}".accounts
         (name, email, phone, website, type)
        VALUES ($1, $2, $3, $4, 'prospect')
-       RETURNING id`,
+       RETURNING *`,
       [
         data.name || data.company || '',
         data.email || null,
@@ -574,10 +636,18 @@ export class FormsService {
         data.website || null,
       ],
     );
+
+    // Fire workflow trigger for account creation (fire-and-forget)
+    this.workflowRunner
+      .trigger(schemaName, 'accounts', 'account_created', row.id, row)
+      .catch(() => {});
+
     return { entityType: 'account', entityId: row.id };
   }
 
   private async sendWebhook(url: string, data: any, form: any): Promise<any> {
+    const startedAt = Date.now();
+    let responseBody = '';
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -589,10 +659,79 @@ export class FormsService {
           submittedAt: new Date().toISOString(),
         }),
       });
-      return { statusCode: response.status };
+      const statusCode = response.status;
+      try { responseBody = await response.text(); } catch { /* ignore */ }
+      const durationMs = Date.now() - startedAt;
+      if (!response.ok) {
+        throw new Error(`HTTP ${statusCode}: ${responseBody.substring(0, 200)}`);
+      }
+      return { statusCode, responseBody: responseBody.substring(0, 500), durationMs, url };
     } catch (err: any) {
       throw new Error(`Webhook failed: ${err.message}`);
     }
+  }
+
+  private async sendEmailToSubmitter(action: any, data: any, form: any): Promise<any> {
+    const toEmail = data[action.emailFieldName || 'email'] || data.email;
+    if (!toEmail) throw new Error('No email address found in submission data');
+
+    const interpolate = (template: string) =>
+      template.replace(/\{\{(\w+)\}\}/g, (_, key) => data[key] ?? '');
+
+    const subject = interpolate(action.subject || `Thank you for submitting ${form.name}`);
+    const body = interpolate(
+      action.body || `<p>Thank you for your submission. We will be in touch soon.</p>`,
+    );
+
+    await this.emailService.sendEmail({ to: toEmail, subject, html: body });
+    return { to: toEmail, subject };
+  }
+
+  async retryWebhook(schemaName: string, submissionId: string, actionIndex: number) {
+    const [row] = await this.dataSource.query(
+      `SELECT fs.*, f.name as form_name, f.id as form_id_ref
+       FROM "${schemaName}".form_submissions fs
+       JOIN "${schemaName}".forms f ON f.id = fs.form_id
+       WHERE fs.id = $1`,
+      [submissionId],
+    );
+    if (!row) throw new NotFoundException('Submission not found');
+
+    const submission = this.formatSubmission(row);
+    const form = { id: row.form_id_ref, name: row.form_name };
+    const actionResults: any[] = submission.actionResults || [];
+    const targetAction = actionResults[actionIndex];
+
+    if (!targetAction || targetAction.type !== 'webhook') {
+      throw new BadRequestException('Action is not a webhook or index invalid');
+    }
+
+    const [formRow] = await this.dataSource.query(
+      `SELECT submit_actions FROM "${schemaName}".forms WHERE id = $1`,
+      [row.form_id],
+    );
+    const submitActions = typeof formRow.submit_actions === 'string'
+      ? JSON.parse(formRow.submit_actions) : formRow.submit_actions;
+    const webhookActions = submitActions.filter((a: any) => a.type === 'webhook');
+    const webhookActionDef = webhookActions[0];
+
+    if (!webhookActionDef?.webhookUrl) {
+      throw new BadRequestException('Webhook URL not found on form definition');
+    }
+
+    try {
+      const result = await this.sendWebhook(webhookActionDef.webhookUrl, submission.data, form);
+      actionResults[actionIndex] = { ...targetAction, status: 'success', result, retriedAt: new Date().toISOString() };
+    } catch (err: any) {
+      actionResults[actionIndex] = { ...targetAction, status: 'error', error: err.message, retriedAt: new Date().toISOString() };
+    }
+
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".form_submissions SET action_results = $1 WHERE id = $2`,
+      [JSON.stringify(actionResults), submissionId],
+    );
+
+    return this.formatSubmission({ ...row, action_results: actionResults });
   }
 
   // ── Formatters ──────────────────────────────────────────────
@@ -615,6 +754,9 @@ export class FormsService {
       token: r.token,
       tenantSlug: r.tenant_slug,
       submissionCount: r.submission_count,
+      isLandingPage: r.is_landing_page ?? false,
+      landingPageConfig: typeof r.landing_page_config === 'string'
+        ? JSON.parse(r.landing_page_config) : (r.landing_page_config ?? {}),
       createdBy: r.created_by,
       createdByName: r.created_by_name || null,
       updatedBy: r.updated_by,

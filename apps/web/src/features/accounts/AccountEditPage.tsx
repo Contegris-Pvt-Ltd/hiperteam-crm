@@ -81,6 +81,8 @@ export function AccountEditPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('basic');
+  const [phoneValid, setPhoneValid] = useState<Record<string, boolean>>({});
+  const allPhonesValid = Object.values(phoneValid).every(v => v);
   const { industries } = useIndustries();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
@@ -852,7 +854,7 @@ export function AccountEditPage() {
             </button>
             <button
               onClick={handleSubmit}
-              disabled={saving}
+              disabled={saving || !allPhonesValid}
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-medium rounded-xl hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
@@ -1241,6 +1243,7 @@ export function AccountEditPage() {
                                 value={phone.number}
                                 defaultCountry={baseCountry}
                                 onChange={(e164) => updatePhone(index, 'number', e164)}
+                                onValidityChange={(valid) => setPhoneValid(prev => ({ ...prev, [`phone_${index}`]: valid }))}
                                 placeholder="Phone number"
                               />
                             </div>

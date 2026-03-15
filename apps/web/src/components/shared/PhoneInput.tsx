@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { COUNTRIES, getCountryByCode } from '../../data/countries';
-import { ChevronDown, Search } from 'lucide-react';
+import { ChevronDown, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { isValidPhoneNumber } from 'libphonenumber-js';
 
 interface Props {
   value: string;          // full E.164 e.g. '+971501234567'
   defaultCountry?: string; // ISO2 fallback e.g. 'AE'
   onChange: (e164: string, countryCode: string) => void;
+  onValidityChange?: (valid: boolean) => void;
   placeholder?: string;
   disabled?: boolean;
   label?: string;
@@ -30,15 +32,29 @@ function deriveFromValue(value: string | undefined | null, defaultCountry: strin
   return { country: defaultCountry, local: value };
 }
 
-export function PhoneInput({ value, defaultCountry = 'US', onChange, placeholder = 'Phone number', disabled, label, className = '' }: Props) {
+export function PhoneInput({ value, defaultCountry = 'US', onChange, onValidityChange, placeholder = 'Phone number', disabled, label, className = '' }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const internalChange = useRef(false);
+  const validityCbRef = useRef(onValidityChange);
+  validityCbRef.current = onValidityChange;
 
   const initial = deriveFromValue(value, defaultCountry);
   const [selectedCountry, setSelectedCountry] = useState(initial.country);
   const [localNumber, setLocalNumber] = useState(initial.local);
+  const [touched, setTouched] = useState(false);
+
+  // Validate the current E.164 value
+  const e164Value = localNumber ? `${(getCountryByCode(selectedCountry) ?? COUNTRIES[0]).dialCode}${localNumber}` : '';
+  const isValid = e164Value ? isValidPhoneNumber(e164Value) : true; // empty is not invalid
+  const showError = touched && localNumber.length > 0 && !isValid;
+  const showValid = touched && localNumber.length > 0 && isValid;
+
+  // Notify parent of validity changes
+  useEffect(() => {
+    validityCbRef.current?.(localNumber.length === 0 || isValid);
+  }, [isValid, localNumber]);
 
   // Sync when external value changes (edit mode load, form reset) — skip if we triggered it
   useEffect(() => {
@@ -83,6 +99,7 @@ export function PhoneInput({ value, defaultCountry = 'US', onChange, placeholder
   const handleNumberChange = (raw: string) => {
     const digits = raw.replace(/\D/g, '');
     setLocalNumber(digits);
+    setTouched(true);
     internalChange.current = true;
     const e164 = digits ? `${selected.dialCode}${digits}` : '';
     onChange(e164, selectedCountry);
@@ -104,12 +121,25 @@ export function PhoneInput({ value, defaultCountry = 'US', onChange, placeholder
         </button>
 
         {/* Number */}
-        <input
-          type="tel" value={localNumber} disabled={disabled}
-          onChange={e => handleNumberChange(e.target.value)}
-          placeholder={placeholder}
-          className="flex-1 min-w-0 px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-r-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none"
-        />
+        <div className="relative flex-1 min-w-0">
+          <input
+            type="tel" value={localNumber} disabled={disabled}
+            onChange={e => handleNumberChange(e.target.value)}
+            onBlur={() => setTouched(true)}
+            placeholder={placeholder}
+            className={`w-full px-3 py-2.5 border rounded-r-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:outline-none pr-8 ${
+              showError
+                ? 'border-red-400 dark:border-red-500 focus:ring-red-200 dark:focus:ring-red-900/30 focus:border-red-400'
+                : 'border-gray-200 dark:border-slate-700 focus:ring-blue-500 focus:border-transparent'
+            }`}
+          />
+          {showError && (
+            <AlertCircle className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400" />
+          )}
+          {showValid && (
+            <CheckCircle2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+          )}
+        </div>
 
         {/* Dropdown */}
         {open && (
@@ -146,6 +176,9 @@ export function PhoneInput({ value, defaultCountry = 'US', onChange, placeholder
           </div>
         )}
       </div>
+      {showError && (
+        <p className="text-xs text-red-500 mt-0.5">Invalid phone number for {selected.name}</p>
+      )}
     </div>
   );
 }

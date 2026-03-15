@@ -23,6 +23,7 @@ import {
   Wand2,
   Copy,
   Code2,
+  Globe,
 } from 'lucide-react';
 import { formsApi } from '../../api/forms.api';
 import type { FormRecord, FormField, FormSubmitAction, FormSettings, FormBranding } from '../../api/forms.api';
@@ -92,7 +93,7 @@ export function FormBuilderPage() {
     if (!form || !id) return;
     setSaving(true);
     try {
-      const updated = await formsApi.update(id, {
+      await formsApi.update(id, {
         name: form.name,
         description: form.description,
         slug: form.slug,
@@ -101,9 +102,12 @@ export function FormBuilderPage() {
         settings: form.settings,
         submitActions: form.submitActions,
         branding: form.branding,
+        isLandingPage: form.isLandingPage,
+        landingPageConfig: form.landingPageConfig,
       });
-      // Preserve tenantSlug/token in case update response omits them
-      setForm({ ...updated, tenantSlug: updated.tenantSlug || form.tenantSlug, token: updated.token || form.token });
+      // Reload from server to ensure complete form state
+      const reloaded = await formsApi.getById(id);
+      setForm(reloaded);
       setDirty(false);
     } catch (err) {
       console.error('Failed to save', err);
@@ -208,18 +212,21 @@ export function FormBuilderPage() {
           {form.status === 'active' && (
             <>
               <button
+                type="button"
                 onClick={() => window.open(getPublicUrl(), '_blank')}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
               >
                 <Eye className="w-4 h-4" /> Preview
               </button>
               <button
+                type="button"
                 onClick={() => { navigator.clipboard.writeText(getPublicUrl()); }}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
               >
                 <Copy className="w-4 h-4" /> Copy Link
               </button>
               <button
+                type="button"
                 onClick={() => setShowEmbed(true)}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
               >
@@ -228,6 +235,7 @@ export function FormBuilderPage() {
             </>
           )}
           <button
+            type="button"
             onClick={handleSave}
             disabled={saving || !dirty}
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-colors"
@@ -422,6 +430,8 @@ export function FormBuilderPage() {
               <SettingsPanel
                 settings={form.settings || {}}
                 onChange={(s) => updateForm({ settings: s })}
+                form={form}
+                updateForm={updateForm}
               />
             )}
 
@@ -566,6 +576,7 @@ function ActionEditor({
           <option value="create_contact">Create Contact</option>
           <option value="create_account">Create Account</option>
           <option value="webhook">Webhook</option>
+          <option value="send_email">Send Email to Submitter</option>
         </select>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -592,6 +603,41 @@ function ActionEditor({
             placeholder="https://..."
             className="w-full px-2 py-1.5 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white"
           />
+        </div>
+      ) : action.type === 'send_email' ? (
+        <div className="space-y-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Email Field</label>
+            <select
+              value={action.emailFieldName || 'email'}
+              onChange={(e) => onChange({ emailFieldName: e.target.value })}
+              className="w-full px-2 py-1.5 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white"
+            >
+              {form?.fields.filter(f => f.type === 'email').map(f => (
+                <option key={f.name} value={f.name}>{f.label}</option>
+              ))}
+              <option value="email">email (default)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Subject</label>
+            <input
+              value={action.subject || ''}
+              onChange={(e) => onChange({ subject: e.target.value })}
+              placeholder="Thank you for submitting {{first_name}}"
+              className="w-full px-2 py-1.5 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Body (HTML, use {'{{field_name}}'})</label>
+            <textarea
+              value={action.body || ''}
+              onChange={(e) => onChange({ body: e.target.value })}
+              rows={4}
+              placeholder="<p>Hi {{first_name}}, thanks for reaching out!</p>"
+              className="w-full px-2 py-1.5 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white resize-none"
+            />
+          </div>
         </div>
       ) : (
         <div>
@@ -629,7 +675,12 @@ function ActionEditor({
 }
 
 // ── Settings Panel ──────────────────────────────────────────
-function SettingsPanel({ settings, onChange }: { settings: FormSettings; onChange: (s: FormSettings) => void }) {
+function SettingsPanel({ settings, onChange, form, updateForm }: {
+  settings: FormSettings;
+  onChange: (s: FormSettings) => void;
+  form: FormRecord;
+  updateForm: (updates: Partial<FormRecord>) => void;
+}) {
   return (
     <div className="space-y-4">
       <div>
@@ -678,6 +729,73 @@ function SettingsPanel({ settings, onChange }: { settings: FormSettings; onChang
           className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white"
         />
         <p className="text-xs text-gray-400 mt-1">Comma-separated email addresses</p>
+      </div>
+
+      {/* Landing Page Mode */}
+      <div className="border-t border-gray-200 dark:border-slate-600 pt-4">
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <Globe className="w-4 h-4 text-purple-500" />
+          Landing Page Mode
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mb-3">
+          <input
+            type="checkbox"
+            checked={form?.isLandingPage ?? false}
+            onChange={(e) => updateForm({ isLandingPage: e.target.checked })}
+            className="rounded text-purple-600"
+          />
+          Enable landing page wrapper (hero, sections, SEO)
+        </label>
+        {form?.isLandingPage && (
+          <div className="space-y-3 pl-2 border-l-2 border-purple-200 dark:border-purple-700">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Hero Title</label>
+              <input
+                value={form.landingPageConfig?.heroTitle || ''}
+                onChange={(e) => updateForm({ landingPageConfig: { ...form.landingPageConfig, heroTitle: e.target.value } })}
+                placeholder="Get Started Today"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Hero Subtitle</label>
+              <input
+                value={form.landingPageConfig?.heroSubtitle || ''}
+                onChange={(e) => updateForm({ landingPageConfig: { ...form.landingPageConfig, heroSubtitle: e.target.value } })}
+                placeholder="Fill in the form below and we'll be in touch."
+                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Hero Background Color</label>
+              <input
+                type="color"
+                value={form.landingPageConfig?.heroBgColor || '#7c3aed'}
+                onChange={(e) => updateForm({ landingPageConfig: { ...form.landingPageConfig, heroBgColor: e.target.value } })}
+                className="w-12 h-8 rounded cursor-pointer border-0"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">SEO Title</label>
+              <input
+                value={form.landingPageConfig?.seoTitle || ''}
+                onChange={(e) => updateForm({ landingPageConfig: { ...form.landingPageConfig, seoTitle: e.target.value } })}
+                placeholder="Page title for search engines"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">SEO Description</label>
+              <textarea
+                value={form.landingPageConfig?.seoDescription || ''}
+                onChange={(e) => updateForm({ landingPageConfig: { ...form.landingPageConfig, seoDescription: e.target.value } })}
+                rows={2}
+                placeholder="Short description for search engines"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white resize-none"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

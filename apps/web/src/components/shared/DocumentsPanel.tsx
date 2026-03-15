@@ -13,7 +13,8 @@ interface DocumentsPanelProps {
   onDocumentDeleted?: (docId: string) => void;
 }
 
-const getFileIcon = (mimeType: string) => {
+const getFileIcon = (mimeType: string | undefined | null) => {
+  if (!mimeType) return File;
   if (mimeType.startsWith('image/')) return FileImage;
   if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType === 'text/csv') return FileSpreadsheet;
   if (mimeType.includes('pdf')) return FileType;

@@ -6,7 +6,7 @@
 //
 // Multi-tenant raw SQL — same patterns as opportunities.service.ts
 // ============================================================
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { ActivityService } from '../shared/activity.service';
@@ -299,6 +299,27 @@ export class ProjectsService {
       [id],
     );
     return { deleted: true };
+  }
+
+  // ============================================================
+  // PREVIEW PROJECT FROM TEMPLATE
+  // ============================================================
+  async createPreviewProject(schemaName: string, templateId: string, userId: string) {
+    const template = await this.getTemplateById(schemaName, templateId);
+    if (!template) throw new NotFoundException('Template not found');
+
+    const project = await this.createProject(
+      schemaName,
+      {
+        name: `[Preview] ${template.name}`,
+        description: `Draft preview project created from template "${template.name}". Safe to delete.`,
+        color: template.color || null,
+        templateId,
+      },
+      userId,
+    );
+
+    return { projectId: project.id, name: project.name };
   }
 
   // ============================================================
@@ -873,10 +894,15 @@ export class ProjectsService {
     const params: unknown[] = [];
     let idx = 1;
 
+    // Fields that accept null when empty string is sent (to allow clearing)
+    const nullableFields = ['ownerId', 'teamId', 'accountId'];
+
     for (const [dtoKey, dbCol] of Object.entries(fieldMap)) {
       if ((dto as any)[dtoKey] !== undefined) {
+        let value = (dto as any)[dtoKey];
+        if (nullableFields.includes(dtoKey) && value === '') value = null;
         updates.push(`${dbCol} = $${idx}`);
-        params.push((dto as any)[dtoKey]);
+        params.push(value);
         idx++;
       }
     }

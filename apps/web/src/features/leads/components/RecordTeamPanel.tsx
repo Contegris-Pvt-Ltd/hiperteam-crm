@@ -118,8 +118,8 @@ export function RecordTeamPanel({ leadId, teamMembers, onRefresh, canEdit }: Rec
                 <button
                   onClick={() => handleRemoveMember(member.userId)}
                   disabled={removing === member.userId}
-                  className="p-0.5 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Remove"
+                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                  title="Remove member"
                 >
                   {removing === member.userId ? (
                     <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />

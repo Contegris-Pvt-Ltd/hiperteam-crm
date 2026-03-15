@@ -5,6 +5,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException, ConflictExc
 import { DataSource } from 'typeorm';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadsDto, ConvertLeadDto, ChangeStageDto, DisqualifyLeadDto } from './dto';
 import { BulkUpdateDto } from './dto/bulk-update.dto';
+import { formatPhoneE164 } from '../../common/utils/phone.util';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
 import { LeadScoringService } from './lead-scoring.service';
@@ -52,10 +53,19 @@ export class LeadsService {
       source: dto.source,
     }, dto.customFields as Record<string, any>);
 
-    // 1. Duplicate detection
+    // 1. Phone validation
+    const country = dto.country || 'PK';
+    if (dto.phone && !formatPhoneE164(dto.phone, country)) {
+      throw new BadRequestException('Invalid phone number');
+    }
+    if (dto.mobile && !formatPhoneE164(dto.mobile, country)) {
+      throw new BadRequestException('Invalid mobile number');
+    }
+
+    // 2. Duplicate detection
     await this.checkDuplicates(schemaName, dto.email, dto.phone, null);
 
-    // 2. Get default stage if not provided
+    // 3. Get default stage if not provided
     let stageId = dto.stageId;
     let pipelineId = dto.pipelineId;
     if (!stageId) {
@@ -106,8 +116,9 @@ export class LeadsService {
     }
 
     // 5. Determine owner and team
-    let ownerId = dto.ownerId || userId;
-    let teamId = dto.teamId || null;
+    // '__auto_assign__' means leave owner null so workflow routing can assign
+    const ownerId = dto.ownerId === '__auto_assign__' ? null : (dto.ownerId || userId);
+    const teamId = dto.teamId || null;
 
     // 6. Insert lead
     const [lead] = await this.dataSource.query(
@@ -144,8 +155,8 @@ export class LeadsService {
         dto.firstName || null,
         dto.lastName,
         dto.email ? dto.email.toLowerCase().trim() : null,
-        dto.phone || null,
-        dto.mobile || null,
+        dto.phone ? formatPhoneE164(dto.phone, country) : null,
+        dto.mobile ? formatPhoneE164(dto.mobile, country) : null,
         dto.company || null,
         dto.jobTitle || null,
         dto.website || null,
@@ -159,7 +170,7 @@ export class LeadsService {
         dto.phoneCountryCode || null,
         dto.mobileCountryCode || null,
         JSON.stringify(dto.emails || []),
-        JSON.stringify(dto.phones || []),
+        JSON.stringify((dto.phones || []).map(p => ({ ...p, number: formatPhoneE164(p.number, country) || p.number }))),
         JSON.stringify(dto.addresses || []),
         JSON.stringify(dto.socialProfiles || {}),
         dto.source || null,
@@ -772,11 +783,16 @@ export class LeadsService {
       teamId: 'team_id',
     };
 
+    // Fields that accept null when empty string is sent (to allow clearing)
+    const nullableFields = ['ownerId', 'teamId'];
+
     for (const [key, value] of Object.entries(dto)) {
       if (value !== undefined && fieldMap[key]) {
         updates.push(`${fieldMap[key]} = $${paramIndex}`);
         if (key === 'email') {
           params.push((value as string).toLowerCase().trim());
+        } else if (nullableFields.includes(key) && value === '') {
+          params.push(null);
         } else {
           params.push(value);
         }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Trash2, Plus, GripVertical, CheckCircle2,
-         XCircle, Edit2, Check, X, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+         XCircle, Edit2, Check, X, ChevronDown, ChevronRight, Loader2, Eye } from 'lucide-react';
 import { projectsApi } from '../../api/projects.api';
 import { approvalsApi } from '../../api/approvals.api';
 
@@ -113,6 +113,7 @@ export default function ProjectSettingsPage() {
   const [tplError, setTplError] = useState('');
   const [expandedPhases, setExpandedPhases] = useState<string[]>([]);
   const [expandedTasks, setExpandedTasks] = useState<string[]>([]);
+  const [previewing, setPreviewing] = useState<string | null>(null);
 
   // ── Load data ─────────────────────────────────────────────
   useEffect(() => { loadAll(); }, []);
@@ -755,6 +756,26 @@ export default function ProjectSettingsPage() {
                           <button onClick={() => openTemplateEditor(t.id)}
                             className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
                             <Edit2 size={14} />
+                          </button>
+                          <button
+                            title="Create a draft preview project from this template"
+                            disabled={previewing === t.id}
+                            onClick={async () => {
+                              setPreviewing(t.id);
+                              try {
+                                const { projectId } = await projectsApi.createPreviewProject(t.id);
+                                window.open(`/projects/${projectId}`, '_blank');
+                              } catch (e: any) {
+                                alert(e?.response?.data?.message || 'Failed to create preview project');
+                              } finally {
+                                setPreviewing(null);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 disabled:opacity-50 transition-colors"
+                          >
+                            {previewing === t.id
+                              ? <Loader2 size={14} className="animate-spin" />
+                              : <Eye size={14} />}
                           </button>
                         </>
                       )}

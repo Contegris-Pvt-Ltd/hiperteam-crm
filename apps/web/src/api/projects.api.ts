@@ -603,6 +603,11 @@ export const projectsApi = {
     await api.delete(`/projects/admin/templates/${id}`);
   },
 
+  createPreviewProject: async (templateId: string): Promise<{ projectId: string; name: string }> => {
+    const { data } = await api.post(`/projects/admin/templates/${templateId}/preview-project`);
+    return data;
+  },
+
   saveTemplateStructure: async (id: string, dto: {
     name?: string;
     description?: string;

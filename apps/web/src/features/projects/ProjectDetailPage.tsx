@@ -920,22 +920,33 @@ export function ProjectDetailPage() {
             </div>
             {members.length > 0 ? (
               <div className="space-y-2">
-                {members.slice(0, 4).map(m => (
-                  <div key={m.id} className="flex items-center gap-2">
-                    <div className={`w-7 h-7 rounded-full ${avatarColor(m.userId)} flex items-center justify-center text-white text-xs font-medium`}>
-                      {(m.firstName || '?').charAt(0)}{(m.lastName || '?').charAt(0)}
+                {members.map(m => (
+                  <div key={m.id} className="flex items-center justify-between group">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`w-7 h-7 rounded-full ${avatarColor(m.userId)} flex items-center justify-center text-white text-xs font-medium`}>
+                        {(m.firstName || '?').charAt(0)}{(m.lastName || '?').charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm text-gray-900 dark:text-white truncate">{m.firstName || ''} {m.lastName || ''}</p>
+                        <p className="text-[10px] text-gray-400 dark:text-slate-500 capitalize">{m.role}</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm text-gray-900 dark:text-white truncate">{m.firstName || ''} {m.lastName || ''}</p>
-                      <p className="text-[10px] text-gray-400 dark:text-slate-500 capitalize">{m.role}</p>
-                    </div>
+                    {canEdit('projects') && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await projectsApi.removeMember(project!.id, m.userId);
+                            reloadProject();
+                          } catch { /* ignore */ }
+                        }}
+                        className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                        title="Remove member"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 ))}
-                {members.length > 4 && (
-                  <p className="text-xs text-gray-500 dark:text-slate-400 pl-9">
-                    +{members.length - 4} more
-                  </p>
-                )}
               </div>
             ) : (
               <p className="text-xs text-gray-400 dark:text-slate-500">No members yet</p>
@@ -2983,7 +2994,7 @@ function ProjectSettingsTab({
           <select
             value={project.ownerId || ''}
             onChange={async (e) => {
-              await projectsApi.update(projectId, { ownerId: e.target.value || undefined });
+              await projectsApi.update(projectId, { ownerId: e.target.value || null });
               onSaved();
             }}
             className="w-full text-sm px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"

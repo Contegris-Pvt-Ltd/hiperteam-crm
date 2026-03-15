@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Settings, ListPlus, BarChart3, Users, Building2, Shield, ShieldCheck,
   Target, Briefcase, LayoutGrid, ArrowLeft, LayoutTemplate, ClipboardList,
-  CheckSquare, Bell, Award, FileSpreadsheet, Plug, FolderKanban
+  CheckSquare, Bell, Award, FileSpreadsheet, Plug, FolderKanban, Key,
 } from 'lucide-react';
 
 const adminNavItems = [
@@ -124,6 +124,12 @@ const adminNavItems = [
     label: 'Integrations',
     icon: Plug,
     description: 'Connect third-party services'
+  },
+  {
+    path: '/admin/api-keys',
+    label: 'API Keys',
+    icon: Key,
+    description: 'Manage API keys for integrations'
   },
 ];
 

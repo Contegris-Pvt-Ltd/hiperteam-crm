@@ -7,6 +7,7 @@ import type {
   Task, TaskType, TaskStatus, TaskPriority,
   CreateTaskData, UpdateTaskData, RecurrenceRule,
 } from '../../../api/tasks.api';
+import { useAuthStore } from '../../../stores/auth.store';
 
 interface TaskFormModalProps {
   task?: Task;
@@ -48,6 +49,7 @@ export function TaskFormModal({
   onSave, onClose,
 }: TaskFormModalProps) {
   const isEdit = !!task;
+  const { user } = useAuthStore();
 
   const [form, setForm] = useState({
     title: task?.title || '',
@@ -57,7 +59,7 @@ export function TaskFormModal({
     priorityId: task?.priorityId || '',
     dueDate: task?.dueDate ? task.dueDate.slice(0, 16) : (defaultDueDate ? defaultDueDate.slice(0, 16) : ''),
     startDate: task?.startDate ? task.startDate.slice(0, 16) : '',
-    assignedTo: task?.assignedTo || '',
+    assignedTo: task?.assignedTo || user?.id || '',
     estimatedMinutes: task?.estimatedMinutes ? String(task.estimatedMinutes) : '',
     reminderMinutes: '',
     tags: (task?.tags || []).join(', '),

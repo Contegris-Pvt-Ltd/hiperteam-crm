@@ -33,6 +33,8 @@ import { FormsModule } from './modules/forms/forms.module';
 import { EmailInboxModule } from './modules/email-inbox/email-inbox.module';
 import { GeneralSettingsModule } from './modules/general-settings/general-settings.module';
 import { WorkflowsModule } from './modules/workflows/workflows.module';
+import { SearchModule } from './modules/search/search.module';
+import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 
 @Module({
   imports: [
@@ -83,6 +85,8 @@ import { WorkflowsModule } from './modules/workflows/workflows.module';
     FormsModule,
     EmailInboxModule,
     GeneralSettingsModule,
+    SearchModule,
+    ApiKeysModule,
   ],
   controllers: [AppController],
   providers: [AppService],

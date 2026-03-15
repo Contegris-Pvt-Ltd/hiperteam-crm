@@ -269,6 +269,20 @@ export class ProjectsController {
     }
   }
 
+  @Post('admin/templates/:templateId/preview-project')
+  @RequirePermission('settings', 'edit')
+  @ApiOperation({ summary: 'Create a draft preview project from a template' })
+  async createPreviewProject(
+    @Request() req: { user: JwtPayload },
+    @Param('templateId') templateId: string,
+  ) {
+    return this.projectsService.createPreviewProject(
+      req.user.tenantSchema,
+      templateId,
+      req.user.sub,
+    );
+  }
+
   @Put('admin/templates/:templateId/structure')
   @RequirePermission('settings', 'edit')
   @ApiOperation({ summary: 'Save template structure with nested phases, tasks, and subtasks' })

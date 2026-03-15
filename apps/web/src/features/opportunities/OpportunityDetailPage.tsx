@@ -26,6 +26,7 @@ import { ForecastView } from './components/ForecastView';
 import { usePermissions } from '../../hooks/usePermissions';
 //import { AuditLogViewer } from '../../components/shared/AuditLogViewer';
 import { DocumentsPanel } from '../../components/shared/DocumentsPanel';
+import { OwnerCard } from '../../components/shared/OwnerCard';
 import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 import { EntityEmailsTab } from '../email/EntityEmailsTab';
 import { projectsApi } from '../../api/projects.api';
@@ -92,6 +93,8 @@ export function OpportunityDetailPage() {
     startDate: '',
     endDate: '',
   });
+  const [bannerTemplates, setBannerTemplates] = useState<import('../../api/projects.api').ProjectTemplate[]>([]);
+  const [bannerTemplateId, setBannerTemplateId] = useState('');
   const [creatingProject, setCreatingProject] = useState(false);
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
 
@@ -214,17 +217,25 @@ export function OpportunityDetailPage() {
   const isClosed = isWon || isLost;
 
   const handleCreateProject = async () => {
-    if (!projectForm.name.trim()) return;
+    if (!projectForm.name.trim() && !bannerTemplateId) return;
     setCreatingProject(true);
     try {
-      const created = await projectsApi.create({
-        name: projectForm.name.trim(),
-        description: projectForm.description.trim() || null,
-        startDate: projectForm.startDate || null,
-        endDate: projectForm.endDate || null,
-        opportunityId: opp.id,
-        accountId: opp.accountId || null,
-      });
+      let created;
+      if (bannerTemplateId) {
+        created = await projectsApi.createFromOpportunity({
+          opportunityId: opp.id,
+          templateId: bannerTemplateId,
+        });
+      } else {
+        created = await projectsApi.create({
+          name: projectForm.name.trim(),
+          description: projectForm.description.trim() || null,
+          startDate: projectForm.startDate || null,
+          endDate: projectForm.endDate || null,
+          opportunityId: opp.id,
+          accountId: opp.accountId || null,
+        });
+      }
       setCreatedProjectId(created.id);
       setCreateProjectOpen(false);
     } catch (err) {
@@ -335,6 +346,8 @@ export function OpportunityDetailPage() {
                     name: opp.name ?? '',
                     description: opp.description ?? '',
                   }));
+                  setBannerTemplateId('');
+                  projectsApi.getTemplates().then(setBannerTemplates).catch(console.error);
                   setCreateProjectOpen(true);
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
@@ -648,21 +661,13 @@ export function OpportunityDetailPage() {
         <div className="space-y-4">
           {/* Owner */}
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Owner</h3>
-            {opp.owner ? (
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-sm font-medium text-blue-600">
-                  {opp.owner.firstName?.[0]}{opp.owner.lastName?.[0]}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {opp.owner.firstName} {opp.owner.lastName}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400">No owner assigned</p>
-            )}
+            <OwnerCard
+              owner={opp.owner}
+              onUpdate={async (ownerId) => {
+                await opportunitiesApi.update(id!, { ownerId: ownerId } as any);
+                await fetchOpportunity();
+              }}
+            />
           </div>
 
           {/* Team */}
@@ -724,7 +729,7 @@ export function OpportunityDetailPage() {
       </div>
 
       {/* Modals */}
-      {showCloseWon && <CloseWonModal opportunityId={opp.id} currentAmount={opp.amount} onClose={() => setShowCloseWon(false)} onClosed={fetchOpportunity} />}
+      {showCloseWon && <CloseWonModal opportunityId={opp.id} opportunityName={opp.name} currentAmount={opp.amount} onClose={() => setShowCloseWon(false)} onClosed={(projectId) => { if (projectId) setCreatedProjectId(projectId); fetchOpportunity(); }} />}
       {showCloseLost && <CloseLostModal opportunityId={opp.id} onClose={() => setShowCloseLost(false)} onClosed={fetchOpportunity} />}
       {showReopen && <ReopenModal opportunityId={opp.id} stages={opp.allStages || []} onClose={() => setShowReopen(false)} onReopened={fetchOpportunity} />}
 
@@ -761,6 +766,29 @@ export function OpportunityDetailPage() {
                   onChange={e => setProjectForm(f => ({ ...f, name: e.target.value }))}
                   className="w-full text-sm border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-1 block">
+                  Project Template
+                </label>
+                <select
+                  value={bannerTemplateId}
+                  onChange={(e) => setBannerTemplateId(e.target.value)}
+                  className="w-full text-sm border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">No template (blank project)</option>
+                  {bannerTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}{t.estimatedDays ? ` (${t.estimatedDays} days)` : ''}
+                    </option>
+                  ))}
+                </select>
+                {bannerTemplateId && bannerTemplates.find(t => t.id === bannerTemplateId)?.description && (
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {bannerTemplates.find(t => t.id === bannerTemplateId)?.description}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -810,7 +838,7 @@ export function OpportunityDetailPage() {
               </button>
               <button
                 onClick={handleCreateProject}
-                disabled={creatingProject || !projectForm.name.trim()}
+                disabled={creatingProject || (!projectForm.name.trim() && !bannerTemplateId)}
                 className="px-4 py-2 text-sm rounded-lg bg-purple-600 text-white hover:bg-purple-700 font-medium disabled:opacity-50"
               >
                 {creatingProject ? 'Creating…' : 'Create Project'}
@@ -960,7 +988,8 @@ function RecordTeamSection({
                 <button
                   onClick={() => handleRemove(m.userId)}
                   disabled={removing === m.userId}
-                  className="p-0.5 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                  title="Remove member"
                 >
                   {removing === m.userId ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
                 </button>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useThemeStore } from '../../stores/theme.store';
 import { useSidebarStore } from '../../stores/sidebar.store';
+import { GlobalSearchBar } from './GlobalSearchModal';
 import {
   Search,
   Plus,
@@ -24,6 +25,7 @@ export function Header() {
   const { setMobileOpen } = useSidebarStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
 
   const quickAddItems = [
     { name: 'Contact', href: '/contacts/new' },
@@ -48,25 +50,25 @@ export function Header() {
         <Menu className="w-6 h-6" />
       </button>
 
-      {/* Search - Hidden on mobile */}
+      {/* Search Bar - Desktop (inline) */}
       <div className="hidden md:block flex-1 max-w-xl">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500" />
-          <input
-            type="text"
-            placeholder="Search contacts, leads, opportunities..."
-            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm placeholder-gray-400 dark:placeholder-slate-500 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-          />
-          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-0.5 bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded text-[10px] text-gray-400 dark:text-slate-400 hidden sm:inline font-mono">
-            ⌘K
-          </kbd>
-        </div>
+        <GlobalSearchBar />
       </div>
+
+      {/* Mobile Search Bar - full width below header */}
+      {showMobileSearch && (
+        <div className="absolute top-16 left-0 right-0 p-3 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 z-40 md:hidden">
+          <GlobalSearchBar />
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center gap-1 sm:gap-2 ml-auto">
-        {/* Mobile Search */}
-        <button className="p-2 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl md:hidden">
+        {/* Mobile Search Toggle */}
+        <button
+          onClick={() => setShowMobileSearch(!showMobileSearch)}
+          className="p-2 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl md:hidden"
+        >
           <Search className="w-5 h-5" />
         </button>
 

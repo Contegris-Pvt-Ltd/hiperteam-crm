@@ -24,6 +24,7 @@ import { Timeline } from '../../components/shared/Timeline';
 import { ChangeHistory } from '../../components/shared/ChangeHistory';
 import { NotesPanel } from '../../components/shared/NotesPanel';
 import { DocumentsPanel } from '../../components/shared/DocumentsPanel';
+import { OwnerCard } from '../../components/shared/OwnerCard';
 import { adminApi } from '../../api/admin.api';
 import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.api';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -647,21 +648,14 @@ export function LeadDetailPage() {
 
           {/* Owner & Record Team */}
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Owner</h3>
-            {lead.owner ? (
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-sm font-medium text-blue-600">
-                  {lead.owner.firstName?.[0]}{lead.owner.lastName?.[0]}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {lead.owner.firstName} {lead.owner.lastName}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400">No owner assigned</p>
-            )}
+            <OwnerCard
+              owner={lead.owner}
+              onUpdate={async (ownerId) => {
+                await leadsApi.update(id!, { ownerId: ownerId } as any);
+                const data = await leadsApi.getOne(id!);
+                setLead(data);
+              }}
+            />
 
             {stageOwnership && stageOwnership.stageOwnerType !== 'inherit' && (
               <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">

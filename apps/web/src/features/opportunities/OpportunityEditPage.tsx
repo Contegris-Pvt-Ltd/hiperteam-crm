@@ -393,16 +393,22 @@ export function OpportunityEditPage() {
     setError('');
     try {
       const dataToSave: Record<string, any> = { ...formData };
-      // Strip empty strings from UUID fields
-      ['ownerId', 'teamId', 'priorityId', 'accountId', 'primaryContactId'].forEach(key => {
+      // Fields that can be explicitly cleared (set to null)
+      const clearableFields = ['ownerId', 'teamId'];
+      // Strip empty strings from UUID fields (except clearable ones)
+      ['priorityId', 'accountId', 'primaryContactId'].forEach(key => {
         if (!dataToSave[key]) delete dataToSave[key];
+      });
+      // Convert clearable fields from empty string to null
+      clearableFields.forEach(key => {
+        if (dataToSave[key] === '') dataToSave[key] = null;
       });
       // Strip empty optional fields
       if (!dataToSave.amount && dataToSave.amount !== 0) delete dataToSave.amount;
       if (!dataToSave.probability && dataToSave.probability !== 0) delete dataToSave.probability;
-      // Strip empty strings for backend validators
+      // Strip empty strings for backend validators (skip clearable fields already handled)
       Object.keys(dataToSave).forEach(key => {
-        if (dataToSave[key] === '') delete dataToSave[key];
+        if (dataToSave[key] === '' && !clearableFields.includes(key)) delete dataToSave[key];
       });
 
       if (isNew) {

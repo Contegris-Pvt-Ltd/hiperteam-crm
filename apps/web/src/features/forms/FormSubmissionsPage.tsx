@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Loader2, Download, ChevronDown, ChevronRight,
   CheckCircle, XCircle, BarChart2, List, Users, Calendar, TrendingUp,
+  Filter, RefreshCw,
 } from 'lucide-react';
 import { formsApi } from '../../api/forms.api';
 import type { FormRecord, FormSubmission } from '../../api/forms.api';
@@ -218,6 +219,10 @@ export function FormSubmissionsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<any>(null);
   const [tab, setTab] = useState<'summary' | 'responses'>('summary');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [actionStatusFilter, setActionStatusFilter] = useState<'' | 'success' | 'error'>('');
+  const [retrying, setRetrying] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -237,7 +242,12 @@ export function FormSubmissionsPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const subs = await formsApi.getSubmissions(id, { page });
+      const subs = await formsApi.getSubmissions(id, {
+        page,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        actionStatus: actionStatusFilter || undefined,
+      });
       setSubmissions(subs.data);
       setMeta(subs.meta);
     } finally {
@@ -377,6 +387,50 @@ export function FormSubmissionsPage() {
       {/* ── RESPONSES TAB ── */}
       {tab === 'responses' && (
         <div className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Filters:</span>
+            </div>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-300"
+            />
+            <span className="text-gray-400 text-sm">&rarr;</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-300"
+            />
+            <select
+              value={actionStatusFilter}
+              onChange={(e) => setActionStatusFilter(e.target.value as '' | 'success' | 'error')}
+              className="px-3 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-300"
+            >
+              <option value="">All statuses</option>
+              <option value="success">Actions succeeded</option>
+              <option value="error">Has errors</option>
+            </select>
+            <button
+              onClick={() => loadPage(1)}
+              className="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+            >
+              Apply
+            </button>
+            {(startDate || endDate || actionStatusFilter) && (
+              <button
+                onClick={() => { setStartDate(''); setEndDate(''); setActionStatusFilter(''); setTimeout(() => loadPage(1), 0); }}
+                className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
           {submissions.length === 0 ? (
             <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
               <p className="text-gray-500 dark:text-gray-400">No submissions yet</p>
@@ -433,17 +487,54 @@ export function FormSubmissionsPage() {
                       {sub.actionResults.length > 0 && (
                         <div className="bg-gray-50 dark:bg-slate-900 rounded-xl p-4">
                           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Action Results</p>
-                          {sub.actionResults.map((ar, i) => (
-                            <div key={i} className="flex items-center gap-2 text-sm">
-                              {ar.status === 'success' ? (
-                                <CheckCircle className="w-4 h-4 text-green-500" />
-                              ) : (
-                                <XCircle className="w-4 h-4 text-red-500" />
-                              )}
-                              <span className="text-gray-700 dark:text-gray-300 capitalize">{ar.type.replace(/_/g, ' ')}</span>
-                              {ar.error && <span className="text-xs text-red-500">— {ar.error}</span>}
-                            </div>
-                          ))}
+                          {sub.actionResults.map((ar, i) => {
+                            const retryKey = `${sub.id}-${i}`;
+                            return (
+                              <div key={i} className="flex items-start justify-between gap-2 text-sm py-2 border-b border-gray-100 dark:border-slate-700 last:border-0">
+                                <div className="flex items-start gap-2">
+                                  {ar.status === 'success'
+                                    ? <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                                    : <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />}
+                                  <div>
+                                    <p className="font-medium text-gray-700 dark:text-gray-300 capitalize">{ar.type.replace(/_/g, ' ')}</p>
+                                    {ar.status === 'error' && ar.error && (
+                                      <p className="text-xs text-red-500 mt-0.5">{ar.error}</p>
+                                    )}
+                                    {ar.type === 'webhook' && ar.result && (
+                                      <p className="text-xs text-gray-400 mt-0.5">
+                                        HTTP {ar.result.statusCode}
+                                        {ar.result.durationMs ? ` \u00b7 ${ar.result.durationMs}ms` : ''}
+                                        {ar.result.url ? ` \u00b7 ${ar.result.url}` : ''}
+                                      </p>
+                                    )}
+                                    {ar.retriedAt && (
+                                      <p className="text-xs text-amber-500 mt-0.5">Retried: {new Date(ar.retriedAt).toLocaleString()}</p>
+                                    )}
+                                  </div>
+                                </div>
+                                {ar.type === 'webhook' && (
+                                  <button
+                                    disabled={retrying === retryKey}
+                                    onClick={async () => {
+                                      if (!id) return;
+                                      setRetrying(retryKey);
+                                      try {
+                                        const updated = await formsApi.retryWebhook(id, sub.id, i);
+                                        setSubmissions(prev => prev.map(s => s.id === sub.id ? updated : s));
+                                      } catch { /* ignore */ }
+                                      finally { setRetrying(null); }
+                                    }}
+                                    className="flex items-center gap-1 px-2 py-1 text-xs border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 flex-shrink-0"
+                                  >
+                                    {retrying === retryKey
+                                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                                      : <RefreshCw className="w-3 h-3" />}
+                                    Retry
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

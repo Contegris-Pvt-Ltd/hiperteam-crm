@@ -2230,6 +2230,18 @@ async function runTenantMigrations() {
             `,
           },
           {
+            name: '040_forms_landing_page',
+            sql: `
+              ALTER TABLE "${schema}".forms
+                ADD COLUMN IF NOT EXISTS is_landing_page BOOLEAN NOT NULL DEFAULT false,
+                ADD COLUMN IF NOT EXISTS landing_page_config JSONB NOT NULL DEFAULT '{}';
+
+              -- Add action_status index for filtering submissions by action results
+              CREATE INDEX IF NOT EXISTS idx_form_submissions_action_status
+                ON "${schema}".form_submissions USING gin(action_results);
+            `,
+          },
+          {
             name: '037_email_inbox',
             sql: `
               -- Connected email accounts (per user or shared/tenant)
@@ -2898,6 +2910,29 @@ async function runTenantMigrations() {
               UPDATE "${schema}".roles
               SET permissions = permissions || '{"automation":{"view":true,"create":false,"edit":false,"delete":false}}'::jsonb
               WHERE name IN ('manager', 'user');
+            `,
+          },
+          {
+            name: '050_api_keys',
+            sql: `
+              -- API Keys system: flag users as API service accounts
+              ALTER TABLE "${schema}".users
+                ADD COLUMN IF NOT EXISTS is_api_user BOOLEAN NOT NULL DEFAULT false;
+
+              ALTER TABLE "${schema}".users
+                ADD COLUMN IF NOT EXISTS api_key_label VARCHAR(255);
+
+              ALTER TABLE "${schema}".users
+                ADD COLUMN IF NOT EXISTS api_key_description TEXT;
+
+              ALTER TABLE "${schema}".users
+                ADD COLUMN IF NOT EXISTS api_token_expires_at TIMESTAMPTZ;
+
+              ALTER TABLE "${schema}".users
+                ADD COLUMN IF NOT EXISTS api_last_used_at TIMESTAMPTZ;
+
+              CREATE INDEX IF NOT EXISTS idx_users_is_api_user
+                ON "${schema}".users(is_api_user) WHERE is_api_user = true;
             `,
           },
         ];

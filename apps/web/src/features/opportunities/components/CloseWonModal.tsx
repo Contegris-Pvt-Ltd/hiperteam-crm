@@ -4,16 +4,19 @@
 import { useState, useEffect } from 'react';
 import { X, Trophy, Loader2 } from 'lucide-react';
 import { opportunitiesApi, opportunitySettingsApi } from '../../../api/opportunities.api';
+import { projectsApi } from '../../../api/projects.api';
 import type { OpportunityCloseReason } from '../../../api/opportunities.api';
+import type { ProjectTemplate } from '../../../api/projects.api';
 
 interface CloseWonModalProps {
   opportunityId: string;
+  opportunityName?: string;
   currentAmount: number | null;
   onClose: () => void;
-  onClosed: () => void;
+  onClosed: (createdProjectId?: string) => void;
 }
 
-export function CloseWonModal({ opportunityId, currentAmount, onClose, onClosed }: CloseWonModalProps) {
+export function CloseWonModal({ opportunityId, opportunityName, currentAmount, onClose, onClosed }: CloseWonModalProps) {
   const [reasons, setReasons] = useState<OpportunityCloseReason[]>([]);
   const [selectedReasonId, setSelectedReasonId] = useState('');
   const [finalAmount, setFinalAmount] = useState<string>(currentAmount?.toString() || '');
@@ -22,6 +25,9 @@ export function CloseWonModal({ opportunityId, currentAmount, onClose, onClosed 
   const [competitor, setCompetitor] = useState('');
   const [createFollowUp, setCreateFollowUp] = useState(false);
   const [followUpTitle, setFollowUpTitle] = useState('Onboarding kickoff');
+  const [createProject, setCreateProject] = useState(false);
+  const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -31,6 +37,9 @@ export function CloseWonModal({ opportunityId, currentAmount, onClose, onClosed 
         setReasons(data);
         if (data.length > 0) setSelectedReasonId(data[0].id);
       })
+      .catch(console.error);
+    projectsApi.getTemplates()
+      .then((data) => setTemplates(data))
       .catch(console.error);
   }, []);
 
@@ -51,7 +60,21 @@ export function CloseWonModal({ opportunityId, currentAmount, onClose, onClosed 
         createFollowUpTask: createFollowUp,
         followUpTaskTitle: createFollowUp ? followUpTitle : undefined,
       });
-      onClosed();
+
+      let newProjectId: string | undefined;
+      if (createProject) {
+        try {
+          const project = await projectsApi.createFromOpportunity({
+            opportunityId,
+            templateId: selectedTemplateId || undefined,
+          });
+          newProjectId = project.id;
+        } catch (projErr) {
+          console.error('Failed to create project', projErr);
+        }
+      }
+
+      onClosed(newProjectId);
       onClose();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to close opportunity');
@@ -157,6 +180,43 @@ export function CloseWonModal({ opportunityId, currentAmount, onClose, onClosed 
               className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800"
             />
           )}
+
+          <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={createProject}
+                onChange={(e) => setCreateProject(e.target.checked)}
+                className="text-blue-600 rounded"
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">Create project from this opportunity</span>
+            </label>
+            {createProject && (
+              <div className="mt-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                  Project Template
+                </label>
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                >
+                  <option value="">No template (blank project)</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                      {t.estimatedDays ? ` (${t.estimatedDays} days)` : ''}
+                    </option>
+                  ))}
+                </select>
+                {selectedTemplateId && templates.find(t => t.id === selectedTemplateId)?.description && (
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {templates.find(t => t.id === selectedTemplateId)?.description}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-2 p-5 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">

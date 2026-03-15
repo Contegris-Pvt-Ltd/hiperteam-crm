@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { CreateContactDto, UpdateContactDto, QueryContactsDto } from './dto';
 import { formatPhoneE164 } from '../../common/utils/phone.util';
@@ -45,11 +45,20 @@ export class ContactsService {
 
     const country = dto.country || 'PK';
 
+    // Validate phone numbers
+    if (dto.phone && !formatPhoneE164(dto.phone, country)) {
+      throw new BadRequestException('Invalid phone number');
+    }
+    if (dto.mobile && !formatPhoneE164(dto.mobile, country)) {
+      throw new BadRequestException('Invalid mobile number');
+    }
+
     // Format phones in the phones array
-    const formattedPhones = dto.phones?.map(p => ({
-      ...p,
-      number: formatPhoneE164(p.number, country) || p.number,
-    })) || [];
+    const formattedPhones = dto.phones?.map(p => {
+      const formatted = formatPhoneE164(p.number, country);
+      if (!formatted) throw new BadRequestException(`Invalid phone number: ${p.number}`);
+      return { ...p, number: formatted };
+    }) || [];
 
     const [contact] = await this.dataSource.query(
       `INSERT INTO "${schemaName}".contacts

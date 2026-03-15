@@ -13,10 +13,33 @@ export interface FormField {
 }
 
 export interface FormSubmitAction {
-  type: 'create_lead' | 'create_contact' | 'create_account' | 'webhook';
+  type: 'create_lead' | 'create_contact' | 'create_account' | 'webhook' | 'send_email';
   enabled: boolean;
-  fieldMapping?: Record<string, string>; // crmField -> formFieldName
+  fieldMapping?: Record<string, string>;
   webhookUrl?: string;
+  // send_email fields
+  emailFieldName?: string;
+  subject?: string;
+  body?: string;
+}
+
+export interface FormLandingPageConfig {
+  heroTitle?: string;
+  heroSubtitle?: string;
+  heroImageUrl?: string;
+  heroBgColor?: string;
+  sections?: Array<{
+    id: string;
+    type: 'text' | 'image' | 'cta';
+    content?: string;
+    imageUrl?: string;
+    ctaText?: string;
+    ctaUrl?: string;
+  }>;
+  seoTitle?: string;
+  seoDescription?: string;
+  faviconUrl?: string;
+  customCss?: string;
 }
 
 export interface FormSettings {
@@ -48,6 +71,8 @@ export interface FormRecord {
   token: string;
   tenantSlug: string;
   submissionCount: number;
+  isLandingPage?: boolean;
+  landingPageConfig?: FormLandingPageConfig;
   createdBy: string;
   createdByName?: string;
   updatedBy?: string;
@@ -60,7 +85,7 @@ export interface FormSubmission {
   formId: string;
   data: Record<string, any>;
   metadata: Record<string, any>;
-  actionResults: { type: string; status: string; result?: any; error?: string }[];
+  actionResults: { type: string; status: string; result?: any; error?: string; retriedAt?: string }[];
   ipAddress?: string;
   userAgent?: string;
   createdAt: string;
@@ -90,8 +115,21 @@ export const formsApi = {
     const { data } = await api.post(`/forms/${id}/duplicate`);
     return data;
   },
-  getSubmissions: async (formId: string, params?: { page?: number; limit?: number }) => {
+  getSubmissions: async (formId: string, params?: {
+    page?: number;
+    limit?: number;
+    startDate?: string;
+    endDate?: string;
+    actionStatus?: 'success' | 'error' | '';
+  }) => {
     const { data } = await api.get(`/forms/${formId}/submissions`, { params });
+    return data;
+  },
+  retryWebhook: async (formId: string, submissionId: string, actionIndex: number) => {
+    const { data } = await api.post(
+      `/forms/${formId}/submissions/${submissionId}/retry-webhook`,
+      { actionIndex },
+    );
     return data;
   },
   getAnalytics: async (formId: string) => {

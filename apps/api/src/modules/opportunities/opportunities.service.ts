@@ -574,10 +574,14 @@ export class OpportunitiesService {
     const params: unknown[] = [];
     let idx = 1;
 
+    // Fields that accept null when empty string is sent (to allow clearing)
+    const nullableFields = ['ownerId', 'teamId', 'accountId', 'primaryContactId'];
+
     for (const [dtoKey, dbCol] of Object.entries(fieldMap)) {
       if ((dto as any)[dtoKey] !== undefined) {
         let value = (dto as any)[dtoKey];
         if (dbCol === 'custom_fields') value = JSON.stringify(value);
+        if (nullableFields.includes(dtoKey) && value === '') value = null;
         updates.push(`${dbCol} = $${idx}`);
         params.push(value);
         idx++;

@@ -183,6 +183,7 @@ export const ACTION_TYPES: { value: ActionType; label: string; description: stri
   { value: 'update_field',       label: 'Update Field',        description: 'Set a field value',           color: 'purple' },
   { value: 'add_tag',            label: 'Add Tag',             description: 'Add a tag to the record',     color: 'yellow' },
   { value: 'send_notification',  label: 'Send Notification',   description: 'Notify a team member',        color: 'orange' },
+  { value: 'send_email',         label: 'Send Email',          description: 'Send an email to record or custom address', color: 'red' },
   { value: 'webhook',            label: 'Webhook',             description: 'Call an external URL',        color: 'slate' },
   { value: 'wait',               label: 'Wait',                description: 'Pause before next action',    color: 'slate' },
   { value: 'branch',             label: 'Branch (If/Else)',    description: 'Split based on condition',    color: 'pink' },

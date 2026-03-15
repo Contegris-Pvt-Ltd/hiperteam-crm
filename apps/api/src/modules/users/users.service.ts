@@ -37,7 +37,7 @@ export class UsersService {
     const limit = Math.min(Number(query.limit) || 20, 100);
     const offset = (page - 1) * limit;
 
-    const conditions: string[] = ['u.deleted_at IS NULL'];
+    const conditions: string[] = ['u.deleted_at IS NULL', '(u.is_api_user = false OR u.is_api_user IS NULL)'];
     const params: unknown[] = [];
     let paramIdx = 1;
 

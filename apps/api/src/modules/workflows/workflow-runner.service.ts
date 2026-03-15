@@ -530,7 +530,7 @@ export class WorkflowRunnerService {
         [projectId, phase.name, phase.description, phase.color, phase.sort_order],
       );
 
-      // Get tasks for this phase
+      // Get root tasks for this phase (no parent)
       const tasks = await this.dataSource.query(
         `SELECT * FROM "${schema}".project_template_tasks
          WHERE phase_id = $1 AND parent_task_id IS NULL ORDER BY sort_order ASC`,
@@ -538,17 +538,40 @@ export class WorkflowRunnerService {
       );
 
       for (const task of tasks) {
-        await this.dataSource.query(
+        const [newTask] = await this.dataSource.query(
           `INSERT INTO "${schema}".project_tasks
              (project_id, phase_id, title, description, priority, sort_order,
               estimated_hours, due_days_from_start, assignee_role)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
           [
             projectId, newPhase.id, task.title, task.description,
             task.priority, task.sort_order, task.estimated_hours,
             task.due_days_from_start, task.assignee_role,
           ],
         );
+
+        // Get and insert subtasks for this task
+        const subtasks = await this.dataSource.query(
+          `SELECT * FROM "${schema}".project_template_tasks
+           WHERE parent_task_id = $1 ORDER BY sort_order ASC`,
+          [task.id],
+        );
+
+        for (const subtask of subtasks) {
+          await this.dataSource.query(
+            `INSERT INTO "${schema}".project_tasks
+               (project_id, phase_id, parent_task_id, title, description, priority,
+                sort_order, estimated_hours, due_days_from_start, assignee_role)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+            [
+              projectId, newPhase.id, newTask.id,
+              subtask.title, subtask.description,
+              subtask.priority, subtask.sort_order,
+              subtask.estimated_hours, subtask.due_days_from_start,
+              subtask.assignee_role,
+            ],
+          );
+        }
       }
     }
   }
@@ -574,7 +597,9 @@ export class WorkflowRunnerService {
     if (!toAddress) return { skipped: true, reason: 'no email address resolved' };
     const subject = this.interpolate(config.subject ?? 'Notification from workflow', entity);
     const html = this.interpolate(config.body ?? '', entity);
-    const sent = await this.emailChannel.send(schema, { to: toAddress, subject, html });
+    const cc = config.cc ? this.interpolate(config.cc, entity) : undefined;
+    const bcc = config.bcc ? this.interpolate(config.bcc, entity) : undefined;
+    const sent = await this.emailChannel.send(schema, { to: toAddress, cc, bcc, subject, html });
     return { sent, to: toAddress };
   }
 

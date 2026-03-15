@@ -53,6 +53,7 @@ export function LeadEditPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('basic');
+  const [phoneValid, setPhoneValid] = useState<Record<string, boolean>>({ phone: true, mobile: true });
 
   // Lookups
   const [stages, setStages] = useState<LeadStage[]>([]);
@@ -462,14 +463,21 @@ export function LeadEditPage() {
     try {
       const dataToSave: Record<string, any> = { ...formData };
 
+      // Fields that can be explicitly set to null (to clear them)
+      const clearableFields = ['ownerId', 'teamId'];
+
       // Strip empty strings so backend validators (e.g. @IsEmail) don't reject ''
       Object.keys(dataToSave).forEach(key => {
-        if (dataToSave[key] === '') delete dataToSave[key];
+        if (dataToSave[key] === '' && !clearableFields.includes(key)) delete dataToSave[key];
       });
 
-      // Strip falsy UUID fields
-      ['ownerId', 'teamId', 'priorityId', 'qualificationFrameworkId'].forEach(key => {
+      // Strip falsy UUID fields (except clearable ones — those should send null)
+      ['priorityId', 'qualificationFrameworkId'].forEach(key => {
         if (!dataToSave[key]) delete dataToSave[key];
+      });
+      // Convert clearable fields from empty string to null
+      clearableFields.forEach(key => {
+        if (dataToSave[key] === '') dataToSave[key] = null;
       });
 
       if (!dataToSave.productIds?.length) delete dataToSave.productIds;
@@ -616,7 +624,7 @@ export function LeadEditPage() {
           </h1>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !phoneValid.phone || !phoneValid.mobile}
             className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 text-sm font-medium transition-colors"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
@@ -694,6 +702,7 @@ export function LeadEditPage() {
                   onChange={(e164, countryCode) => {
                     setFormData(prev => ({ ...prev, phone: e164, phoneCountryCode: countryCode } as any));
                   }}
+                  onValidityChange={(valid) => setPhoneValid(prev => ({ ...prev, phone: valid }))}
                 />
               </div>
               <div>
@@ -716,6 +725,7 @@ export function LeadEditPage() {
                   onChange={(e164, countryCode) => {
                     setFormData(prev => ({ ...prev, mobile: e164, mobileCountryCode: countryCode } as any));
                   }}
+                  onValidityChange={(valid) => setPhoneValid(prev => ({ ...prev, mobile: valid }))}
                 />
               </div>
             </div>
@@ -797,7 +807,8 @@ export function LeadEditPage() {
               <div>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Owner</label>
                 <select value={formData.ownerId || ''} onChange={(e) => handleChange('ownerId', e.target.value)} className={inputClass}>
-                  <option value="">Auto-assign (me)</option>
+                  <option value="">Assign to me</option>
+                  <option value="__auto_assign__">Auto-assign (Workflow Routing)</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
                   ))}
