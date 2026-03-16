@@ -22,7 +22,7 @@ const ROW_HEIGHT = 80;
 const GRID_MARGIN: [number, number] = [12, 12];
 
 export function SharedDashboardPage() {
-  const { token } = useParams<{ token: string }>();
+  const { tenantSlug, token } = useParams<{ tenantSlug: string; token: string }>();
   const [searchParams] = useSearchParams();
 
   const [loading, setLoading] = useState(true);
@@ -32,7 +32,7 @@ export function SharedDashboardPage() {
 
   const [dashboardName, setDashboardName] = useState('');
   const [tabFilters, setTabFilters] = useState<DashboardTabFilters | null>(null);
-  const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
+  const [widgets, setWidgets] = useState<(DashboardWidget & { data?: any })[]>([]);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
 
   const [containerWidth, setContainerWidth] = useState(0);
@@ -50,12 +50,12 @@ export function SharedDashboardPage() {
   }, []);
 
   const loadDashboard = async (email?: string) => {
-    if (!token) return;
+    if (!token || !tenantSlug) return;
     setLoading(true);
     setError(null);
     setNeedsEmail(false);
     try {
-      const result = await dashboardLayoutApi.getSharedDashboard(token, email);
+      const result = await dashboardLayoutApi.getSharedDashboard(tenantSlug, token, email);
       setDashboardName(result.dashboard.name);
       setTabFilters(result.dashboard.tabFilters);
       setWidgets(result.widgets);
@@ -76,7 +76,7 @@ export function SharedDashboardPage() {
     const emailParam = searchParams.get('email');
     loadDashboard(emailParam || undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [tenantSlug, token]);
 
   const handleEmailSubmit = () => {
     if (emailInput.trim().includes('@')) {
@@ -221,9 +221,7 @@ export function SharedDashboardPage() {
                   <div key={widget.id}>
                     <DashboardWidgetCard
                       widget={widget}
-                      onEdit={() => {}}
-                      onDuplicate={() => {}}
-                      onDelete={() => {}}
+                      preloadedData={widget.data ?? null}
                     />
                   </div>
                 ))}

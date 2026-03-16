@@ -22,6 +22,7 @@ interface DashboardWidgetProps {
   onEdit?: (widget: DashboardWidgetType) => void;
   onDuplicate?: (widget: DashboardWidgetType) => void;
   onDelete?: (widgetId: string) => void;
+  preloadedData?: ReportResult | null;
 }
 
 export function DashboardWidgetCard({
@@ -29,10 +30,11 @@ export function DashboardWidgetCard({
   onEdit,
   onDuplicate,
   onDelete,
+  preloadedData,
 }: DashboardWidgetProps) {
   const { isEditMode } = useDashboard();
-  const [result, setResult] = useState<ReportResult | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState<ReportResult | null>(preloadedData ?? null);
+  const [loading, setLoading] = useState(!preloadedData);
   const [error, setError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -43,6 +45,7 @@ export function DashboardWidgetCard({
   );
 
   const fetchData = useCallback(async () => {
+    if (preloadedData !== undefined) return; // Skip fetch when data is preloaded
     if (!widget.dataSource) { setLoading(false); return; }
     setLoading(true);
     setError('');
@@ -62,7 +65,7 @@ export function DashboardWidgetCard({
     } finally {
       setLoading(false);
     }
-  }, [widget.dataSource, widget.reportType, widget.config, JSON.stringify(runtimeFilters)]);
+  }, [preloadedData, widget.dataSource, widget.reportType, widget.config, JSON.stringify(runtimeFilters)]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -85,7 +88,11 @@ export function DashboardWidgetCard({
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
 
-  const widgetHeight = 'calc(100% - 44px)';
+  // Compact header for small widget types (scorecards)
+  const isCompactHeader = widget.widgetType === 'scorecard';
+  const headerPadding = isCompactHeader ? 'px-2 py-1.5' : 'px-3 py-2.5';
+  const headerHeight = isCompactHeader ? 32 : 44;
+  const widgetHeight = `calc(100% - ${headerHeight}px)`;
 
   const renderContent = () => {
     if (error) return (
@@ -145,7 +152,8 @@ export function DashboardWidgetCard({
             data={result.data}
             columns={result.columns}
             chartType={widget.chartType}
-            height={280}
+            height="100%"
+            compact
           />
         ) : null;
     }
@@ -160,39 +168,39 @@ export function DashboardWidgetCard({
       }`}
     >
       {/* Header */}
-      <div className={`flex items-center justify-between px-3 py-2.5 border-b border-gray-100 dark:border-slate-700 flex-shrink-0 ${
+      <div className={`flex items-center justify-between ${headerPadding} border-b border-gray-100 dark:border-slate-700 flex-shrink-0 ${
         isEditMode ? 'cursor-grab active:cursor-grabbing' : ''
       }`}>
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           {isEditMode && (
-            <GripVertical className="w-4 h-4 text-gray-300 dark:text-slate-600 flex-shrink-0" />
+            <GripVertical className={`${isCompactHeader ? 'w-3 h-3' : 'w-4 h-4'} text-gray-300 dark:text-slate-600 flex-shrink-0`} />
           )}
-          <h3 className="text-sm font-semibold text-gray-800 dark:text-white truncate">
+          <h3 className={`font-semibold text-gray-800 dark:text-white truncate ${isCompactHeader ? 'text-xs' : 'text-sm'}`}>
             {widget.title || 'Untitled Widget'}
           </h3>
-          {widget.dataSource && (
+          {widget.dataSource && !isCompactHeader && (
             <span className="text-xs text-gray-400 dark:text-slate-500 hidden sm:inline truncate">
               · {widget.dataSource}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-0.5 flex-shrink-0">
           {!isEditMode && (
             <button
               onClick={fetchData}
-              className="p-1 rounded-lg text-gray-400 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+              className={`rounded-lg text-gray-400 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 dark:hover:text-slate-300 transition-colors ${isCompactHeader ? 'p-0.5' : 'p-1'}`}
               title="Refresh"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`${isCompactHeader ? 'w-3 h-3' : 'w-3.5 h-3.5'} ${loading ? 'animate-spin' : ''}`} />
             </button>
           )}
           {isEditMode && (
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen(o => !o)}
-                className="p-1 rounded-lg text-gray-400 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                className={`rounded-lg text-gray-400 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors ${isCompactHeader ? 'p-0.5' : 'p-1'}`}
               >
-                <MoreVertical className="w-4 h-4" />
+                <MoreVertical className={isCompactHeader ? 'w-3 h-3' : 'w-4 h-4'} />
               </button>
               {menuOpen && (
                 <div className="absolute right-0 top-7 z-50 w-40 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-lg py-1">
@@ -223,7 +231,7 @@ export function DashboardWidgetCard({
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0 p-2 overflow-hidden" style={{ height: widgetHeight }}>
+      <div className={`flex-1 min-h-0 overflow-hidden ${isCompactHeader ? 'p-1' : 'p-2'}`} style={{ height: widgetHeight }}>
         {renderContent()}
       </div>
     </div>

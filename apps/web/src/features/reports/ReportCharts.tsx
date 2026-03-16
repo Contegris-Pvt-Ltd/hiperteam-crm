@@ -5,6 +5,7 @@
 // Supports: bar, stacked_bar, line, pie, funnel, scatter, gauge, table
 // ============================================================
 
+import { useState } from 'react';
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area,
   PieChart, Pie, Cell,
@@ -21,11 +22,21 @@ const COLORS = [
   '#14B8A6', '#E11D48', '#A855F7', '#0EA5E9', '#D946EF',
 ];
 
+// Compact legend props for dashboard widgets — sits inside chart area
+const COMPACT_LEGEND_PROPS = {
+  iconSize: 8,
+  wrapperStyle: { fontSize: 10, lineHeight: '14px', paddingTop: 0 },
+  verticalAlign: 'top' as const,
+  align: 'right' as const,
+  height: 20,
+};
+
 interface ChartProps {
   data: Record<string, any>[];
   columns: ReportColumn[];
   chartType: string;
-  height?: number;
+  height?: number | string;
+  compact?: boolean;
 }
 
 // ── Format values for display ──
@@ -70,7 +81,7 @@ function CustomTooltip({ active, payload, label, columns }: any) {
 // MAIN CHART COMPONENT
 // ============================================================
 
-export function ReportChart({ data, columns, chartType, height = 400 }: ChartProps) {
+export function ReportChart({ data, columns, chartType, height = 400, compact = false }: ChartProps) {
   if (!data.length) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-400">
@@ -82,30 +93,30 @@ export function ReportChart({ data, columns, chartType, height = 400 }: ChartPro
   switch (chartType) {
     case 'bar':
     case 'stacked_bar':
-      return <BarChartRenderer data={data} columns={columns} height={height} stacked={chartType === 'stacked_bar'} />;
+      return <BarChartRenderer data={data} columns={columns} height={height} stacked={chartType === 'stacked_bar'} compact={compact} />;
     case 'line':
-      return <LineChartRenderer data={data} columns={columns} height={height} />;
+      return <LineChartRenderer data={data} columns={columns} height={height} compact={compact} />;
     case 'pie':
-      return <PieChartRenderer data={data} columns={columns} height={height} />;
+      return <PieChartRenderer data={data} columns={columns} height={height} compact={compact} />;
     case 'funnel':
-      return <FunnelChartRenderer data={data} columns={columns} height={height} />;
+      return <FunnelChartRenderer data={data} columns={columns} height={height} compact={compact} />;
     case 'scatter':
-      return <ScatterChartRenderer data={data} columns={columns} height={height} />;
+      return <ScatterChartRenderer data={data} columns={columns} height={height} compact={compact} />;
     case 'bubble':
-      return <BubbleChartRenderer data={data} columns={columns} height={height} />;
+      return <BubbleChartRenderer data={data} columns={columns} height={height} compact={compact} />;
     case 'area':
-      return <AreaChartRenderer data={data} columns={columns} height={height} />;
+      return <AreaChartRenderer data={data} columns={columns} height={height} compact={compact} />;
     case 'heatmap':
-      return <HeatmapRenderer data={data} columns={columns} height={height} />;
+      return <HeatmapRenderer data={data} columns={columns} height={height} compact={compact} />;
     case 'treemap':
-      return <TreemapRenderer data={data} columns={columns} height={height} />;
+      return <TreemapRenderer data={data} columns={columns} height={height} compact={compact} />;
     case 'gauge':
-      return <GaugeRenderer data={data} columns={columns} height={height} />;
+      return <GaugeRenderer data={data} columns={columns} height={height} compact={compact} />;
     case 'table':
     case 'none':
       return null; // Table is rendered separately
     default:
-      return <BarChartRenderer data={data} columns={columns} height={height} stacked={false} />;
+      return <BarChartRenderer data={data} columns={columns} height={height} stacked={false} compact={compact} />;
   }
 }
 
@@ -113,7 +124,7 @@ export function ReportChart({ data, columns, chartType, height = 400 }: ChartPro
 // BAR CHART
 // ============================================================
 
-function BarChartRenderer({ data, columns, height, stacked }: Omit<ChartProps, 'chartType'> & { stacked: boolean }) {
+function BarChartRenderer({ data, columns, height, stacked, compact }: Omit<ChartProps, 'chartType'> & { stacked: boolean }) {
   const dimensionCols = columns.filter(c => ['text', 'date', 'datetime'].includes(c.format || ''));
   const measureCols = columns.filter(c => ['currency', 'number', 'percent'].includes(c.format || ''));
   const xKey = dimensionCols[0]?.key || columns[0]?.key;
@@ -124,20 +135,29 @@ function BarChartRenderer({ data, columns, height, stacked }: Omit<ChartProps, '
     [xKey]: formatValue(row[xKey], dimensionCols[0]?.format),
   }));
 
+  const margin = compact
+    ? { top: 5, right: 10, left: 0, bottom: 5 }
+    : { top: 10, right: 30, left: 20, bottom: 40 };
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={formatted} margin={{ top: 10, right: 30, left: 20, bottom: 40 }}>
+      <BarChart data={formatted} margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
         <XAxis
           dataKey={xKey}
-          tick={{ fontSize: 12 }}
-          angle={-30}
-          textAnchor="end"
-          height={60}
+          tick={{ fontSize: compact ? 10 : 12 }}
+          angle={compact ? 0 : -30}
+          textAnchor={compact ? 'middle' : 'end'}
+          height={compact ? 30 : 60}
+          interval={compact ? 'preserveStartEnd' : undefined}
         />
-        <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatValue(v, measureCols[0]?.format)} />
+        <YAxis tick={{ fontSize: compact ? 10 : 12 }} tickFormatter={(v) => formatValue(v, measureCols[0]?.format)} width={compact ? 40 : undefined} />
         <Tooltip content={<CustomTooltip columns={columns} />} />
-        <Legend />
+        {measureCols.length > 1 && (
+          <Legend
+            {...(compact ? COMPACT_LEGEND_PROPS : {})}
+          />
+        )}
         {measureCols.map((col, i) => (
           <Bar
             key={col.key}
@@ -157,7 +177,7 @@ function BarChartRenderer({ data, columns, height, stacked }: Omit<ChartProps, '
 // LINE CHART
 // ============================================================
 
-function LineChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'>) {
+function LineChartRenderer({ data, columns, height, compact }: Omit<ChartProps, 'chartType'>) {
   const dimensionCols = columns.filter(c => ['text', 'date', 'datetime'].includes(c.format || ''));
   const measureCols = columns.filter(c => ['currency', 'number', 'percent'].includes(c.format || ''));
   const xKey = dimensionCols[0]?.key || columns[0]?.key;
@@ -167,14 +187,29 @@ function LineChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartTyp
     [xKey]: formatValue(row[xKey], dimensionCols[0]?.format),
   }));
 
+  const margin = compact
+    ? { top: 5, right: 10, left: 0, bottom: 5 }
+    : { top: 10, right: 30, left: 20, bottom: 40 };
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={formatted} margin={{ top: 10, right: 30, left: 20, bottom: 40 }}>
+      <LineChart data={formatted} margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-        <XAxis dataKey={xKey} tick={{ fontSize: 12 }} angle={-30} textAnchor="end" height={60} />
-        <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatValue(v, measureCols[0]?.format)} />
+        <XAxis
+          dataKey={xKey}
+          tick={{ fontSize: compact ? 10 : 12 }}
+          angle={compact ? 0 : -30}
+          textAnchor={compact ? 'middle' : 'end'}
+          height={compact ? 30 : 60}
+          interval={compact ? 'preserveStartEnd' : undefined}
+        />
+        <YAxis tick={{ fontSize: compact ? 10 : 12 }} tickFormatter={(v) => formatValue(v, measureCols[0]?.format)} width={compact ? 40 : undefined} />
         <Tooltip content={<CustomTooltip columns={columns} />} />
-        <Legend />
+        {measureCols.length > 1 && (
+          <Legend
+            {...(compact ? COMPACT_LEGEND_PROPS : {})}
+          />
+        )}
         {measureCols.map((col, i) => (
           <Line
             key={col.key}
@@ -182,9 +217,9 @@ function LineChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartTyp
             dataKey={col.key}
             name={col.label}
             stroke={COLORS[i % COLORS.length]}
-            strokeWidth={2}
-            dot={{ r: 4 }}
-            activeDot={{ r: 6 }}
+            strokeWidth={compact ? 1.5 : 2}
+            dot={compact ? false : { r: 4 }}
+            activeDot={{ r: compact ? 4 : 6 }}
           />
         ))}
       </LineChart>
@@ -196,7 +231,7 @@ function LineChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartTyp
 // PIE CHART
 // ============================================================
 
-function PieChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'>) {
+function PieChartRenderer({ data, columns, height, compact }: Omit<ChartProps, 'chartType'>) {
   const dimensionCol = columns.find(c => ['text', 'date', 'datetime'].includes(c.format || ''));
   const measureCol = columns.find(c => ['currency', 'number', 'percent'].includes(c.format || ''));
 
@@ -208,21 +243,19 @@ function PieChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartType
     fill: COLORS[i % COLORS.length],
   }));
 
-  const h = height ?? 400;
-
   return (
-    <ResponsiveContainer width="100%" height={h}>
+    <ResponsiveContainer width="100%" height={height}>
       <PieChart>
         <Pie
           data={pieData}
           cx="50%"
-          cy="50%"
-          outerRadius={h / 3}
-          innerRadius={h / 6}
+          cy={compact ? '45%' : '50%'}
+          outerRadius={compact ? '70%' : '55%'}
+          innerRadius={compact ? '35%' : '28%'}
           dataKey="value"
           nameKey="name"
-          label={(props: any) => `${props.name ?? 'Unknown'}: ${((props.percent ?? 0) * 100).toFixed(0)}%`}
-          labelLine={true}
+          label={compact ? false : (props: any) => `${props.name ?? 'Unknown'}: ${((props.percent ?? 0) * 100).toFixed(0)}%`}
+          labelLine={!compact}
         >
           {pieData.map((entry, i) => (
             <Cell key={i} fill={entry.fill} />
@@ -231,54 +264,177 @@ function PieChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartType
         <Tooltip
           formatter={(value: any) => formatValue(value, measureCol.format)}
         />
-        <Legend />
+        <Legend
+          {...(compact ? { ...COMPACT_LEGEND_PROPS, verticalAlign: 'bottom' as const, align: 'center' as const, height: 24 } : {})}
+        />
       </PieChart>
     </ResponsiveContainer>
   );
 }
 
 // ============================================================
-// FUNNEL CHART (rendered as horizontal bar)
+// FUNNEL CHART (SVG trapezoid pyramid with conversion labels)
 // ============================================================
 
-function FunnelChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'>) {
+function FunnelChartRenderer({ data, columns, height, compact }: Omit<ChartProps, 'chartType'>) {
   const dimensionCol = columns.find(c => ['text', 'date'].includes(c.format || ''));
   const measureCol = columns.find(c => ['currency', 'number'].includes(c.format || ''));
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
-  if (!dimensionCol || !measureCol) return null;
+  if (!dimensionCol || !measureCol || data.length === 0) return null;
 
-  const maxVal = Math.max(...data.map(r => Number(r[measureCol.key]) || 0));
+  const maxVal = Math.max(...data.map(r => Number(r[measureCol.key]) || 0), 1);
+  const n = data.length;
+
+  // Proportional widths — minimum 15% so the bottom stage is always visible
+  const widths = data.map(r => {
+    const val = Number(r[measureCol.key]) || 0;
+    return Math.max((val / maxVal) * 100, 15);
+  });
+
+  // Conversion rates
+  const convRates = data.map((r, i) => {
+    if (i === 0) return 100;
+    const prev = Number(data[i - 1][measureCol.key]) || 1;
+    const cur = Number(r[measureCol.key]) || 0;
+    return (cur / prev) * 100;
+  });
+
+  // Overall conversion
+  const overallConv = n > 1
+    ? ((Number(data[n - 1][measureCol.key]) || 0) / maxVal * 100)
+    : 100;
+
+  // Layout: each stage is a trapezoid rendered as SVG
+  const GAP = compact ? 2 : 3;
+  const LABEL_AREA = compact ? 0 : 28; // space below for overall conversion
 
   return (
-    <div className="flex flex-col items-center gap-1 py-4" style={{ height }}>
-      {data.map((row, i) => {
-        const val = Number(row[measureCol.key]) || 0;
-        const widthPct = maxVal > 0 ? (val / maxVal) * 100 : 0;
-        const convRate = i > 0 ? ((val / (Number(data[i - 1][measureCol.key]) || 1)) * 100).toFixed(1) : '100';
+    <div className="w-full flex flex-col" style={{ height: height || '100%' }}>
+      <div className="flex-1 relative min-h-0">
+        {/* SVG funnel */}
+        <svg
+          viewBox="0 0 400 300"
+          preserveAspectRatio="xMidYMid meet"
+          className="w-full h-full"
+          style={{ maxHeight: `calc(100% - ${LABEL_AREA}px)` }}
+        >
+          {data.map((row, i) => {
+            const stageH = (300 - GAP * (n - 1)) / n;
+            const y = i * (stageH + GAP);
 
-        return (
-          <div key={i} className="flex items-center w-full gap-3">
-            <div className="w-32 text-right text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
-              {String(row[dimensionCol.key])}
-            </div>
-            <div className="flex-1 relative">
-              <div
-                className="h-8 rounded-md flex items-center justify-center text-white text-xs font-medium transition-all"
-                style={{
-                  width: `${Math.max(widthPct, 5)}%`,
-                  backgroundColor: COLORS[i % COLORS.length],
-                  margin: '0 auto',
-                }}
+            // Current stage width (centered)
+            const topW = (widths[i] / 100) * 380;
+            // Next stage width (or taper to ~60% of current for last stage)
+            const botW = i < n - 1 ? (widths[i + 1] / 100) * 380 : topW * 0.7;
+
+            const cx = 200; // center x
+            const topLeft = cx - topW / 2;
+            const topRight = cx + topW / 2;
+            const botLeft = cx - botW / 2;
+            const botRight = cx + botW / 2;
+
+            // Trapezoid path
+            const path = `M ${topLeft} ${y} L ${topRight} ${y} L ${botRight} ${y + stageH} L ${botLeft} ${y + stageH} Z`;
+
+            const val = Number(row[measureCol.key]) || 0;
+            const label = String(row[dimensionCol.key]);
+            const isHovered = hoveredIdx === i;
+            const color = COLORS[i % COLORS.length];
+
+            return (
+              <g
+                key={i}
+                onMouseEnter={() => setHoveredIdx(i)}
+                onMouseLeave={() => setHoveredIdx(null)}
+                className="cursor-pointer"
               >
-                {formatValue(val, measureCol.format)}
-              </div>
-            </div>
-            <div className="w-16 text-left text-xs text-gray-500">
-              {i > 0 ? `${convRate}%` : ''}
-            </div>
+                {/* Trapezoid */}
+                <path
+                  d={path}
+                  fill={color}
+                  opacity={isHovered ? 1 : 0.85}
+                  className="transition-opacity duration-150"
+                />
+
+                {/* Stage label + value */}
+                <text
+                  x={cx}
+                  y={y + stageH / 2 - (compact ? 2 : 4)}
+                  textAnchor="middle"
+                  dominantBaseline="auto"
+                  fill="white"
+                  fontSize={compact ? 11 : 13}
+                  fontWeight="600"
+                >
+                  {label}
+                </text>
+                <text
+                  x={cx}
+                  y={y + stageH / 2 + (compact ? 10 : 14)}
+                  textAnchor="middle"
+                  dominantBaseline="auto"
+                  fill="white"
+                  fontSize={compact ? 10 : 11}
+                  opacity={0.9}
+                >
+                  {formatValue(val, measureCol.format)}
+                </text>
+
+                {/* Conversion arrow + rate between stages */}
+                {i > 0 && !compact && (
+                  <text
+                    x={cx + topW / 2 + 12}
+                    y={y + 2}
+                    textAnchor="start"
+                    dominantBaseline="auto"
+                    fill={convRates[i] >= 50 ? '#22c55e' : convRates[i] >= 25 ? '#f59e0b' : '#ef4444'}
+                    fontSize={10}
+                    fontWeight="600"
+                  >
+                    {convRates[i].toFixed(1)}%
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Overall conversion footer */}
+      {!compact && n > 1 && (
+        <div className="flex items-center justify-center gap-2 py-1 text-xs text-gray-500 dark:text-gray-400">
+          <span>Overall conversion:</span>
+          <span className={`font-semibold ${overallConv >= 50 ? 'text-green-600' : overallConv >= 20 ? 'text-amber-600' : 'text-red-500'}`}>
+            {overallConv.toFixed(1)}%
+          </span>
+          <span className="text-gray-400">
+            ({formatValue(Number(data[0][measureCol.key]), measureCol.format)} → {formatValue(Number(data[n - 1][measureCol.key]), measureCol.format)})
+          </span>
+        </div>
+      )}
+
+      {/* Hover tooltip */}
+      {hoveredIdx !== null && (
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg px-3 py-2 text-xs pointer-events-none z-10">
+          <div className="font-semibold text-gray-900 dark:text-white">
+            {String(data[hoveredIdx][dimensionCol.key])}
           </div>
-        );
-      })}
+          <div className="text-gray-600 dark:text-gray-300">
+            Value: {formatValue(Number(data[hoveredIdx][measureCol.key]), measureCol.format)}
+          </div>
+          {hoveredIdx > 0 && (
+            <div className="text-gray-500">
+              Drop-off: {(100 - convRates[hoveredIdx]).toFixed(1)}% from previous
+            </div>
+          )}
+          {hoveredIdx > 0 && (
+            <div className="text-gray-500">
+              Of total: {((Number(data[hoveredIdx][measureCol.key]) || 0) / maxVal * 100).toFixed(1)}%
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -287,7 +443,7 @@ function FunnelChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartT
 // SCATTER CHART
 // ============================================================
 
-function ScatterChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'>) {
+function ScatterChartRenderer({ data, columns, height, compact }: Omit<ChartProps, 'chartType'>) {
   const measureCols = columns.filter(c => ['currency', 'number', 'percent'].includes(c.format || ''));
   const xCol = measureCols[0];
   const yCol = measureCols[1];
@@ -295,21 +451,26 @@ function ScatterChartRenderer({ data, columns, height }: Omit<ChartProps, 'chart
 
   if (!xCol || !yCol) return null;
 
+  const margin = compact
+    ? { top: 5, right: 10, left: 0, bottom: 5 }
+    : { top: 10, right: 30, left: 20, bottom: 40 };
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <ScatterChart margin={{ top: 10, right: 30, left: 20, bottom: 40 }}>
+      <ScatterChart margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
         <XAxis
           dataKey={xCol.key}
           name={xCol.label}
-          tick={{ fontSize: 12 }}
-          label={{ value: xCol.label, position: 'bottom', offset: 20 }}
+          tick={{ fontSize: compact ? 10 : 12 }}
+          label={compact ? undefined : { value: xCol.label, position: 'bottom', offset: 20 }}
         />
         <YAxis
           dataKey={yCol.key}
           name={yCol.label}
-          tick={{ fontSize: 12 }}
-          label={{ value: yCol.label, angle: -90, position: 'insideLeft' }}
+          tick={{ fontSize: compact ? 10 : 12 }}
+          label={compact ? undefined : { value: yCol.label, angle: -90, position: 'insideLeft' }}
+          width={compact ? 40 : undefined}
         />
         <Tooltip
           content={({ active, payload }) => {
@@ -338,7 +499,7 @@ function ScatterChartRenderer({ data, columns, height }: Omit<ChartProps, 'chart
 // GAUGE (rendered as a summary metric)
 // ============================================================
 
-function GaugeRenderer({ data, columns, height: _height }: Omit<ChartProps, 'chartType'>) {
+function GaugeRenderer({ data, columns, height: _height, compact: _compact }: Omit<ChartProps, 'chartType'>) {
   const measureCols = columns.filter(c => ['currency', 'number', 'percent'].includes(c.format || ''));
 
   if (!data.length || !measureCols.length) return null;
@@ -363,7 +524,7 @@ function GaugeRenderer({ data, columns, height: _height }: Omit<ChartProps, 'cha
 // AREA CHART
 // ============================================================
 
-function AreaChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'>) {
+function AreaChartRenderer({ data, columns, height, compact }: Omit<ChartProps, 'chartType'>) {
   const dimensionCols = columns.filter(c => ['text', 'date', 'datetime'].includes(c.format || ''));
   const measureCols = columns.filter(c => ['currency', 'number', 'percent'].includes(c.format || ''));
   const xKey = dimensionCols[0]?.key || columns[0]?.key;
@@ -373,9 +534,13 @@ function AreaChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartTyp
     [xKey]: formatValue(row[xKey], dimensionCols[0]?.format),
   }));
 
+  const margin = compact
+    ? { top: 5, right: 10, left: 0, bottom: 5 }
+    : { top: 10, right: 30, left: 20, bottom: 40 };
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={formatted} margin={{ top: 10, right: 30, left: 20, bottom: 40 }}>
+      <AreaChart data={formatted} margin={margin}>
         <defs>
           {measureCols.map((col, i) => (
             <linearGradient key={col.key} id={`gradient-${i}`} x1="0" y1="0" x2="0" y2="1">
@@ -385,10 +550,21 @@ function AreaChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartTyp
           ))}
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-        <XAxis dataKey={xKey} tick={{ fontSize: 12 }} angle={-30} textAnchor="end" height={60} />
-        <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatValue(v, measureCols[0]?.format)} />
+        <XAxis
+          dataKey={xKey}
+          tick={{ fontSize: compact ? 10 : 12 }}
+          angle={compact ? 0 : -30}
+          textAnchor={compact ? 'middle' : 'end'}
+          height={compact ? 30 : 60}
+          interval={compact ? 'preserveStartEnd' : undefined}
+        />
+        <YAxis tick={{ fontSize: compact ? 10 : 12 }} tickFormatter={(v) => formatValue(v, measureCols[0]?.format)} width={compact ? 40 : undefined} />
         <Tooltip content={<CustomTooltip columns={columns} />} />
-        <Legend />
+        {measureCols.length > 1 && (
+          <Legend
+            {...(compact ? COMPACT_LEGEND_PROPS : {})}
+          />
+        )}
         {measureCols.map((col, i) => (
           <Area
             key={col.key}
@@ -396,10 +572,10 @@ function AreaChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartTyp
             dataKey={col.key}
             name={col.label}
             stroke={COLORS[i % COLORS.length]}
-            strokeWidth={2}
+            strokeWidth={compact ? 1.5 : 2}
             fill={`url(#gradient-${i})`}
-            dot={{ r: 3 }}
-            activeDot={{ r: 5 }}
+            dot={compact ? false : { r: 3 }}
+            activeDot={{ r: compact ? 4 : 5 }}
           />
         ))}
       </AreaChart>
@@ -411,7 +587,7 @@ function AreaChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartTyp
 // BUBBLE CHART
 // ============================================================
 
-function BubbleChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'>) {
+function BubbleChartRenderer({ data, columns, height, compact }: Omit<ChartProps, 'chartType'>) {
   const measureCols = columns.filter(c => ['currency', 'number', 'percent'].includes(c.format || ''));
   const labelCol = columns.find(c => c.format === 'text');
   const xCol = measureCols[0];
@@ -424,21 +600,26 @@ function BubbleChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartT
     </div>
   );
 
+  const margin = compact
+    ? { top: 5, right: 10, left: 0, bottom: 5 }
+    : { top: 10, right: 30, left: 20, bottom: 40 };
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <ScatterChart margin={{ top: 10, right: 30, left: 20, bottom: 40 }}>
+      <ScatterChart margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
         <XAxis
           dataKey={xCol.key}
           name={xCol.label}
-          tick={{ fontSize: 12 }}
-          label={{ value: xCol.label, position: 'bottom', offset: 20 }}
+          tick={{ fontSize: compact ? 10 : 12 }}
+          label={compact ? undefined : { value: xCol.label, position: 'bottom', offset: 20 }}
         />
         <YAxis
           dataKey={yCol.key}
           name={yCol.label}
-          tick={{ fontSize: 12 }}
-          label={{ value: yCol.label, angle: -90, position: 'insideLeft' }}
+          tick={{ fontSize: compact ? 10 : 12 }}
+          label={compact ? undefined : { value: yCol.label, angle: -90, position: 'insideLeft' }}
+          width={compact ? 40 : undefined}
         />
         {zCol && <ZAxis dataKey={zCol.key} range={[40, 400]} name={zCol.label} />}
         <Tooltip
@@ -469,7 +650,7 @@ function BubbleChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartT
 // HEATMAP
 // ============================================================
 
-function HeatmapRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'>) {
+function HeatmapRenderer({ data, columns, height, compact: _compact }: Omit<ChartProps, 'chartType'>) {
   const dimCols = columns.filter(c => ['text', 'date', 'datetime'].includes(c.format || ''));
   const measureCol = columns.find(c => ['currency', 'number', 'percent'].includes(c.format || ''));
 
@@ -563,7 +744,7 @@ function HeatmapRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'
 // TREEMAP
 // ============================================================
 
-function TreemapRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'>) {
+function TreemapRenderer({ data, columns, height, compact: _compact }: Omit<ChartProps, 'chartType'>) {
   const dimCols = columns.filter(c => ['text', 'date', 'datetime'].includes(c.format || ''));
   const measureCol = columns.find(c => ['currency', 'number', 'percent'].includes(c.format || ''));
   const labelCol = dimCols[0];

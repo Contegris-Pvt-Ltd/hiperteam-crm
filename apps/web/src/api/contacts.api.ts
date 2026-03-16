@@ -14,12 +14,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Public routes that should never redirect to login on 401
+const PUBLIC_PATH_PREFIXES = ['/shared/', '/f/', '/lp/', '/book/', '/portal/', '/proposals/public/', '/contracts/sign/'];
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('accessToken');
-      window.location.href = '/login';
+      const isPublicPage = PUBLIC_PATH_PREFIXES.some(p => window.location.pathname.startsWith(p));
+      if (!isPublicPage) {
+        localStorage.removeItem('accessToken');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   },

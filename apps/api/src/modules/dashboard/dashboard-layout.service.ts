@@ -4,6 +4,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AuditService } from '../shared/audit.service';
+import { ReportsService } from '../reports/reports.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -11,6 +12,7 @@ export class DashboardLayoutService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly auditService: AuditService,
+    private readonly reportsService: ReportsService,
   ) {}
 
   // ── Dashboards ─────────────────────────────────────────────
@@ -461,10 +463,42 @@ export class DashboardLayoutService {
       }
     }
 
-    const widgets = await this.dataSource.query(
+    const widgetRows = await this.dataSource.query(
       `SELECT * FROM "${schemaName}".user_dashboard_widgets WHERE dashboard_id = $1 ORDER BY created_at ASC`,
       [share.dashboard_id],
     );
+
+    // Execute each widget's report and include data inline
+    // Use admin-level user to bypass RBAC — recordAccess returns 'all' for every module
+    const allAccess = new Proxy({} as Record<string, string>, { get: () => 'all' });
+    const adminUser = {
+      sub: share.created_by,
+      tenantSchema: schemaName,
+      role: 'admin',
+      roleLevel: 100,
+      permissions: {},
+      recordAccess: allAccess,
+      fieldPermissions: {},
+    } as any;
+
+    const widgets = [];
+    for (const r of widgetRows) {
+      const w = this.fmtWidget(r);
+      let widgetData = null;
+      if (w.dataSource) {
+        try {
+          widgetData = await this.reportsService.executeConfig(schemaName, {
+            dataSource: w.dataSource,
+            reportType: w.reportType || 'summary',
+            config: w.config,
+            runtimeFilters: [],
+          }, adminUser);
+        } catch {
+          // Widget data fetch failed — return null, frontend will show error
+        }
+      }
+      widgets.push({ ...w, data: widgetData });
+    }
 
     return {
       dashboard: {
@@ -472,34 +506,21 @@ export class DashboardLayoutService {
         name: share.dashboard_name,
         tabFilters: typeof share.tab_filters === 'string' ? JSON.parse(share.tab_filters) : (share.tab_filters || {}),
       },
-      widgets: widgets.map((r: any) => this.fmtWidget(r)),
+      widgets,
       expiresAt: share.expires_at,
     };
   }
 
-  // ── Public shared access (cross-schema lookup) ─────────────
+  // ── Public shared access (tenant slug lookup) ──────────────
 
-  async getSharedDashboardPublic(token: string, email?: string) {
-    // Find the token across all tenant schemas
-    const schemas = await this.dataSource.query(
-      `SELECT schema_name FROM public.tenants WHERE is_active = true`,
+  async getSharedDashboardPublic(tenantSlug: string, token: string, email?: string) {
+    const [tenant] = await this.dataSource.query(
+      `SELECT schema_name FROM master.tenants WHERE slug = $1 AND status = 'active'`,
+      [tenantSlug],
     );
+    if (!tenant) throw new NotFoundException('Organization not found');
 
-    for (const { schema_name } of schemas) {
-      try {
-        const [share] = await this.dataSource.query(
-          `SELECT 1 FROM "${schema_name}".shared_dashboards WHERE share_token = $1 AND is_active = true`,
-          [token],
-        );
-        if (share) {
-          return this.getSharedDashboard(schema_name, token, email);
-        }
-      } catch {
-        // Schema may not have the table yet, skip
-      }
-    }
-
-    throw new NotFoundException('Shared dashboard not found');
+    return this.getSharedDashboard(tenant.schema_name, token, email);
   }
 
   // ── Formatters ─────────────────────────────────────────────

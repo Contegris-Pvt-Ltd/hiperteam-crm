@@ -64,6 +64,11 @@ export function WidgetBuilderPanel({ widget, onSave, onCancel }: WidgetBuilderPa
   const [showTrend, setShowTrend] = useState(widget?.displayConfig?.showTrend ?? false);
   const [targetValue, setTargetValue] = useState(widget?.displayConfig?.targetValue?.toString() || '');
   const [targetLabel, setTargetLabel] = useState(widget?.displayConfig?.targetLabel || '');
+  const [scorecardFontSize, setScorecardFontSize] = useState<string>(widget?.displayConfig?.fontSize || 'auto');
+  const [scorecardFontColor, setScorecardFontColor] = useState(widget?.displayConfig?.fontColor || '');
+  const [thresholds, setThresholds] = useState<Array<{ value: number; color: string; label?: string }>>(
+    widget?.displayConfig?.thresholds || [],
+  );
   const [showLegend, setShowLegend] = useState(widget?.displayConfig?.showLegend ?? true);
   const [showCrown, setShowCrown] = useState(widget?.displayConfig?.showCrown ?? true);
   const [sliderMin, setSliderMin] = useState(widget?.displayConfig?.sliderMin?.toString() || '0');
@@ -135,6 +140,11 @@ export function WidgetBuilderPanel({ widget, onSave, onCancel }: WidgetBuilderPa
     if (targetValue) {
       displayConfig.targetValue = parseFloat(targetValue);
       displayConfig.targetLabel = targetLabel;
+    }
+    if (widgetType === 'scorecard') {
+      displayConfig.fontSize = scorecardFontSize;
+      if (scorecardFontColor) displayConfig.fontColor = scorecardFontColor;
+      if (thresholds.length > 0) displayConfig.thresholds = thresholds;
     }
     if (widgetType === 'projection') {
       displayConfig.sliderMin = parseFloat(sliderMin) || 0;
@@ -504,6 +514,105 @@ export function WidgetBuilderPanel({ widget, onSave, onCancel }: WidgetBuilderPa
                     />
                   </div>
                 )}
+
+                {/* Font size */}
+                <div>
+                  <label className={labelCls}>Font size</label>
+                  <select
+                    value={scorecardFontSize}
+                    onChange={e => setScorecardFontSize(e.target.value)}
+                    className={inputCls}
+                  >
+                    <option value="auto">Auto (responsive)</option>
+                    <option value="sm">Small</option>
+                    <option value="md">Medium</option>
+                    <option value="lg">Large</option>
+                    <option value="xl">Extra Large</option>
+                  </select>
+                </div>
+
+                {/* Font color */}
+                <div>
+                  <label className={labelCls}>Value color (optional)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={scorecardFontColor || '#6b21a8'}
+                      onChange={e => setScorecardFontColor(e.target.value)}
+                      className="w-8 h-8 rounded border border-gray-200 dark:border-slate-600 cursor-pointer"
+                    />
+                    <input
+                      value={scorecardFontColor}
+                      onChange={e => setScorecardFontColor(e.target.value)}
+                      placeholder="e.g. #22c55e or leave empty"
+                      className={inputCls}
+                    />
+                    {scorecardFontColor && (
+                      <button
+                        onClick={() => setScorecardFontColor('')}
+                        className="text-xs text-gray-400 hover:text-red-400 whitespace-nowrap"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Thresholds */}
+                <div>
+                  <label className={labelCls}>Color thresholds (optional)</label>
+                  <p className="text-[10px] text-gray-400 dark:text-slate-500 mb-1.5">
+                    Set value breakpoints — the value color changes based on the highest matched threshold.
+                  </p>
+                  {thresholds.map((t, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5 mb-1.5">
+                      <span className="text-[10px] text-gray-400 w-4 text-right">{idx + 1}.</span>
+                      <input
+                        type="number"
+                        value={t.value}
+                        onChange={e => {
+                          const updated = [...thresholds];
+                          updated[idx] = { ...updated[idx], value: parseFloat(e.target.value) || 0 };
+                          setThresholds(updated);
+                        }}
+                        placeholder="Value"
+                        className="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                      />
+                      <input
+                        type="color"
+                        value={t.color}
+                        onChange={e => {
+                          const updated = [...thresholds];
+                          updated[idx] = { ...updated[idx], color: e.target.value };
+                          setThresholds(updated);
+                        }}
+                        className="w-6 h-6 rounded border border-gray-200 dark:border-slate-600 cursor-pointer flex-shrink-0"
+                      />
+                      <input
+                        value={t.label || ''}
+                        onChange={e => {
+                          const updated = [...thresholds];
+                          updated[idx] = { ...updated[idx], label: e.target.value || undefined };
+                          setThresholds(updated);
+                        }}
+                        placeholder="Label"
+                        className="w-20 px-2 py-1 text-xs border border-gray-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                      />
+                      <button
+                        onClick={() => setThresholds(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-gray-400 hover:text-red-500 text-xs flex-shrink-0"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setThresholds(prev => [...prev, { value: 0, color: '#22c55e' }])}
+                    className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                  >
+                    + Add threshold
+                  </button>
+                </div>
               </>
             )}
 

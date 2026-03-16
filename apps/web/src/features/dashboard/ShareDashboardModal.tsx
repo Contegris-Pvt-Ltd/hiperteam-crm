@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { dashboardLayoutApi } from '../../api/dashboard-layout.api';
 import type { ShareLink } from '../../api/dashboard-layout.api';
+import { useAuthStore } from '../../stores/auth.store';
 
 interface ShareDashboardModalProps {
   open: boolean;
@@ -29,6 +30,7 @@ export function ShareDashboardModal({
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // New link form
+  const tenant = useAuthStore(s => s.tenant);
   const [showForm, setShowForm] = useState(false);
   const [expiryDays, setExpiryDays] = useState<number>(7);
   const [emailInput, setEmailInput] = useState('');
@@ -77,7 +79,7 @@ export function ShareDashboardModal({
   };
 
   const getShareUrl = (token: string) => {
-    return `${window.location.origin}/shared/dashboard/${token}`;
+    return `${window.location.origin}/shared/dashboard/${tenant?.slug || 'default'}/${token}`;
   };
 
   const handleCopy = (link: ShareLink) => {

@@ -118,7 +118,7 @@ function App() {
         <Route path="/lp/:tenantSlug/:token" element={<LandingPagePublicPage />} />
         <Route path="/book/:tenantSlug/:token" element={<PublicBookingPage />} />
         <Route path="/book/cancel/:cancelToken" element={<BookingCancelPage />} />
-        <Route path="/shared/dashboard/:token" element={<SharedDashboardPage />} />
+        <Route path="/shared/dashboard/:tenantSlug/:token" element={<SharedDashboardPage />} />
 
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<DashboardPage />} />

@@ -262,6 +262,8 @@ function DashboardInner({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [savingPositions, setSavingPositions] = useState(false);
   const positionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const widgetsRef = useRef(widgets);
+  widgetsRef.current = widgets;
 
   // Export/Share state
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -279,41 +281,87 @@ function DashboardInner({
     return () => ro.disconnect();
   }, []);
 
+  // Clean up debounce timer on unmount — flush save
+  useEffect(() => {
+    return () => {
+      if (positionSaveTimerRef.current) {
+        clearTimeout(positionSaveTimerRef.current);
+        positionSaveTimerRef.current = null;
+        // Fire save synchronously before unmount
+        const ws = widgetsRef.current;
+        if (ws.length > 0) {
+          dashboardLayoutApi.bulkUpdatePositions(
+            dashboard.id,
+            ws.map(w => ({ id: w.id, position: w.position })),
+          ).catch(() => {});
+        }
+      }
+    };
+  }, [dashboard.id]);
+
   // Build react-grid-layout layout from widgets
-  const layout: Layout[] = widgets.map(w => ({
-    i: w.id,
-    x: w.position.x,
-    y: w.position.y,
-    w: w.position.w,
-    h: w.position.h,
-    minW: 3,
-    minH: 2,
-  }));
+  const layout: Layout[] = widgets.map(w => {
+    const isScorecard = w.widgetType === 'scorecard';
+    return {
+      i: w.id,
+      x: w.position.x,
+      y: w.position.y,
+      w: w.position.w,
+      h: w.position.h,
+      minW: isScorecard ? 2 : 3,
+      minH: isScorecard ? 1 : 2,
+    };
+  });
+
+  // Save current widget positions to backend
+  const savePositions = useCallback(async (widgetsToSave?: DashboardWidget[]) => {
+    const ws = widgetsToSave || widgetsRef.current;
+    if (ws.length === 0) return;
+    setSavingPositions(true);
+    try {
+      await dashboardLayoutApi.bulkUpdatePositions(
+        dashboard.id,
+        ws.map(w => ({ id: w.id, position: w.position })),
+      );
+    } catch { /* ignore */ }
+    finally { setSavingPositions(false); }
+  }, [dashboard.id]);
+
+  // Track whether user has actually dragged/resized (vs. layout change from entering edit mode)
+  const userInteractedRef = useRef(false);
 
   const handleLayoutChange = useCallback((newLayout: Layout[]) => {
     if (!isEditMode) return;
+    // Only update local positions if user has actually interacted (drag/resize)
+    if (!userInteractedRef.current) return;
 
-    // Update local widget positions
-    const updated = widgets.map(w => {
+    const currentWidgets = widgetsRef.current;
+    const updated = currentWidgets.map(w => {
       const l = newLayout.find(x => x.i === w.id);
       if (!l) return w;
       return { ...w, position: { x: l.x, y: l.y, w: l.w, h: l.h } };
     });
     onWidgetsChange(updated);
+  }, [isEditMode, onWidgetsChange]);
 
-    // Debounce save to backend
+  // Save positions when drag or resize finishes — use the full layout array
+  // which has ALL widgets' final positions (including pushed/shifted ones)
+  const handleDragResizeStop = useCallback((finalLayout: Layout[]) => {
+    if (!isEditMode) return;
+    userInteractedRef.current = true;
+
+    const currentWidgets = widgetsRef.current;
+    const updated = currentWidgets.map(w => {
+      const l = finalLayout.find(x => x.i === w.id);
+      if (!l) return w;
+      return { ...w, position: { x: l.x, y: l.y, w: l.w, h: l.h } };
+    });
+    onWidgetsChange(updated);
+
+    // Save to backend immediately (short debounce for rapid successive operations)
     if (positionSaveTimerRef.current) clearTimeout(positionSaveTimerRef.current);
-    positionSaveTimerRef.current = setTimeout(async () => {
-      setSavingPositions(true);
-      try {
-        await dashboardLayoutApi.bulkUpdatePositions(
-          dashboard.id,
-          updated.map(w => ({ id: w.id, position: w.position })),
-        );
-      } catch { /* ignore */ }
-      finally { setSavingPositions(false); }
-    }, 800);
-  }, [isEditMode, widgets, dashboard.id, onWidgetsChange]);
+    positionSaveTimerRef.current = setTimeout(() => savePositions(updated), 300);
+  }, [isEditMode, onWidgetsChange, savePositions]);
 
   const handleAddWidget = async (dto: Partial<DashboardWidget>) => {
     try {
@@ -561,7 +609,16 @@ function DashboardInner({
                   <PlusCircle className="w-3.5 h-3.5" /> Add Widget
                 </button>
                 <button
-                  onClick={() => { setEditMode(false); setBuilderOpen(false); setEditingWidget(null); }}
+                  onClick={() => {
+                    // Flush any pending position save
+                    if (positionSaveTimerRef.current) {
+                      clearTimeout(positionSaveTimerRef.current);
+                      positionSaveTimerRef.current = null;
+                    }
+                    savePositions();
+                    userInteractedRef.current = false;
+                    setEditMode(false); setBuilderOpen(false); setEditingWidget(null);
+                  }}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg"
                 >
                   <Check className="w-3.5 h-3.5" /> Done
@@ -579,7 +636,7 @@ function DashboardInner({
         </div>
 
         {/* Grid area */}
-        <div className="flex-1 overflow-auto bg-gray-50 dark:bg-slate-950 p-4" ref={containerRef}>
+        <div className={`flex-1 overflow-auto bg-gray-50 dark:bg-slate-950 p-4${!isEditMode ? ' [&_.react-resizable-handle]:hidden' : ''}`} ref={containerRef}>
           {widgets.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full min-h-64 text-center">
               <LayoutDashboard className="w-12 h-12 text-gray-300 dark:text-slate-600 mb-3" />
@@ -608,6 +665,8 @@ function DashboardInner({
               isDraggable={isEditMode}
               isResizable={isEditMode}
               onLayoutChange={handleLayoutChange}
+              onDragStop={handleDragResizeStop}
+              onResizeStop={handleDragResizeStop}
               draggableHandle=".drag-handle"
               resizeHandles={['se', 'sw', 'ne', 'nw']}
             >
@@ -942,7 +1001,7 @@ export function DashboardPage() {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden -m-4 lg:-m-6">
       {/* Tab bar */}
       <TabBar
         dashboards={dashboards}

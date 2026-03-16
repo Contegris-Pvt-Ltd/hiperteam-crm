@@ -1,7 +1,13 @@
 // ============================================================
 // FILE: apps/web/src/api/dashboard-layout.api.ts
 // ============================================================
+import axios from 'axios';
 import { api } from './contacts.api';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+// Plain axios instance for public endpoints — no auth header, no 401 redirect
+const publicApi = axios.create({ baseURL: `${API_URL}/api` });
 
 export interface DashboardTabFilters {
   dateRange: {
@@ -62,6 +68,10 @@ export interface DashboardWidget {
     targetValue?: number;
     targetLabel?: string;
     colorScheme?: string;
+    // scorecard-specific
+    fontSize?: 'auto' | 'sm' | 'md' | 'lg' | 'xl';
+    fontColor?: string;
+    thresholds?: Array<{ value: number; color: string; label?: string }>;
     // projection-specific
     sliderLabel?: string;
     sliderMin?: number;
@@ -184,13 +194,13 @@ export const dashboardLayoutApi = {
   },
 
   // ── Public shared dashboard ───────────────────────────────
-  getSharedDashboard: async (token: string, email?: string): Promise<{
+  getSharedDashboard: async (tenantSlug: string, token: string, email?: string): Promise<{
     dashboard: { id: string; name: string; tabFilters: DashboardTabFilters };
     widgets: DashboardWidget[];
     expiresAt: string | null;
   }> => {
     const params = email ? { email } : {};
-    const { data } = await api.get(`/shared/dashboard/${token}`, { params });
+    const { data } = await publicApi.get(`/shared/dashboard/${tenantSlug}/${token}`, { params });
     return data;
   },
 };

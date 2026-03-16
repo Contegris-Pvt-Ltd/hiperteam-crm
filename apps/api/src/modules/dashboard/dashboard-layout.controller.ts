@@ -180,14 +180,13 @@ export class DashboardLayoutController {
 export class SharedDashboardController {
   constructor(private readonly svc: DashboardLayoutService) {}
 
-  @Get(':token')
+  @Get(':tenantSlug/:token')
   @ApiOperation({ summary: 'View a shared dashboard via public token' })
   async getSharedDashboard(
+    @Param('tenantSlug') tenantSlug: string,
     @Param('token') token: string,
     @Query('email') email?: string,
   ) {
-    // We need to find which schema this token belongs to
-    // Search across all tenant schemas
-    return this.svc.getSharedDashboardPublic(token, email);
+    return this.svc.getSharedDashboardPublic(tenantSlug, token, email);
   }
 }
