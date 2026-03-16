@@ -6,6 +6,7 @@ import { Layout } from './components/layout/Layout';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegisterPage } from './features/auth/RegisterPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
+import { SharedDashboardPage } from './features/dashboard/SharedDashboardPage';
 import { ContactsPage, ContactDetailPage, ContactEditPage } from './features/contacts';
 import { AccountsPage, AccountDetailPage, AccountEditPage } from './features/accounts';
 import { ProductsPage, ProductDetailPage, ProductEditPage, PriceBooksPage } from './features/products';
@@ -117,6 +118,7 @@ function App() {
         <Route path="/lp/:tenantSlug/:token" element={<LandingPagePublicPage />} />
         <Route path="/book/:tenantSlug/:token" element={<PublicBookingPage />} />
         <Route path="/book/cancel/:cancelToken" element={<BookingCancelPage />} />
+        <Route path="/shared/dashboard/:token" element={<SharedDashboardPage />} />
 
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<DashboardPage />} />

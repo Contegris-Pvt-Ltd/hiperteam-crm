@@ -354,6 +354,133 @@ export const DATA_SOURCES: Record<string, DataSourceDefinition> = {
       teams:      { sql: 'LEFT JOIN "{schema}".teams tm ON ta.team_id = tm.id', alias: 'tm' },
     },
   },
+
+  // ─────────────────────────────────────────────────
+  // PROJECTS
+  // ─────────────────────────────────────────────────
+  projects: {
+    key: 'projects',
+    label: 'Projects',
+    table: 'projects',
+    alias: 'pr',
+    baseWhere: 'pr.deleted_at IS NULL',
+    fields: [
+      { key: 'id', label: 'ID', type: 'text', sqlExpr: 'pr.id', aggregates: ['count', 'count_distinct'], filterable: true },
+      { key: 'name', label: 'Name', type: 'text', sqlExpr: 'pr.name', groupable: true, filterable: true },
+      { key: 'budget', label: 'Budget', type: 'currency', sqlExpr: 'pr.budget', aggregates: ['sum', 'avg', 'min', 'max'], filterable: true },
+      { key: 'status_name', label: 'Status', type: 'text', sqlExpr: 'ps.name', join: 'statuses', groupable: true, filterable: true },
+      { key: 'start_date', label: 'Start Date', type: 'date', sqlExpr: 'pr.start_date', groupable: true, filterable: true },
+      { key: 'end_date', label: 'End Date', type: 'date', sqlExpr: 'pr.end_date', groupable: true, filterable: true },
+      { key: 'created_at', label: 'Created', type: 'datetime', sqlExpr: 'pr.created_at', groupable: true, filterable: true },
+      { key: 'owner_name', label: 'Owner', type: 'text', sqlExpr: "CONCAT(u.first_name, ' ', u.last_name)", join: 'users', groupable: true, filterable: true },
+      { key: 'account_name', label: 'Account', type: 'text', sqlExpr: 'ac.name', join: 'accounts', groupable: true, filterable: true },
+    ],
+    joins: {
+      statuses: { sql: 'LEFT JOIN "{schema}".project_statuses ps ON pr.status_id = ps.id', alias: 'ps' },
+      users: { sql: 'LEFT JOIN "{schema}".users u ON pr.owner_id = u.id', alias: 'u' },
+      accounts: { sql: 'LEFT JOIN "{schema}".accounts ac ON pr.account_id = ac.id', alias: 'ac' },
+    },
+  },
+
+  // ─────────────────────────────────────────────────
+  // PROJECT TASKS
+  // ─────────────────────────────────────────────────
+  project_tasks: {
+    key: 'project_tasks',
+    label: 'Project Tasks',
+    table: 'project_tasks',
+    alias: 'ptask',
+    baseWhere: 'ptask.deleted_at IS NULL',
+    fields: [
+      { key: 'id', label: 'ID', type: 'text', sqlExpr: 'ptask.id', aggregates: ['count', 'count_distinct'], filterable: true },
+      { key: 'title', label: 'Title', type: 'text', sqlExpr: 'ptask.title', filterable: true },
+      { key: 'priority', label: 'Priority', type: 'text', sqlExpr: 'ptask.priority', groupable: true, filterable: true },
+      { key: 'status_name', label: 'Status', type: 'text', sqlExpr: 'pts.name', join: 'task_statuses', groupable: true, filterable: true },
+      { key: 'due_date', label: 'Due Date', type: 'date', sqlExpr: 'ptask.due_date', groupable: true, filterable: true },
+      { key: 'estimated_hours', label: 'Estimated Hours', type: 'number', sqlExpr: 'ptask.estimated_hours', aggregates: ['sum', 'avg'], filterable: true },
+      { key: 'created_at', label: 'Created', type: 'datetime', sqlExpr: 'ptask.created_at', groupable: true, filterable: true },
+      { key: 'assignee_name', label: 'Assignee', type: 'text', sqlExpr: "CONCAT(u.first_name, ' ', u.last_name)", join: 'users', groupable: true, filterable: true },
+      { key: 'project_name', label: 'Project', type: 'text', sqlExpr: 'pr.name', join: 'projects', groupable: true, filterable: true },
+    ],
+    joins: {
+      task_statuses: { sql: 'LEFT JOIN "{schema}".project_task_statuses pts ON ptask.status_id = pts.id', alias: 'pts' },
+      users: { sql: 'LEFT JOIN "{schema}".users u ON ptask.assignee_id = u.id', alias: 'u' },
+      projects: { sql: 'LEFT JOIN "{schema}".projects pr ON ptask.project_id = pr.id', alias: 'pr' },
+    },
+  },
+
+  // ─────────────────────────────────────────────────
+  // INVOICES
+  // ─────────────────────────────────────────────────
+  invoices: {
+    key: 'invoices',
+    label: 'Invoices',
+    table: 'invoices',
+    alias: 'inv',
+    baseWhere: 'inv.deleted_at IS NULL',
+    fields: [
+      { key: 'id', label: 'ID', type: 'text', sqlExpr: 'inv.id', aggregates: ['count', 'count_distinct'], filterable: true },
+      { key: 'total_amount', label: 'Total Amount', type: 'currency', sqlExpr: 'inv.total_amount', aggregates: ['sum', 'avg', 'min', 'max'], filterable: true },
+      { key: 'amount_paid', label: 'Amount Paid', type: 'currency', sqlExpr: 'inv.amount_paid', aggregates: ['sum', 'avg'], filterable: true },
+      { key: 'amount_due', label: 'Amount Due', type: 'currency', sqlExpr: 'inv.amount_due', aggregates: ['sum', 'avg'], filterable: true },
+      { key: 'status', label: 'Status', type: 'text', sqlExpr: 'inv.status', groupable: true, filterable: true },
+      { key: 'issue_date', label: 'Issue Date', type: 'date', sqlExpr: 'inv.issue_date', groupable: true, filterable: true },
+      { key: 'due_date', label: 'Due Date', type: 'date', sqlExpr: 'inv.due_date', groupable: true, filterable: true },
+      { key: 'paid_at', label: 'Paid Date', type: 'datetime', sqlExpr: 'inv.paid_at', groupable: true, filterable: true },
+      { key: 'created_at', label: 'Created', type: 'datetime', sqlExpr: 'inv.created_at', groupable: true, filterable: true },
+      { key: 'account_name', label: 'Account', type: 'text', sqlExpr: 'ac.name', join: 'accounts', groupable: true, filterable: true },
+      { key: 'currency', label: 'Currency', type: 'text', sqlExpr: 'inv.currency', groupable: true, filterable: true },
+    ],
+    joins: {
+      accounts: { sql: 'LEFT JOIN "{schema}".accounts ac ON inv.account_id = ac.id', alias: 'ac' },
+    },
+  },
+
+  // ─────────────────────────────────────────────────
+  // FORM BOOKINGS
+  // ─────────────────────────────────────────────────
+  form_bookings: {
+    key: 'form_bookings',
+    label: 'Bookings',
+    table: 'form_bookings',
+    alias: 'fb',
+    baseWhere: 'TRUE',
+    fields: [
+      { key: 'id', label: 'ID', type: 'text', sqlExpr: 'fb.id', aggregates: ['count', 'count_distinct'], filterable: true },
+      { key: 'invitee_name', label: 'Invitee', type: 'text', sqlExpr: 'fb.invitee_name', filterable: true },
+      { key: 'invitee_email', label: 'Email', type: 'text', sqlExpr: 'fb.invitee_email', filterable: true },
+      { key: 'status', label: 'Status', type: 'text', sqlExpr: 'fb.status', groupable: true, filterable: true },
+      { key: 'location_type', label: 'Location Type', type: 'text', sqlExpr: 'fb.location_type', groupable: true, filterable: true },
+      { key: 'start_time', label: 'Start Time', type: 'datetime', sqlExpr: 'fb.start_time', groupable: true, filterable: true },
+      { key: 'created_at', label: 'Created', type: 'datetime', sqlExpr: 'fb.created_at', groupable: true, filterable: true },
+      { key: 'form_name', label: 'Booking Page', type: 'text', sqlExpr: 'f.name', join: 'forms', groupable: true, filterable: true },
+      { key: 'host_name', label: 'Host', type: 'text', sqlExpr: "CONCAT(u.first_name, ' ', u.last_name)", join: 'users', groupable: true, filterable: true },
+    ],
+    joins: {
+      forms: { sql: 'LEFT JOIN "{schema}".forms f ON fb.form_id = f.id', alias: 'f' },
+      users: { sql: 'LEFT JOIN "{schema}".users u ON fb.host_user_id = u.id', alias: 'u' },
+    },
+  },
+
+  // ─────────────────────────────────────────────────
+  // FORM SUBMISSIONS
+  // ─────────────────────────────────────────────────
+  form_submissions: {
+    key: 'form_submissions',
+    label: 'Form Submissions',
+    table: 'form_submissions',
+    alias: 'fs',
+    baseWhere: 'TRUE',
+    fields: [
+      { key: 'id', label: 'ID', type: 'text', sqlExpr: 'fs.id', aggregates: ['count', 'count_distinct'], filterable: true },
+      { key: 'created_at', label: 'Submitted At', type: 'datetime', sqlExpr: 'fs.created_at', groupable: true, filterable: true },
+      { key: 'form_name', label: 'Form', type: 'text', sqlExpr: 'f.name', join: 'forms', groupable: true, filterable: true },
+      { key: 'ip_address', label: 'IP Address', type: 'text', sqlExpr: 'fs.ip_address', filterable: true },
+    ],
+    joins: {
+      forms: { sql: 'LEFT JOIN "{schema}".forms f ON fs.form_id = f.id', alias: 'f' },
+    },
+  },
 };
 
 // ============================================================

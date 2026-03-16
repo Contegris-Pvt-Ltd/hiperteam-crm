@@ -1,887 +1,992 @@
 // ============================================================
 // FILE: apps/web/src/features/dashboard/DashboardPage.tsx
-//
-// Full analytics dashboard with Personal / Team toggle.
-// Personal = "My" data. Team = all reps (visible to managers).
+// Dynamic BI Dashboard — multi-tab, free-resize grid,
+// widget builder panel, tab-level filters.
 // ============================================================
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import GridLayout from 'react-grid-layout';
+import type { Layout } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 import {
-  TrendingUp, DollarSign, Target, CheckSquare,
-  Users, Clock, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  BarChart3, Activity, Zap, Calendar, ChevronDown,
-  Loader2, RefreshCw, Trophy, ArrowRight,
+  Plus, Edit3, Check, X, Trash2, MoreHorizontal,
+  ChevronDown, LayoutDashboard, Filter, RefreshCw,
+  PlusCircle, AlertTriangle, Download, Upload, Share2,
+  FileImage, FileText, Loader2,
 } from 'lucide-react';
-import { useAuthStore } from '../../stores/auth.store';
-import { dashboardApi } from '../../api/dashboard.api';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
+import { dashboardLayoutApi } from '../../api/dashboard-layout.api';
 import type {
-  DashboardSummary, ActivitySummary, FunnelStage, VelocityStage,
-  WinLossAnalysis, LeaderboardEntry, LeadAgingData, LeadSourceData,
-  UpcomingTask, ClosingDeal, ConversionStep, ActivityFeedItem,
-  StuckDeal, EffortVsResult,
-} from '../../api/dashboard.api';
-import { TargetsWidget } from './TargetsWidget';
-import { MyBadgesWidget, AchievementFeed, PointsLeaderboard } from './BadgesDisplay';
-import { AccountForecastWidget } from './AccountForecastWidget';
+  UserDashboard, DashboardWidget,
+} from '../../api/dashboard-layout.api';
+import { DATE_RANGE_OPTIONS } from '../../api/dashboard-layout.api';
+import { DashboardProvider, useDashboard } from './DashboardContext';
+import { DashboardWidgetCard } from './DashboardWidget';
+import { WidgetBuilderPanel } from './WidgetBuilderPanel';
+import { ShareDashboardModal } from './ShareDashboardModal';
+import { usePermissions } from '../../hooks/usePermissions';
 
-// ════════════════════════════════════════════════════════════
-// CONSTANTS
-// ════════════════════════════════════════════════════════════
+// ── Reusable modal component ──────────────────────────────────
 
-const DATE_PRESETS = [
-  { label: 'This Week', value: 'week' },
-  { label: 'This Month', value: 'month' },
-  { label: 'This Quarter', value: 'quarter' },
-  { label: 'This Year', value: 'year' },
-  { label: 'Last 30 Days', value: 'last30' },
-  { label: 'Last 90 Days', value: 'last90' },
-];
-
-function getDateRange(preset: string): { from: string; to: string } {
-  const now = new Date();
-  const to = now.toISOString();
-  let from: Date;
-
-  switch (preset) {
-    case 'week': {
-      const d = new Date(now);
-      d.setDate(d.getDate() - d.getDay());
-      d.setHours(0, 0, 0, 0);
-      from = d;
-      break;
-    }
-    case 'month':
-      from = new Date(now.getFullYear(), now.getMonth(), 1);
-      break;
-    case 'quarter': {
-      const q = Math.floor(now.getMonth() / 3) * 3;
-      from = new Date(now.getFullYear(), q, 1);
-      break;
-    }
-    case 'year':
-      from = new Date(now.getFullYear(), 0, 1);
-      break;
-    case 'last30':
-      from = new Date(now.getTime() - 30 * 86400000);
-      break;
-    case 'last90':
-      from = new Date(now.getTime() - 90 * 86400000);
-      break;
-    default:
-      from = new Date(now.getFullYear(), now.getMonth(), 1);
-  }
-
-  return { from: from.toISOString(), to };
+function DashboardModal({
+  open,
+  title,
+  children,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-slate-700">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
+          <button onClick={onClose} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
 }
 
-// ════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ════════════════════════════════════════════════════════════
+function CreateDashboardModal({
+  open,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (name: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
-export function DashboardPage() {
-  const navigate = useNavigate();
-  const { user } = useAuthStore();
-  const firstName = user?.firstName || user?.email?.split('@')[0] || 'there';
+  useEffect(() => {
+    if (open) { setName(''); setTimeout(() => inputRef.current?.focus(), 50); }
+  }, [open]);
 
-  // Can user see team data?
-  const recordAccess = (user?.recordAccess || {}) as Record<string, string>;
-  const canViewTeam = Object.values(recordAccess).some(v => v === 'team' || v === 'all' || v === 'department')
-    || (user?.roleLevel || 0) >= 50;
-
-  // State
-  const [scope, setScope] = useState<'own' | 'team'>('own');
-  const [datePreset, setDatePreset] = useState('month');
-  const [showDateMenu, setShowDateMenu] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Data
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [activitySummary, setActivitySummary] = useState<ActivitySummary | null>(null);
-  const [pipelineFunnel, setPipelineFunnel] = useState<FunnelStage[]>([]);
-  const [_leadFunnel, setLeadFunnel] = useState<FunnelStage[]>([]);
-  const [velocity, setVelocity] = useState<VelocityStage[]>([]);
-  const [winLoss, setWinLoss] = useState<WinLossAnalysis | null>(null);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [leadAging, setLeadAging] = useState<LeadAgingData | null>(null);
-  const [leadSources, setLeadSources] = useState<LeadSourceData[]>([]);
-  const [upcomingTasks, setUpcomingTasks] = useState<UpcomingTask[]>([]);
-  const [closingDeals, setClosingDeals] = useState<ClosingDeal[]>([]);
-  const [conversionFunnel, setConversionFunnel] = useState<ConversionStep[]>([]);
-  const [recentActivity, setRecentActivity] = useState<ActivityFeedItem[]>([]);
-  const [stuckDeals, setStuckDeals] = useState<StuckDeal[]>([]);
-  const [_effortVsResult, setEffortVsResult] = useState<EffortVsResult[]>([]);
-
-  const dateRange = useMemo(() => getDateRange(datePreset), [datePreset]);
-  const query = useMemo(() => ({ scope, ...dateRange }), [scope, dateRange]);
-
-  // ── Fetch all data ──
-  const fetchAll = useCallback(async (showLoader = true) => {
-    if (showLoader) setLoading(true);
-    else setRefreshing(true);
-
-    try {
-      const [
-        sumRes, actRes, pipRes, leadFRes, velRes, wlRes,
-        lbRes, laRes, lsRes, taskRes, dealRes, convRes,
-        actFeedRes, stuckRes, evrRes,
-      ] = await Promise.all([
-        dashboardApi.getSummary(query),
-        dashboardApi.getActivitySummary(query),
-        dashboardApi.getPipelineFunnel(query),
-        dashboardApi.getLeadFunnel(query),
-        dashboardApi.getPipelineVelocity({ scope, module: 'opportunities' }),
-        dashboardApi.getWinLoss(query),
-        dashboardApi.getLeaderboard(query),
-        dashboardApi.getLeadAging({ scope }),
-        dashboardApi.getLeadSources(query),
-        dashboardApi.getUpcomingTasks({ scope, limit: 10 }),
-        dashboardApi.getDealsClosing({ scope, days: 7 }),
-        dashboardApi.getConversionFunnel(query),
-        dashboardApi.getRecentActivity({ scope, limit: 15 }),
-        dashboardApi.getStuckDeals({ scope, days: 14 }),
-        dashboardApi.getEffortVsResult(query),
-      ]);
-
-      setSummary(sumRes);
-      setActivitySummary(actRes);
-      setPipelineFunnel(pipRes);
-      setLeadFunnel(leadFRes);
-      setVelocity(velRes);
-      setWinLoss(wlRes);
-      setLeaderboard(lbRes);
-      setLeadAging(laRes);
-      setLeadSources(lsRes);
-      setUpcomingTasks(taskRes);
-      setClosingDeals(dealRes);
-      setConversionFunnel(convRes);
-      setRecentActivity(actFeedRes);
-      setStuckDeals(stuckRes);
-      setEffortVsResult(evrRes);
-    } catch (err) {
-      console.error('Dashboard fetch error:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [query, scope]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  // ════════════════════════════════════════════════════════════
-  // RENDER
-  // ════════════════════════════════════════════════════════════
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
+  const handleSubmit = () => {
+    if (name.trim()) { onConfirm(name.trim()); setName(''); }
+  };
 
   return (
-    <div className="p-4 lg:p-6 max-w-[1600px] mx-auto space-y-6">
-      {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+    <DashboardModal open={open} title="Create New Dashboard" onClose={onClose}>
+      <div className="space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Good {getGreeting()}, {firstName} 👋
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {scope === 'own' ? "Here's your personal performance snapshot." : "Here's how your team is performing."}
-          </p>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            Dashboard Name
+          </label>
+          <input
+            ref={inputRef}
+            value={name}
+            onChange={e => setName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSubmit(); }}
+            placeholder="e.g. Sales Overview"
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
         </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!name.trim()}
+            className="flex-1 px-4 py-2 text-sm bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white rounded-xl font-medium"
+          >
+            Create
+          </button>
+        </div>
+      </div>
+    </DashboardModal>
+  );
+}
 
-        <div className="flex items-center gap-2">
-          {/* Scope toggle */}
-          {canViewTeam && (
-            <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-              <button
-                onClick={() => setScope('own')}
-                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                  scope === 'own'
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600'
-                    : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800'
-                }`}
-              >
-                Personal
-              </button>
-              <button
-                onClick={() => setScope('team')}
-                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                  scope === 'team'
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600'
-                    : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800'
-                }`}
-              >
-                Team
-              </button>
-            </div>
+function DeleteDashboardModal({
+  open,
+  dashboardName,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  dashboardName: string;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <DashboardModal open={open} title="Delete Dashboard" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-xl">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              Are you sure you want to delete <span className="font-semibold">"{dashboardName}"</span>?
+            </p>
+            <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
+              All widgets in this dashboard will be permanently removed. This cannot be undone.
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </DashboardModal>
+  );
+}
+
+function ImportDashboardModal({
+  open,
+  onClose,
+  onImport,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onImport: (payload: any) => void;
+}) {
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setError('');
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      if (payload.version !== 1 || !payload.dashboard || !Array.isArray(payload.widgets)) {
+        throw new Error('Invalid dashboard export file');
+      }
+      await onImport(payload);
+    } catch (err: any) {
+      setError(err.message || 'Failed to import dashboard');
+    } finally {
+      setImporting(false);
+      e.target.value = '';
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <DashboardModal open={open} title="Import Dashboard" onClose={onClose}>
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Select a previously exported dashboard JSON file to import.
+        </p>
+        <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-200 dark:border-slate-600 rounded-xl cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 dark:hover:bg-purple-900/10 transition-colors">
+          {importing ? (
+            <Loader2 className="w-8 h-8 text-purple-500 animate-spin mb-2" />
+          ) : (
+            <Upload className="w-8 h-8 text-gray-300 dark:text-slate-600 mb-2" />
           )}
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {importing ? 'Importing...' : 'Click to select JSON file'}
+          </span>
+          <input
+            type="file"
+            accept=".json"
+            onChange={handleFileSelect}
+            disabled={importing}
+            className="hidden"
+          />
+        </label>
+        {error && (
+          <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            {error}
+          </div>
+        )}
+        <button
+          onClick={onClose}
+          className="w-full px-4 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700"
+        >
+          Cancel
+        </button>
+      </div>
+    </DashboardModal>
+  );
+}
 
+// ── Grid constants ────────────────────────────────────────────
+const GRID_COLS = 12;
+const ROW_HEIGHT = 80;
+const GRID_MARGIN: [number, number] = [12, 12];
+
+// ── Inner component (inside DashboardProvider) ───────────────
+
+function DashboardInner({
+  dashboard,
+  widgets,
+  onWidgetsChange,
+}: {
+  dashboard: UserDashboard;
+  widgets: DashboardWidget[];
+  onWidgetsChange: (widgets: DashboardWidget[]) => void;
+}) {
+  const { isEditMode, setEditMode, tabFilterValues, setDateRange, setScope } = useDashboard();
+  const { canEdit, canExport } = usePermissions();
+  const canEditDashboard = canEdit('reports');
+  const canExportDashboard = canExport('reports');
+
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [editingWidget, setEditingWidget] = useState<DashboardWidget | null>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [savingPositions, setSavingPositions] = useState(false);
+  const positionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Export/Share state
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [exporting, setExporting] = useState<string | null>(null);
+
+  // Measure container width for grid
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width;
+      if (w) setContainerWidth(w);
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // Build react-grid-layout layout from widgets
+  const layout: Layout[] = widgets.map(w => ({
+    i: w.id,
+    x: w.position.x,
+    y: w.position.y,
+    w: w.position.w,
+    h: w.position.h,
+    minW: 3,
+    minH: 2,
+  }));
+
+  const handleLayoutChange = useCallback((newLayout: Layout[]) => {
+    if (!isEditMode) return;
+
+    // Update local widget positions
+    const updated = widgets.map(w => {
+      const l = newLayout.find(x => x.i === w.id);
+      if (!l) return w;
+      return { ...w, position: { x: l.x, y: l.y, w: l.w, h: l.h } };
+    });
+    onWidgetsChange(updated);
+
+    // Debounce save to backend
+    if (positionSaveTimerRef.current) clearTimeout(positionSaveTimerRef.current);
+    positionSaveTimerRef.current = setTimeout(async () => {
+      setSavingPositions(true);
+      try {
+        await dashboardLayoutApi.bulkUpdatePositions(
+          dashboard.id,
+          updated.map(w => ({ id: w.id, position: w.position })),
+        );
+      } catch { /* ignore */ }
+      finally { setSavingPositions(false); }
+    }, 800);
+  }, [isEditMode, widgets, dashboard.id, onWidgetsChange]);
+
+  const handleAddWidget = async (dto: Partial<DashboardWidget>) => {
+    try {
+      // Find a free position
+      const maxY = widgets.reduce((m, w) => Math.max(m, w.position.y + w.position.h), 0);
+      const created = await dashboardLayoutApi.createWidget(dashboard.id, {
+        ...dto,
+        position: { x: 0, y: maxY, w: 6, h: 4 },
+      });
+      onWidgetsChange([...widgets, created]);
+      setBuilderOpen(false);
+      setEditingWidget(null);
+    } catch (err) {
+      console.error('Failed to create widget', err);
+    }
+  };
+
+  const handleUpdateWidget = async (dto: Partial<DashboardWidget>) => {
+    if (!editingWidget) return;
+    try {
+      const updated = await dashboardLayoutApi.updateWidget(editingWidget.id, dto);
+      onWidgetsChange(widgets.map(w => w.id === updated.id ? updated : w));
+      setBuilderOpen(false);
+      setEditingWidget(null);
+    } catch (err) {
+      console.error('Failed to update widget', err);
+    }
+  };
+
+  const handleDeleteWidget = async (widgetId: string) => {
+    try {
+      await dashboardLayoutApi.deleteWidget(widgetId);
+      onWidgetsChange(widgets.filter(w => w.id !== widgetId));
+    } catch (err) {
+      console.error('Failed to delete widget', err);
+    }
+  };
+
+  const handleDuplicateWidget = async (widget: DashboardWidget) => {
+    try {
+      const dup = await dashboardLayoutApi.duplicateWidget(widget.id, dashboard.id);
+      onWidgetsChange([...widgets, dup]);
+    } catch (err) {
+      console.error('Failed to duplicate widget', err);
+    }
+  };
+
+  const handleEditWidget = (widget: DashboardWidget) => {
+    setEditingWidget(widget);
+    setBuilderOpen(true);
+  };
+
+  const handleExportJSON = async () => {
+    setExporting('json');
+    setShowExportMenu(false);
+    try {
+      const payload = await dashboardLayoutApi.exportDashboard(dashboard.id);
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${dashboard.name.replace(/[^a-z0-9]/gi, '_')}_dashboard.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed', err);
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleExportImage = async () => {
+    if (!containerRef.current) return;
+    setExporting('image');
+    setShowExportMenu(false);
+    try {
+      const canvas = await html2canvas(containerRef.current, {
+        backgroundColor: '#f9fafb',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${dashboard.name.replace(/[^a-z0-9]/gi, '_')}_dashboard.png`;
+      a.click();
+    } catch (err) {
+      console.error('Image export failed', err);
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (!containerRef.current) return;
+    setExporting('pdf');
+    setShowExportMenu(false);
+    try {
+      const canvas = await html2canvas(containerRef.current, {
+        backgroundColor: '#f9fafb',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const orientation = imgWidth > imgHeight ? 'landscape' : 'portrait';
+      const pdf = new jsPDF({ orientation, unit: 'px', format: [imgWidth / 2, imgHeight / 2] });
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth / 2, imgHeight / 2);
+      pdf.save(`${dashboard.name.replace(/[^a-z0-9]/gi, '_')}_dashboard.pdf`);
+    } catch (err) {
+      console.error('PDF export failed', err);
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const currentDateLabel = DATE_RANGE_OPTIONS[tabFilterValues.dateRangeKey]?.label || tabFilterValues.dateRangeKey;
+  const scopeLabels = { own: 'My Data', team: 'Team', all: 'All' };
+
+  const gridWidth = containerWidth > 0 ? containerWidth : 1200;
+
+  return (
+    <div className="flex h-full overflow-hidden">
+      {/* Main area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Filter bar */}
+        <div className="flex items-center gap-3 px-5 py-2.5 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 flex-shrink-0 flex-wrap">
           {/* Date range picker */}
           <div className="relative">
             <button
-              onClick={() => setShowDateMenu(!showDateMenu)}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800"
+              onClick={() => setShowDatePicker(d => !d)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-gray-300"
             >
-              <Calendar size={14} />
-              {DATE_PRESETS.find(p => p.value === datePreset)?.label}
-              <ChevronDown size={14} />
+              <Filter className="w-3.5 h-3.5 text-gray-400" />
+              {currentDateLabel}
+              <ChevronDown className="w-3 h-3 text-gray-400" />
             </button>
-            {showDateMenu && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowDateMenu(false)} />
-                <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
-                  {DATE_PRESETS.map(p => (
-                    <button
-                      key={p.value}
-                      onClick={() => { setDatePreset(p.value); setShowDateMenu(false); }}
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-800 ${
-                        datePreset === p.value ? 'text-blue-600 font-medium' : 'text-gray-700 dark:text-gray-300'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </>
+            {showDatePicker && (
+              <div className="absolute top-9 left-0 z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl py-1 min-w-40">
+                {Object.entries(DATE_RANGE_OPTIONS).map(([key, opt]) => (
+                  <button
+                    key={key}
+                    onClick={() => { setDateRange(key); setShowDatePicker(false); }}
+                    className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center justify-between ${
+                      tabFilterValues.dateRangeKey === key ? 'text-purple-600 dark:text-purple-400 font-medium' : 'text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    {opt.label}
+                    {tabFilterValues.dateRangeKey === key && <Check className="w-3.5 h-3.5" />}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 
-          {/* Refresh */}
-          <button
-            onClick={() => fetchAll(false)}
-            disabled={refreshing}
-            className="p-2 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800"
-          >
-            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </div>
-
-      {/* ── KPI Cards ── */}
-      {summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard
-            title="Open Pipeline"
-            value={formatCurrency(summary.pipelineValue)}
-            subtitle={`${summary.pipelineCount} deals`}
-            icon={DollarSign}
-            color="blue"
-          />
-          <KpiCard
-            title="Revenue Won"
-            value={formatCurrency(summary.wonRevenue)}
-            subtitle={`${summary.wonCount} deals closed`}
-            icon={TrendingUp}
-            color="emerald"
-            change={summary.revenueChange}
-          />
-          <KpiCard
-            title="Win Rate"
-            value={`${summary.winRate}%`}
-            subtitle={`${summary.wonCount}W / ${summary.lostCount}L`}
-            icon={Target}
-            color="purple"
-          />
-          <KpiCard
-            title="Tasks Due Today"
-            value={String(summary.tasksDueToday)}
-            subtitle={summary.tasksOverdue > 0 ? `${summary.tasksOverdue} overdue` : 'All on track'}
-            icon={CheckSquare}
-            color={summary.tasksOverdue > 0 ? 'red' : 'amber'}
-            alert={summary.tasksOverdue > 0}
-          />
-        </div>
-      )}
-
-      {/* ── Second KPI row ── */}
-      {summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard
-            title="New Leads"
-            value={String(summary.newLeads)}
-            subtitle="this period"
-            icon={Users}
-            color="indigo"
-            change={summary.leadsChange}
-          />
-          <KpiCard
-            title="Converted Leads"
-            value={String(summary.convertedLeads)}
-            subtitle={summary.newLeads > 0 ? `${Math.round(summary.convertedLeads / summary.newLeads * 100)}% conversion` : 'No leads yet'}
-            icon={Zap}
-            color="teal"
-          />
-          <KpiCard
-            title="Deals Closing Soon"
-            value={String(closingDeals.length)}
-            subtitle="within 7 days"
-            icon={Clock}
-            color="orange"
-            onClick={() => navigate('/opportunities')}
-          />
-          <KpiCard
-            title="Stuck Deals"
-            value={String(stuckDeals.length)}
-            subtitle="> 14 days in stage"
-            icon={AlertTriangle}
-            color={stuckDeals.length > 0 ? 'red' : 'gray'}
-            alert={stuckDeals.length > 0}
-          />
-        </div>
-      )}
-
-      {/* ── Targets & Gamification ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <TargetsWidget className="lg:col-span-2" />
-        <div className="space-y-4">
-          <MyBadgesWidget />
-          <AchievementFeed limit={8} />
-        </div>
-      </div>
-
-      {/* ── Action Panels: Tasks + Aging Leads ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Upcoming Tasks */}
-        <WidgetCard title="Upcoming Tasks" icon={CheckSquare} action={{ label: 'View All', onClick: () => navigate('/tasks') }}>
-          {upcomingTasks.length === 0 ? (
-            <EmptyState text="No upcoming tasks" />
-          ) : (
-            <div className="space-y-1">
-              {upcomingTasks.map(task => (
-                <button
-                  key={task.id}
-                  onClick={() => navigate('/tasks')}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-left transition-colors"
-                >
-                  <div
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: task.priority?.color || '#9CA3AF' }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-800 dark:text-gray-200 truncate">{task.title}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {task.assignee && scope === 'team' && (
-                        <span className="text-[10px] text-gray-400">{task.assignee}</span>
-                      )}
-                    </div>
-                  </div>
-                  {task.dueDate && (
-                    <span className={`text-xs flex-shrink-0 ${task.isOverdue ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-                      {task.isOverdue ? 'Overdue' : formatRelativeDate(task.dueDate)}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </WidgetCard>
-
-        {/* Aging Leads */}
-        <WidgetCard title="Aging Leads" icon={AlertTriangle} action={{ label: 'View All', onClick: () => navigate('/leads') }}>
-          {!leadAging || leadAging.topIdle.length === 0 ? (
-            <EmptyState text="No idle leads — great job!" />
-          ) : (
-            <div className="space-y-1">
-              {leadAging.topIdle.slice(0, 8).map(lead => (
-                <button
-                  key={lead.id}
-                  onClick={() => navigate(`/leads/${lead.id}`)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-left transition-colors"
-                >
-                  <div
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: lead.stageColor || '#9CA3AF' }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-800 dark:text-gray-200 truncate">{lead.name}</p>
-                    {lead.company && (
-                      <p className="text-[10px] text-gray-400 truncate">{lead.company}</p>
-                    )}
-                  </div>
-                  <span className={`text-xs flex-shrink-0 font-medium ${
-                    lead.idleDays > 7 ? 'text-red-500' : lead.idleDays > 3 ? 'text-amber-500' : 'text-gray-400'
-                  }`}>
-                    {lead.idleDays}d idle
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </WidgetCard>
-      </div>
-
-      {/* ── Funnels: Pipeline + Conversion ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Pipeline Funnel */}
-        <WidgetCard title="Sales Pipeline" icon={BarChart3}>
-          {pipelineFunnel.length === 0 ? (
-            <EmptyState text="No pipeline data" />
-          ) : (
-            <FunnelChart
-              stages={pipelineFunnel.filter(s => !s.isWon && !s.isLost)}
-              showAmount
-            />
-          )}
-        </WidgetCard>
-
-        {/* Conversion Funnel */}
-        <WidgetCard title="Lead Conversion Funnel" icon={Zap}>
-          {conversionFunnel.length === 0 ? (
-            <EmptyState text="No conversion data" />
-          ) : (
-            <FunnelChart stages={conversionFunnel.map((s, i) => ({
-              id: String(i),
-              name: s.stage,
-              color: ['#3B82F6', '#8B5CF6', '#F59E0B', '#10B981'][i] || '#6B7280',
-              sortOrder: i,
-              count: s.count,
-            }))} />
-          )}
-        </WidgetCard>
-      </div>
-
-      {/* ── Charts: Velocity + Win/Loss ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Pipeline Velocity */}
-        <WidgetCard title="Avg Days in Stage" icon={Clock}>
-          {velocity.length === 0 ? (
-            <EmptyState text="No velocity data yet" />
-          ) : (
-            <div className="space-y-2">
-              {velocity.map(v => (
-                <div key={v.stage} className="flex items-center gap-3">
-                  <span className="text-xs text-gray-600 dark:text-gray-400 w-28 truncate">{v.stage}</span>
-                  <div className="flex-1 h-6 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full flex items-center px-2"
-                      style={{
-                        backgroundColor: v.color || '#3B82F6',
-                        width: `${Math.min(100, (v.avgDays / Math.max(...velocity.map(x => x.avgDays), 1)) * 100)}%`,
-                        minWidth: '2rem',
-                      }}
-                    >
-                      <span className="text-[10px] font-bold text-white">{v.avgDays}d</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </WidgetCard>
-
-        {/* Win/Loss Trend */}
-        <WidgetCard title="Win / Loss Trend" icon={TrendingUp}>
-          {!winLoss || winLoss.trend.length === 0 ? (
-            <EmptyState text="No win/loss data" />
-          ) : (
-            <div className="space-y-3">
-              {winLoss.trend.map(t => {
-                const total = t.won + t.lost;
-                const wonPct = total > 0 ? (t.won / total) * 100 : 0;
-                return (
-                  <div key={t.month} className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">{t.month}</span>
-                      <span className="text-xs text-gray-400">{t.won}W / {t.lost}L</span>
-                    </div>
-                    <div className="flex h-4 rounded-full overflow-hidden bg-gray-100 dark:bg-slate-800">
-                      {wonPct > 0 && (
-                        <div className="bg-emerald-500 h-full" style={{ width: `${wonPct}%` }} />
-                      )}
-                      {wonPct < 100 && (
-                        <div className="bg-red-400 h-full" style={{ width: `${100 - wonPct}%` }} />
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </WidgetCard>
-      </div>
-
-      {/* ── Lead Sources + Activity Summary ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Lead Sources */}
-        <WidgetCard title="Lead Sources" icon={Users}>
-          {leadSources.length === 0 ? (
-            <EmptyState text="No lead source data" />
-          ) : (
-            <div className="space-y-2">
-              {leadSources.slice(0, 8).map(s => (
-                <div key={s.source} className="flex items-center gap-3">
-                  <span className="text-xs text-gray-600 dark:text-gray-400 w-24 truncate">{s.source}</span>
-                  <div className="flex-1 flex items-center gap-1">
-                    <div className="flex-1 h-5 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 rounded-full"
-                        style={{ width: `${Math.min(100, (s.total / Math.max(...leadSources.map(x => x.total), 1)) * 100)}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-500 w-8 text-right">{s.total}</span>
-                  </div>
-                  <span className={`text-xs font-medium w-10 text-right ${s.conversionRate > 20 ? 'text-emerald-500' : 'text-gray-400'}`}>
-                    {s.conversionRate}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </WidgetCard>
-
-        {/* Activity Summary */}
-        <WidgetCard title="Activity Breakdown" icon={Activity}>
-          {!activitySummary || activitySummary.byType.length === 0 ? (
-            <EmptyState text="No activity recorded" />
-          ) : (
-            <div className="space-y-2">
-              {activitySummary.byType.slice(0, 10).map(a => {
-                const maxCount = Math.max(...activitySummary.byType.map(x => x.count), 1);
-                return (
-                  <div key={a.type} className="flex items-center gap-3">
-                    <span className="text-xs text-gray-600 dark:text-gray-400 w-28 truncate capitalize">
-                      {a.type.replace(/_/g, ' ')}
-                    </span>
-                    <div className="flex-1 h-5 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-indigo-500 rounded-full"
-                        style={{ width: `${(a.count / maxCount) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-500 w-8 text-right">{a.count}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </WidgetCard>
-      </div>
-
-      {/* ── Account Forecast (Next Quarter) ── */}
-      <AccountForecastWidget scope={scope} className="" />
-
-      {/* ── Deals Closing + Stuck Deals ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Deals Closing This Week */}
-        <WidgetCard title="Deals Closing This Week" icon={Clock}>
-          {closingDeals.length === 0 ? (
-            <EmptyState text="No deals closing soon" />
-          ) : (
-            <div className="space-y-1">
-              {closingDeals.slice(0, 8).map(deal => (
-                <button
-                  key={deal.id}
-                  onClick={() => navigate(`/opportunities/${deal.id}`)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-left transition-colors"
-                >
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: deal.stage.color }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-800 dark:text-gray-200 truncate">{deal.name}</p>
-                    <p className="text-[10px] text-gray-400">{deal.account} {deal.owner && scope === 'team' ? `· ${deal.owner}` : ''}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(deal.amount)}</p>
-                    <p className={`text-[10px] ${deal.isOverdue ? 'text-red-500' : 'text-gray-400'}`}>
-                      {deal.isOverdue ? 'Overdue' : formatRelativeDate(deal.closeDate)}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </WidgetCard>
-
-        {/* Stuck Deals */}
-        <WidgetCard title="Stuck Deals" icon={AlertTriangle}>
-          {stuckDeals.length === 0 ? (
-            <EmptyState text="No stuck deals — pipeline is moving!" />
-          ) : (
-            <div className="space-y-1">
-              {stuckDeals.map(deal => (
-                <button
-                  key={deal.id}
-                  onClick={() => navigate(`/opportunities/${deal.id}`)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-left transition-colors"
-                >
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: deal.stage.color }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-800 dark:text-gray-200 truncate">{deal.name}</p>
-                    <p className="text-[10px] text-gray-400">
-                      {deal.stage.name} {deal.owner && scope === 'team' ? `· ${deal.owner}` : ''}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(deal.amount)}</p>
-                    <p className="text-[10px] text-red-500 font-medium">{deal.daysInStage}d stuck</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </WidgetCard>
-      </div>
-
-      {/* ── Leaderboards ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <WidgetCard title="Leaderboard" icon={Trophy}>
-          {leaderboard.length === 0 ? (
-            <EmptyState text="No leaderboard data" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
-                    <th className="text-left py-2 px-3">#</th>
-                    <th className="text-left py-2 px-3">Rep</th>
-                    <th className="text-right py-2 px-3">Revenue</th>
-                    <th className="text-right py-2 px-3">Won</th>
-                    <th className="text-right py-2 px-3">Win %</th>
-                    <th className="text-right py-2 px-3">Activities</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leaderboard.map((entry, idx) => (
-                    <tr
-                      key={entry.userId}
-                      className={`border-b border-gray-50 dark:border-gray-800/50 ${
-                        entry.userId === user?.id ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
-                      }`}
-                    >
-                      <td className="py-2.5 px-3">
-                        {idx < 3 ? (
-                          <span>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</span>
-                        ) : (
-                          <span className="text-xs text-gray-400">{entry.rank}</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-medium text-gray-600 dark:text-gray-300">
-                            {entry.name.charAt(0)}
-                          </div>
-                          <span className={`text-xs ${entry.userId === user?.id ? 'font-semibold text-blue-600' : 'text-gray-800 dark:text-gray-200'}`}>
-                            {entry.name} {entry.userId === user?.id ? '(You)' : ''}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 text-right text-xs font-medium text-gray-900 dark:text-white">{formatCurrency(entry.revenueWon)}</td>
-                      <td className="py-2.5 px-3 text-right text-xs text-gray-600 dark:text-gray-400">{entry.dealsWon}</td>
-                      <td className="py-2.5 px-3 text-right text-xs">
-                        <span className={entry.winRate >= 50 ? 'text-emerald-600' : entry.winRate >= 30 ? 'text-amber-600' : 'text-red-500'}>
-                          {entry.winRate}%
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-right text-xs text-gray-600 dark:text-gray-400">{entry.totalActivities}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </WidgetCard>
-
-        <PointsLeaderboard />
-      </div>
-
-      {/* ── Recent Activity Feed ── */}
-      <WidgetCard title="Recent Activity" icon={Activity}>
-        {recentActivity.length === 0 ? (
-          <EmptyState text="No recent activity" />
-        ) : (
-          <div className="space-y-0">
-            {recentActivity.map((item, idx) => (
-              <div key={item.id} className="flex gap-3 py-2 px-3">
-                <div className="flex flex-col items-center">
-                  <div className="w-7 h-7 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-xs font-medium text-gray-500 flex-shrink-0">
-                    {item.user.name.charAt(0)}
-                  </div>
-                  {idx < recentActivity.length - 1 && (
-                    <div className="w-px flex-1 bg-gray-100 dark:bg-slate-800 mt-1" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0 pb-2">
-                  <p className="text-sm text-gray-800 dark:text-gray-200">
-                    <span className="font-medium">{item.user.name}</span>{' '}
-                    <span className="text-gray-500">{item.title}</span>
-                  </p>
-                  {item.description && (
-                    <p className="text-xs text-gray-400 truncate mt-0.5">{item.description}</p>
-                  )}
-                  <p className="text-[10px] text-gray-400 mt-1">{formatTimeAgo(item.createdAt)}</p>
-                </div>
-              </div>
+          {/* Scope picker */}
+          <div className="flex rounded-lg border border-gray-200 dark:border-slate-600 overflow-hidden text-xs">
+            {(['own', 'team', 'all'] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => setScope(s)}
+                className={`px-3 py-1.5 transition-colors ${
+                  tabFilterValues.scope === s
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                {scopeLabels[s]}
+              </button>
             ))}
           </div>
-        )}
-      </WidgetCard>
-    </div>
-  );
-}
 
-// ════════════════════════════════════════════════════════════
-// SUB-COMPONENTS
-// ════════════════════════════════════════════════════════════
+          <div className="flex-1" />
 
-const COLOR_MAP: Record<string, string> = {
-  blue: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600',
-  emerald: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600',
-  purple: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600',
-  amber: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600',
-  red: 'bg-red-50 dark:bg-red-900/20 text-red-600',
-  indigo: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600',
-  teal: 'bg-teal-50 dark:bg-teal-900/20 text-teal-600',
-  orange: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600',
-  gray: 'bg-gray-50 dark:bg-gray-800 text-gray-500',
-};
+          {/* Saving indicator */}
+          {savingPositions && (
+            <span className="flex items-center gap-1 text-xs text-gray-400">
+              <RefreshCw className="w-3 h-3 animate-spin" /> Saving...
+            </span>
+          )}
 
-function KpiCard({
-  title, value, subtitle, icon: Icon, color, change, alert, onClick,
-}: {
-  title: string; value: string; subtitle: string;
-  icon: any; color: string; change?: number;
-  alert?: boolean; onClick?: () => void;
-}) {
-  return (
-    <div
-      onClick={onClick}
-      className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-4 lg:p-5 hover:shadow-md dark:hover:border-slate-700 transition-all ${onClick ? 'cursor-pointer' : ''}`}
-    >
-      <div className="flex items-center justify-between mb-3">
-        <div className={`p-2 rounded-xl ${COLOR_MAP[color] || COLOR_MAP.gray}`}>
-          <Icon className="w-4 h-4" />
-        </div>
-        {change !== undefined && change !== 0 && (
-          <span className={`flex items-center text-xs font-medium ${change > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-            {change > 0 ? <ArrowUpRight className="w-3 h-3 mr-0.5" /> : <ArrowDownRight className="w-3 h-3 mr-0.5" />}
-            {Math.abs(change)}%
-          </span>
-        )}
-        {alert && !change && (
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-        )}
-      </div>
-      <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{value}</h3>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>
-      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{title}</p>
-    </div>
-  );
-}
+          {/* Exporting indicator */}
+          {exporting && (
+            <span className="flex items-center gap-1 text-xs text-gray-400">
+              <Loader2 className="w-3 h-3 animate-spin" /> Exporting...
+            </span>
+          )}
 
-function WidgetCard({
-  title, icon: Icon, children, action,
-}: {
-  title: string; icon: any; children: React.ReactNode;
-  action?: { label: string; onClick: () => void };
-}) {
-  return (
-    <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 lg:px-5 py-3 border-b border-gray-100 dark:border-slate-800">
-        <div className="flex items-center gap-2">
-          <Icon size={16} className="text-gray-400" />
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
-        </div>
-        {action && (
-          <button
-            onClick={action.onClick}
-            className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-0.5"
-          >
-            {action.label} <ArrowRight size={12} />
-          </button>
-        )}
-      </div>
-      <div className="p-4 lg:p-5 max-h-[400px] overflow-y-auto">{children}</div>
-    </div>
-  );
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-8 text-center">
-      <p className="text-sm text-gray-400 dark:text-gray-500">{text}</p>
-    </div>
-  );
-}
-
-function FunnelChart({ stages, showAmount }: { stages: FunnelStage[]; showAmount?: boolean }) {
-  const maxCount = Math.max(...stages.map(s => s.count), 1);
-
-  return (
-    <div className="space-y-2">
-      {stages.map((stage, idx) => {
-        const widthPct = Math.max(8, (stage.count / maxCount) * 100);
-        return (
-          <div key={stage.id || idx} className="flex items-center gap-3">
-            <span className="text-xs text-gray-600 dark:text-gray-400 w-28 truncate">{stage.name}</span>
-            <div className="flex-1">
-              <div
-                className="h-7 rounded-lg flex items-center px-2.5 transition-all"
-                style={{
-                  backgroundColor: stage.color || '#3B82F6',
-                  width: `${widthPct}%`,
-                  minWidth: '3rem',
-                }}
+          {/* Export menu */}
+          {!isEditMode && canExportDashboard && (
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(m => !m)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-600 dark:text-gray-300"
               >
-                <span className="text-xs font-bold text-white">{stage.count}</span>
-              </div>
+                <Download className="w-3.5 h-3.5" /> Export
+                <ChevronDown className="w-3 h-3 text-gray-400" />
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 top-9 z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl py-1 min-w-44">
+                  <button
+                    onClick={handleExportJSON}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                  >
+                    <Download className="w-3.5 h-3.5 text-gray-400" /> Export as JSON
+                  </button>
+                  <button
+                    onClick={handleExportImage}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                  >
+                    <FileImage className="w-3.5 h-3.5 text-gray-400" /> Export as Image
+                  </button>
+                  <button
+                    onClick={handleExportPDF}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-gray-400" /> Export as PDF
+                  </button>
+                </div>
+              )}
             </div>
-            {showAmount && stage.totalAmount !== undefined && (
-              <span className="text-xs text-gray-500 w-20 text-right">{formatCurrencyShort(stage.totalAmount)}</span>
-            )}
-          </div>
-        );
-      })}
+          )}
+
+          {/* Share button */}
+          {!isEditMode && canEditDashboard && (
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-600 dark:text-gray-300"
+            >
+              <Share2 className="w-3.5 h-3.5" /> Share
+            </button>
+          )}
+
+          {/* Edit mode toggle */}
+          {canEditDashboard && (
+            isEditMode ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setBuilderOpen(true); setEditingWidget(null); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" /> Add Widget
+                </button>
+                <button
+                  onClick={() => { setEditMode(false); setBuilderOpen(false); setEditingWidget(null); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg"
+                >
+                  <Check className="w-3.5 h-3.5" /> Done
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setEditMode(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-600 dark:text-gray-300"
+              >
+                <Edit3 className="w-3.5 h-3.5" /> Edit Dashboard
+              </button>
+            )
+          )}
+        </div>
+
+        {/* Grid area */}
+        <div className="flex-1 overflow-auto bg-gray-50 dark:bg-slate-950 p-4" ref={containerRef}>
+          {widgets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full min-h-64 text-center">
+              <LayoutDashboard className="w-12 h-12 text-gray-300 dark:text-slate-600 mb-3" />
+              <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                No widgets yet
+              </h3>
+              <p className="text-sm text-gray-400 dark:text-slate-500 mb-4 max-w-sm">
+                Click "Edit Dashboard" then "Add Widget" to start building your dashboard.
+              </p>
+              {canEditDashboard && (
+                <button
+                  onClick={() => { setEditMode(true); setBuilderOpen(true); }}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium"
+                >
+                  <Plus className="w-4 h-4" /> Add Your First Widget
+                </button>
+              )}
+            </div>
+          ) : (
+            <GridLayout
+              layout={layout}
+              cols={GRID_COLS}
+              rowHeight={ROW_HEIGHT}
+              width={gridWidth}
+              margin={GRID_MARGIN}
+              isDraggable={isEditMode}
+              isResizable={isEditMode}
+              onLayoutChange={handleLayoutChange}
+              draggableHandle=".drag-handle"
+              resizeHandles={['se', 'sw', 'ne', 'nw']}
+            >
+              {widgets.map(widget => (
+                <div key={widget.id} className={isEditMode ? 'drag-handle' : ''}>
+                  <DashboardWidgetCard
+                    widget={widget}
+                    onEdit={handleEditWidget}
+                    onDuplicate={handleDuplicateWidget}
+                    onDelete={handleDeleteWidget}
+                  />
+                </div>
+              ))}
+            </GridLayout>
+          )}
+        </div>
+      </div>
+
+      {/* Widget builder side panel */}
+      {builderOpen && (
+        <div className="w-80 border-l border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex-shrink-0 overflow-hidden flex flex-col">
+          <WidgetBuilderPanel
+            widget={editingWidget}
+            onSave={editingWidget ? handleUpdateWidget : handleAddWidget}
+            onCancel={() => { setBuilderOpen(false); setEditingWidget(null); }}
+          />
+        </div>
+      )}
+
+      {/* Share modal */}
+      <ShareDashboardModal
+        open={showShareModal}
+        dashboardId={dashboard.id}
+        dashboardName={dashboard.name}
+        onClose={() => setShowShareModal(false)}
+      />
     </div>
   );
 }
 
-// ════════════════════════════════════════════════════════════
-// HELPERS
-// ════════════════════════════════════════════════════════════
+// ── Tab bar component ─────────────────────────────────────────
 
-function getGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return 'morning';
-  if (h < 17) return 'afternoon';
-  return 'evening';
+function TabBar({
+  dashboards,
+  activeDashboardId,
+  onSelect,
+  onCreate,
+  onImport,
+  onRename,
+  onDelete,
+  canCreate,
+  canDelete,
+}: {
+  dashboards: UserDashboard[];
+  activeDashboardId: string;
+  onSelect: (id: string) => void;
+  onCreate: () => void;
+  onImport: () => void;
+  onRename: (id: string, name: string) => void;
+  onDelete: (id: string) => void;
+  canCreate: boolean;
+  canDelete: boolean;
+}) {
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [tabMenuId, setTabMenuId] = useState<string | null>(null);
+
+  const startRename = (d: UserDashboard) => {
+    setRenamingId(d.id);
+    setRenameValue(d.name);
+    setTabMenuId(null);
+  };
+
+  const commitRename = (id: string) => {
+    if (renameValue.trim()) onRename(id, renameValue.trim());
+    setRenamingId(null);
+  };
+
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+
+  const openTabMenu = (id: string, e: React.MouseEvent<HTMLButtonElement>) => {
+    if (tabMenuId === id) {
+      setTabMenuId(null);
+      setMenuPos(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPos({ top: rect.bottom + 4, left: rect.left });
+    setTabMenuId(id);
+  };
+
+  // Close tab menu when clicking outside
+  useEffect(() => {
+    if (!tabMenuId) return;
+    const handler = () => setTabMenuId(null);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [tabMenuId]);
+
+  return (
+    <div className="flex items-center gap-1 px-4 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 overflow-x-auto flex-shrink-0">
+      {dashboards.map(d => (
+        <div
+          key={d.id}
+          className="flex items-center gap-1 flex-shrink-0"
+        >
+          {renamingId === d.id ? (
+            <div className="flex items-center gap-1 px-2 py-2">
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={e => setRenameValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitRename(d.id);
+                  if (e.key === 'Escape') setRenamingId(null);
+                }}
+                className="text-sm border border-purple-400 rounded px-2 py-0.5 bg-white dark:bg-slate-800 dark:text-white w-32 outline-none"
+              />
+              <button onClick={() => commitRename(d.id)} className="text-green-500 hover:text-green-600">
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => setRenamingId(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => onSelect(d.id)}
+              className={`flex items-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeDashboardId === d.id
+                  ? 'border-purple-600 text-purple-600 dark:text-purple-400'
+                  : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
+              }`}
+            >
+              {d.name}
+            </button>
+          )}
+
+          {/* Tab context menu trigger */}
+          {renamingId !== d.id && (
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => openTabMenu(d.id, e)}
+              className="p-0.5 text-gray-300 dark:text-slate-600 hover:text-gray-500 dark:hover:text-slate-400 rounded"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      ))}
+
+      {/* Tab context menu — fixed position, rendered outside overflow */}
+      {tabMenuId && menuPos && (
+        <div
+          className="fixed z-[200] w-36 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl py-1"
+          style={{ top: menuPos.top, left: menuPos.left }}
+          onMouseDown={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => { const d = dashboards.find(dd => dd.id === tabMenuId); if (d) startRename(d); }}
+            className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700"
+          >
+            Rename
+          </button>
+          {dashboards.length > 1 && canDelete && (
+            <button
+              onClick={() => { const id = tabMenuId; setTabMenuId(null); onDelete(id); }}
+              className="w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              Delete tab
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* New tab + Import buttons */}
+      {canCreate && (
+        <>
+          <button
+            onClick={onCreate}
+            className="flex items-center gap-1 px-3 py-3 text-sm text-gray-400 dark:text-slate-500 hover:text-purple-600 dark:hover:text-purple-400 flex-shrink-0 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> New tab
+          </button>
+          <button
+            onClick={onImport}
+            className="flex items-center gap-1 px-3 py-3 text-sm text-gray-400 dark:text-slate-500 hover:text-purple-600 dark:hover:text-purple-400 flex-shrink-0 transition-colors"
+          >
+            <Upload className="w-3.5 h-3.5" /> Import
+          </button>
+        </>
+      )}
+    </div>
+  );
 }
 
-function formatCurrency(n: number): string {
-  if (n >= 1000000) return `$${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `$${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`;
-  return `$${n.toLocaleString()}`;
-}
+// ── Main exported component ───────────────────────────────────
 
-function formatCurrencyShort(n: number): string {
-  if (n >= 1000000) return `$${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `$${Math.round(n / 1000)}K`;
-  return `$${Math.round(n)}`;
-}
+export function DashboardPage() {
+  const { canCreate, canEdit, canDelete } = usePermissions();
+  const canCreateDashboard = canCreate('reports');
+  const canEditDashboard = canEdit('reports');
+  const canDeleteDashboard = canDelete('reports');
 
-function formatRelativeDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  const now = new Date();
-  const diff = d.getTime() - now.getTime();
-  const days = Math.ceil(diff / 86400000);
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Tomorrow';
-  if (days < 0) return `${Math.abs(days)}d ago`;
-  if (days <= 7) return `${days}d`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
+  const [dashboards, setDashboards] = useState<UserDashboard[]>([]);
+  const [activeDashboardId, setActiveDashboardId] = useState<string>('');
+  const [widgetsByDashboard, setWidgetsByDashboard] = useState<Record<string, DashboardWidget[]>>({});
+  const [loading, setLoading] = useState(true);
 
-function formatTimeAgo(dateStr: string): string {
-  const d = new Date(dateStr);
-  const now = new Date();
-  const secs = Math.floor((now.getTime() - d.getTime()) / 1000);
-  if (secs < 60) return 'just now';
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  // Modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [deletingDashboard, setDeletingDashboard] = useState<UserDashboard | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  const activeDashboard = dashboards.find(d => d.id === activeDashboardId);
+  const activeWidgets = widgetsByDashboard[activeDashboardId] || [];
+
+  // Load dashboards on mount
+  useEffect(() => {
+    dashboardLayoutApi.listDashboards()
+      .then(async ds => {
+        setDashboards(ds);
+        const defaultTab = ds.find(d => d.isDefault) || ds[0];
+        if (defaultTab) {
+          setActiveDashboardId(defaultTab.id);
+          const ws = await dashboardLayoutApi.listWidgets(defaultTab.id);
+          setWidgetsByDashboard({ [defaultTab.id]: ws });
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Load widgets when switching tabs
+  const handleSelectDashboard = async (id: string) => {
+    setActiveDashboardId(id);
+    if (!widgetsByDashboard[id]) {
+      const ws = await dashboardLayoutApi.listWidgets(id);
+      setWidgetsByDashboard(prev => ({ ...prev, [id]: ws }));
+    }
+  };
+
+  const handleCreateDashboard = async (name: string) => {
+    try {
+      const created = await dashboardLayoutApi.createDashboard(name);
+      setDashboards(prev => [...prev, created]);
+      setWidgetsByDashboard(prev => ({ ...prev, [created.id]: [] }));
+      setActiveDashboardId(created.id);
+    } catch (err) {
+      console.error('Failed to create dashboard', err);
+    }
+    setShowCreateModal(false);
+  };
+
+  const handleRenameDashboard = async (id: string, name: string) => {
+    try {
+      const updated = await dashboardLayoutApi.updateDashboard(id, { name });
+      setDashboards(prev => prev.map(d => d.id === id ? updated : d));
+    } catch (err) {
+      console.error('Failed to rename dashboard', err);
+    }
+  };
+
+  const handleDeleteDashboard = async () => {
+    if (!deletingDashboard) return;
+    const id = deletingDashboard.id;
+    try {
+      await dashboardLayoutApi.deleteDashboard(id);
+      const remaining = dashboards.filter(d => d.id !== id);
+      setDashboards(remaining);
+      setWidgetsByDashboard(prev => { const copy = { ...prev }; delete copy[id]; return copy; });
+      if (activeDashboardId === id && remaining.length > 0) {
+        handleSelectDashboard(remaining[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to delete dashboard', err);
+    }
+    setDeletingDashboard(null);
+  };
+
+  const handleRequestDelete = (id: string) => {
+    const d = dashboards.find(db => db.id === id);
+    if (d) setDeletingDashboard(d);
+  };
+
+  const handleImportDashboard = async (payload: any) => {
+    try {
+      const result = await dashboardLayoutApi.importDashboard(payload);
+      setDashboards(prev => [...prev, result.dashboard]);
+      setWidgetsByDashboard(prev => ({ ...prev, [result.dashboard.id]: result.widgets }));
+      setActiveDashboardId(result.dashboard.id);
+    } catch (err) {
+      console.error('Failed to import dashboard', err);
+      throw err;
+    }
+    setShowImportModal(false);
+  };
+
+  const handleWidgetsChange = (dashboardId: string, widgets: DashboardWidget[]) => {
+    setWidgetsByDashboard(prev => ({ ...prev, [dashboardId]: widgets }));
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-full">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-3 border-purple-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-gray-400 dark:text-slate-500">Loading dashboard...</p>
+      </div>
+    </div>
+  );
+
+  if (dashboards.length === 0) return (
+    <div className="flex flex-col items-center justify-center h-full">
+      <LayoutDashboard className="w-12 h-12 text-gray-300 dark:text-slate-600 mb-3" />
+      <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No dashboards</h2>
+      {canCreateDashboard && (
+        <>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium"
+          >
+            Create Dashboard
+          </button>
+          <CreateDashboardModal
+            open={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            onConfirm={handleCreateDashboard}
+          />
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+      {/* Tab bar */}
+      <TabBar
+        dashboards={dashboards}
+        activeDashboardId={activeDashboardId}
+        onSelect={handleSelectDashboard}
+        onCreate={() => setShowCreateModal(true)}
+        onImport={() => setShowImportModal(true)}
+        onRename={handleRenameDashboard}
+        onDelete={handleRequestDelete}
+        canCreate={canCreateDashboard}
+        canDelete={canDeleteDashboard}
+      />
+
+      {/* Dashboard content — wrapped in context provider per tab */}
+      {activeDashboard && (
+        <DashboardProvider
+          key={activeDashboard.id}
+          tabFilters={activeDashboard.tabFilters}
+        >
+          <DashboardInner
+            dashboard={activeDashboard}
+            widgets={activeWidgets}
+            onWidgetsChange={(ws) => handleWidgetsChange(activeDashboard.id, ws)}
+          />
+        </DashboardProvider>
+      )}
+
+      {/* Modals */}
+      <CreateDashboardModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onConfirm={handleCreateDashboard}
+      />
+      <DeleteDashboardModal
+        open={!!deletingDashboard}
+        dashboardName={deletingDashboard?.name || ''}
+        onClose={() => setDeletingDashboard(null)}
+        onConfirm={handleDeleteDashboard}
+      />
+      <ImportDashboardModal
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImport={handleImportDashboard}
+      />
+    </div>
+  );
 }

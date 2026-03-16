@@ -4,12 +4,14 @@
 import { Module } from '@nestjs/common';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
+import { DashboardLayoutController, SharedDashboardController } from './dashboard-layout.controller';
+import { DashboardLayoutService } from './dashboard-layout.service';
 import { TargetsModule } from '../targets/targets.module';
 
 @Module({
   imports: [TargetsModule],
-  controllers: [DashboardController],
-  providers: [DashboardService],
-  exports: [DashboardService],
+  controllers: [DashboardController, DashboardLayoutController, SharedDashboardController],
+  providers: [DashboardService, DashboardLayoutService],
+  exports: [DashboardService, DashboardLayoutService],
 })
 export class DashboardModule {}

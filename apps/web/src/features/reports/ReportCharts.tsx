@@ -6,8 +6,10 @@
 // ============================================================
 
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  ScatterChart, Scatter, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, LineChart, Line, AreaChart, Area,
+  PieChart, Pie, Cell,
+  ScatterChart, Scatter, ZAxis,
+  XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import type { ReportColumn } from '../../api/reports.api';
@@ -89,6 +91,14 @@ export function ReportChart({ data, columns, chartType, height = 400 }: ChartPro
       return <FunnelChartRenderer data={data} columns={columns} height={height} />;
     case 'scatter':
       return <ScatterChartRenderer data={data} columns={columns} height={height} />;
+    case 'bubble':
+      return <BubbleChartRenderer data={data} columns={columns} height={height} />;
+    case 'area':
+      return <AreaChartRenderer data={data} columns={columns} height={height} />;
+    case 'heatmap':
+      return <HeatmapRenderer data={data} columns={columns} height={height} />;
+    case 'treemap':
+      return <TreemapRenderer data={data} columns={columns} height={height} />;
     case 'gauge':
       return <GaugeRenderer data={data} columns={columns} height={height} />;
     case 'table':
@@ -345,6 +355,261 @@ function GaugeRenderer({ data, columns, height: _height }: Omit<ChartProps, 'cha
           <div className="text-sm text-gray-500 mt-1">{col.label}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ============================================================
+// AREA CHART
+// ============================================================
+
+function AreaChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'>) {
+  const dimensionCols = columns.filter(c => ['text', 'date', 'datetime'].includes(c.format || ''));
+  const measureCols = columns.filter(c => ['currency', 'number', 'percent'].includes(c.format || ''));
+  const xKey = dimensionCols[0]?.key || columns[0]?.key;
+
+  const formatted = data.map(row => ({
+    ...row,
+    [xKey]: formatValue(row[xKey], dimensionCols[0]?.format),
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={formatted} margin={{ top: 10, right: 30, left: 20, bottom: 40 }}>
+        <defs>
+          {measureCols.map((col, i) => (
+            <linearGradient key={col.key} id={`gradient-${i}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.02} />
+            </linearGradient>
+          ))}
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+        <XAxis dataKey={xKey} tick={{ fontSize: 12 }} angle={-30} textAnchor="end" height={60} />
+        <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatValue(v, measureCols[0]?.format)} />
+        <Tooltip content={<CustomTooltip columns={columns} />} />
+        <Legend />
+        {measureCols.map((col, i) => (
+          <Area
+            key={col.key}
+            type="monotone"
+            dataKey={col.key}
+            name={col.label}
+            stroke={COLORS[i % COLORS.length]}
+            strokeWidth={2}
+            fill={`url(#gradient-${i})`}
+            dot={{ r: 3 }}
+            activeDot={{ r: 5 }}
+          />
+        ))}
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ============================================================
+// BUBBLE CHART
+// ============================================================
+
+function BubbleChartRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'>) {
+  const measureCols = columns.filter(c => ['currency', 'number', 'percent'].includes(c.format || ''));
+  const labelCol = columns.find(c => c.format === 'text');
+  const xCol = measureCols[0];
+  const yCol = measureCols[1];
+  const zCol = measureCols[2];
+
+  if (!xCol || !yCol) return (
+    <div className="flex items-center justify-center h-full text-sm text-gray-400">
+      Bubble chart requires at least 2 numeric measures
+    </div>
+  );
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ScatterChart margin={{ top: 10, right: 30, left: 20, bottom: 40 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+        <XAxis
+          dataKey={xCol.key}
+          name={xCol.label}
+          tick={{ fontSize: 12 }}
+          label={{ value: xCol.label, position: 'bottom', offset: 20 }}
+        />
+        <YAxis
+          dataKey={yCol.key}
+          name={yCol.label}
+          tick={{ fontSize: 12 }}
+          label={{ value: yCol.label, angle: -90, position: 'insideLeft' }}
+        />
+        {zCol && <ZAxis dataKey={zCol.key} range={[40, 400]} name={zCol.label} />}
+        <Tooltip
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null;
+            const p = payload[0]?.payload;
+            return (
+              <div className="bg-white dark:bg-gray-800 border rounded-lg shadow-lg p-3 text-sm">
+                {labelCol && <p className="font-medium mb-1">{p[labelCol.key]}</p>}
+                <p>{xCol.label}: {formatValue(p[xCol.key], xCol.format)}</p>
+                <p>{yCol.label}: {formatValue(p[yCol.key], yCol.format)}</p>
+                {zCol && <p>{zCol.label}: {formatValue(p[zCol.key], zCol.format)}</p>}
+              </div>
+            );
+          }}
+        />
+        <Scatter data={data} fill={COLORS[0]} fillOpacity={0.7}>
+          {data.map((_, i) => (
+            <Cell key={i} fill={COLORS[i % COLORS.length]} fillOpacity={0.7} />
+          ))}
+        </Scatter>
+      </ScatterChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ============================================================
+// HEATMAP
+// ============================================================
+
+function HeatmapRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'>) {
+  const dimCols = columns.filter(c => ['text', 'date', 'datetime'].includes(c.format || ''));
+  const measureCol = columns.find(c => ['currency', 'number', 'percent'].includes(c.format || ''));
+
+  const xCol = dimCols[0];
+  const yCol = dimCols[1];
+
+  if (!xCol || !yCol || !measureCol) return (
+    <div className="flex items-center justify-center h-full text-sm text-gray-400">
+      Heatmap requires 2 dimensions and 1 measure
+    </div>
+  );
+
+  // Build grid
+  const xVals = [...new Set(data.map(r => String(r[xCol.key])))];
+  const yVals = [...new Set(data.map(r => String(r[yCol.key])))];
+  const maxVal = Math.max(...data.map(r => Number(r[measureCol.key]) || 0));
+  const minVal = Math.min(...data.map(r => Number(r[measureCol.key]) || 0));
+
+  const getColor = (value: number) => {
+    if (!maxVal) return '#f1f5f9';
+    const ratio = (value - minVal) / (maxVal - minVal || 1);
+    // Blue scale
+    const r = Math.round(59 + (147 - 59) * (1 - ratio));
+    const g = Math.round(130 + (197 - 130) * (1 - ratio));
+    const b = Math.round(246 + (253 - 246) * (1 - ratio));
+    const alpha = 0.2 + ratio * 0.8;
+    return `rgba(${r},${g},${b},${alpha})`;
+  };
+
+  const cellHeight = Math.max(28, Math.floor((height - 60) / Math.max(yVals.length, 1)));
+  const cellWidth = Math.max(40, Math.floor(500 / Math.max(xVals.length, 1)));
+
+  return (
+    <div className="overflow-auto" style={{ height }}>
+      <div className="min-w-max">
+        {/* X axis header */}
+        <div className="flex" style={{ marginLeft: 80 }}>
+          {xVals.map(x => (
+            <div
+              key={x}
+              className="text-xs text-gray-500 text-center font-medium truncate"
+              style={{ width: cellWidth, minWidth: cellWidth }}
+            >
+              {x}
+            </div>
+          ))}
+        </div>
+        {/* Rows */}
+        {yVals.map(y => (
+          <div key={y} className="flex items-center">
+            <div className="text-xs text-gray-600 dark:text-gray-300 font-medium truncate pr-2 text-right" style={{ width: 80, minWidth: 80 }}>
+              {y}
+            </div>
+            {xVals.map(x => {
+              const cell = data.find(r => String(r[xCol.key]) === x && String(r[yCol.key]) === y);
+              const val = cell ? Number(cell[measureCol.key]) || 0 : 0;
+              return (
+                <div
+                  key={x}
+                  className="border border-white dark:border-slate-700 flex items-center justify-center text-xs font-medium transition-all hover:opacity-80"
+                  style={{
+                    width: cellWidth, minWidth: cellWidth,
+                    height: cellHeight,
+                    backgroundColor: getColor(val),
+                    color: val > maxVal * 0.6 ? '#1e3a5f' : '#64748b',
+                  }}
+                  title={`${x} / ${y}: ${formatValue(val, measureCol.format)}`}
+                >
+                  {val > 0 ? formatValue(val, measureCol.format) : ''}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        {/* Color legend */}
+        <div className="flex items-center gap-2 mt-3 ml-20">
+          <span className="text-xs text-gray-400">Low</span>
+          <div className="flex">
+            {[0, 0.2, 0.4, 0.6, 0.8, 1].map(r => (
+              <div key={r} style={{ width: 24, height: 12, backgroundColor: getColor(minVal + r * (maxVal - minVal)) }} />
+            ))}
+          </div>
+          <span className="text-xs text-gray-400">High</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// TREEMAP
+// ============================================================
+
+function TreemapRenderer({ data, columns, height }: Omit<ChartProps, 'chartType'>) {
+  const dimCols = columns.filter(c => ['text', 'date', 'datetime'].includes(c.format || ''));
+  const measureCol = columns.find(c => ['currency', 'number', 'percent'].includes(c.format || ''));
+  const labelCol = dimCols[0];
+
+  if (!labelCol || !measureCol) return (
+    <div className="flex items-center justify-center h-full text-sm text-gray-400">
+      Treemap requires 1 dimension and 1 measure
+    </div>
+  );
+
+  const total = data.reduce((s, r) => s + (Number(r[measureCol.key]) || 0), 0);
+  const sorted = [...data]
+    .filter(r => Number(r[measureCol.key]) > 0)
+    .sort((a, b) => Number(b[measureCol.key]) - Number(a[measureCol.key]));
+
+  // Simple squarified-like layout using flex wrapping
+  return (
+    <div className="flex flex-wrap gap-1 p-2" style={{ height, alignContent: 'flex-start' }}>
+      {sorted.map((row, i) => {
+        const val = Number(row[measureCol.key]) || 0;
+        const pct = total > 0 ? (val / total) * 100 : 0;
+        const minPct = 3;
+        const displayPct = Math.max(minPct, pct);
+
+        return (
+          <div
+            key={i}
+            className="flex flex-col items-center justify-center rounded-lg text-white font-semibold overflow-hidden transition-all hover:opacity-90 cursor-pointer"
+            style={{
+              width: `calc(${Math.min(displayPct, 100)}% - 4px)`,
+              minWidth: 60,
+              height: Math.max(50, Math.min(120, (pct / 100) * height * 2)),
+              backgroundColor: COLORS[i % COLORS.length],
+              padding: 4,
+            }}
+            title={`${row[labelCol.key]}: ${formatValue(val, measureCol.format)} (${pct.toFixed(1)}%)`}
+          >
+            <p className="text-xs font-bold truncate w-full text-center">
+              {String(row[labelCol.key])}
+            </p>
+            <p className="text-xs opacity-90">
+              {formatValue(val, measureCol.format)}
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 }

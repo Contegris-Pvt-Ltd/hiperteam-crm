@@ -3059,6 +3059,166 @@ async function runTenantMigrations() {
               WHERE name = 'user' AND NOT (permissions ? 'profile');
             `,
           },
+          {
+            name: '053_user_dashboards',
+            sql: `
+              -- User-owned dashboard tabs
+              CREATE TABLE IF NOT EXISTS "${schema}".user_dashboards (
+                id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id      UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+                name         VARCHAR(100) NOT NULL DEFAULT 'My Dashboard',
+                sort_order   INT NOT NULL DEFAULT 0,
+                is_default   BOOLEAN NOT NULL DEFAULT false,
+                tab_filters  JSONB NOT NULL DEFAULT '{
+                  "dateRange": {"enabled": true, "default": "this_quarter",
+                    "options": ["this_month","this_quarter","this_year","last_30_days","last_90_days","custom"]},
+                  "scope": {"enabled": true, "default": "own",
+                    "options": ["own","team","all"]}
+                }',
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_user_dashboards_user
+                ON "${schema}".user_dashboards(user_id);
+
+              -- Widget instances
+              CREATE TABLE IF NOT EXISTS "${schema}".user_dashboard_widgets (
+                id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                dashboard_id         UUID NOT NULL
+                  REFERENCES "${schema}".user_dashboards(id) ON DELETE CASCADE,
+                title                VARCHAR(255),
+                widget_type          VARCHAR(30) NOT NULL DEFAULT 'chart',
+                -- widget_type: chart | scorecard | leaderboard | table | projection
+                position             JSONB NOT NULL DEFAULT '{"x":0,"y":0,"w":6,"h":4}',
+                data_source          VARCHAR(50),
+                report_type          VARCHAR(20) NOT NULL DEFAULT 'summary',
+                chart_type           VARCHAR(30) NOT NULL DEFAULT 'bar',
+                config               JSONB NOT NULL DEFAULT '{}',
+                display_config       JSONB NOT NULL DEFAULT '{}',
+                filter_sensitivity   JSONB NOT NULL DEFAULT
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}',
+                refresh_interval     INT NOT NULL DEFAULT 0,
+                created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_udw_dashboard
+                ON "${schema}".user_dashboard_widgets(dashboard_id);
+
+              -- Seed a default dashboard for all existing users
+              INSERT INTO "${schema}".user_dashboards
+                (user_id, name, sort_order, is_default)
+              SELECT id, 'My Dashboard', 0, true
+              FROM "${schema}".users
+              WHERE deleted_at IS NULL
+              ON CONFLICT DO NOTHING;
+
+              -- Seed default widgets for the default dashboard
+              -- (scorecard: open deals, revenue this month, leads this month, tasks open)
+              INSERT INTO "${schema}".user_dashboard_widgets
+                (dashboard_id, title, widget_type, position,
+                 data_source, report_type, chart_type, config, display_config)
+              SELECT
+                d.id,
+                w.title,
+                w.widget_type,
+                w.position::jsonb,
+                w.data_source,
+                w.report_type,
+                w.chart_type,
+                w.config::jsonb,
+                w.display_config::jsonb
+              FROM "${schema}".user_dashboards d
+              CROSS JOIN (VALUES
+                (
+                  'Revenue This Quarter',
+                  'scorecard',
+                  '{"x":0,"y":0,"w":3,"h":2}',
+                  'opportunities', 'summary', 'gauge',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[],"filters":[{"field":"won_at","operator":"is_not_null","value":null}]}',
+                  '{"showTrend":true,"trendField":"won_at","trendGranularity":"month"}'
+                ),
+                (
+                  'Open Deals',
+                  'scorecard',
+                  '{"x":3,"y":0,"w":3,"h":2}',
+                  'opportunities', 'summary', 'gauge',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Open Deals","format":"number"}],"dimensions":[],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null}]}',
+                  '{"showTrend":false}'
+                ),
+                (
+                  'Leads This Period',
+                  'scorecard',
+                  '{"x":6,"y":0,"w":3,"h":2}',
+                  'leads', 'summary', 'gauge',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Leads","format":"number"}],"dimensions":[],"filters":[]}',
+                  '{"showTrend":true,"trendField":"created_at","trendGranularity":"month"}'
+                ),
+                (
+                  'Activities This Period',
+                  'scorecard',
+                  '{"x":9,"y":0,"w":3,"h":2}',
+                  'activities', 'summary', 'gauge',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Activities","format":"number"}],"dimensions":[],"filters":[]}',
+                  '{"showTrend":false}'
+                ),
+                (
+                  'Revenue Trend',
+                  'chart',
+                  '{"x":0,"y":2,"w":8,"h":4}',
+                  'opportunities', 'summary', 'area',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[{"field":"won_at","type":"date","dateGranularity":"month","label":"Month"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"won_at","direction":"ASC"}]}',
+                  '{"showLegend":true}'
+                ),
+                (
+                  'Pipeline by Stage',
+                  'chart',
+                  '{"x":8,"y":2,"w":4,"h":4}',
+                  'opportunities', 'summary', 'funnel',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Deals","format":"number"}],"dimensions":[{"field":"stage_name","type":"field","label":"Stage"}],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null}]}',
+                  '{"showLegend":false}'
+                ),
+                (
+                  'Team Leaderboard',
+                  'leaderboard',
+                  '{"x":0,"y":6,"w":6,"h":5}',
+                  'opportunities', 'summary', 'table',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"},{"field":"id","aggregate":"count","label":"Deals","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Rep"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}],"limit":10}',
+                  '{"rankBy":"amount_sum","showCrown":true}'
+                ),
+                (
+                  'Leads by Source',
+                  'chart',
+                  '{"x":6,"y":6,"w":6,"h":5}',
+                  'leads', 'summary', 'pie',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Leads","format":"number"}],"dimensions":[{"field":"source_name","type":"field","label":"Source"}],"filters":[],"orderBy":[{"field":"id_count","direction":"DESC"}],"limit":8}',
+                  '{"showLegend":true}'
+                )
+              ) AS w(title, widget_type, position, data_source, report_type, chart_type, config, display_config)
+              WHERE d.is_default = true;
+            `,
+          },
+
+          // ── 054: Shared dashboards (public links) ──────────────
+          {
+            name: '054_shared_dashboards',
+            sql: `
+              CREATE TABLE IF NOT EXISTS "${schema}".shared_dashboards (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                dashboard_id UUID NOT NULL REFERENCES "${schema}".user_dashboards(id) ON DELETE CASCADE,
+                share_token VARCHAR(64) NOT NULL UNIQUE,
+                expires_at TIMESTAMPTZ,
+                allowed_emails JSONB DEFAULT '[]'::jsonb,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                created_by UUID NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_shared_dashboards_token
+                ON "${schema}".shared_dashboards(share_token);
+              CREATE INDEX IF NOT EXISTS idx_shared_dashboards_dashboard
+                ON "${schema}".shared_dashboards(dashboard_id);
+            `,
+          },
         ];
 
         // ── Execute pending migrations ────────────────────────────
