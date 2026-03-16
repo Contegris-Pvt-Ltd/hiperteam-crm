@@ -3219,6 +3219,414 @@ async function runTenantMigrations() {
                 ON "${schema}".shared_dashboards(dashboard_id);
             `,
           },
+
+          // ── 054b: Sales Performance Dashboard seed (4 tabs + widgets) ──
+          {
+            name: '054_sales_performance_dashboard',
+            sql: `
+              -- Create 4 Sales Performance dashboard tabs per user
+              -- (skips users who already have tabs with these names)
+
+              -- TAB 1: Overview
+              INSERT INTO "${schema}".user_dashboards
+                (user_id, name, sort_order, is_default, tab_filters)
+              SELECT
+                u.id,
+                'Overview',
+                1,
+                false,
+                '{"dateRange":{"enabled":true,"default":"this_year","options":["this_month","this_quarter","this_year","last_90_days","custom"]},"scope":{"enabled":true,"default":"all","options":["own","team","all"]}}'::jsonb
+              FROM "${schema}".users u
+              WHERE u.deleted_at IS NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM "${schema}".user_dashboards d
+                  WHERE d.user_id = u.id AND d.name = 'Overview'
+                );
+
+              -- TAB 2: Sales Team
+              INSERT INTO "${schema}".user_dashboards
+                (user_id, name, sort_order, is_default, tab_filters)
+              SELECT
+                u.id,
+                'Sales Team',
+                2,
+                false,
+                '{"dateRange":{"enabled":true,"default":"this_year","options":["this_month","this_quarter","this_year","last_90_days","custom"]},"scope":{"enabled":true,"default":"all","options":["own","team","all"]}}'::jsonb
+              FROM "${schema}".users u
+              WHERE u.deleted_at IS NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM "${schema}".user_dashboards d
+                  WHERE d.user_id = u.id AND d.name = 'Sales Team'
+                );
+
+              -- TAB 3: Lead Gen
+              INSERT INTO "${schema}".user_dashboards
+                (user_id, name, sort_order, is_default, tab_filters)
+              SELECT
+                u.id,
+                'Lead Gen',
+                3,
+                false,
+                '{"dateRange":{"enabled":true,"default":"this_year","options":["this_month","this_quarter","this_year","last_90_days","custom"]},"scope":{"enabled":true,"default":"all","options":["own","team","all"]}}'::jsonb
+              FROM "${schema}".users u
+              WHERE u.deleted_at IS NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM "${schema}".user_dashboards d
+                  WHERE d.user_id = u.id AND d.name = 'Lead Gen'
+                );
+
+              -- TAB 4: Projections
+              INSERT INTO "${schema}".user_dashboards
+                (user_id, name, sort_order, is_default, tab_filters)
+              SELECT
+                u.id,
+                'Projections',
+                4,
+                false,
+                '{"dateRange":{"enabled":false,"default":"this_year","options":["this_year","last_90_days"]},"scope":{"enabled":true,"default":"all","options":["own","team","all"]}}'::jsonb
+              FROM "${schema}".users u
+              WHERE u.deleted_at IS NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM "${schema}".user_dashboards d
+                  WHERE d.user_id = u.id AND d.name = 'Projections'
+                );
+
+              -- ────────────────────────────────────────────────────
+              -- SEED WIDGETS: Overview Tab
+              -- ────────────────────────────────────────────────────
+              INSERT INTO "${schema}".user_dashboard_widgets
+                (dashboard_id, title, widget_type, position,
+                 data_source, report_type, chart_type,
+                 config, display_config, filter_sensitivity)
+              SELECT
+                d.id,
+                w.title,
+                w.widget_type,
+                w.position::jsonb,
+                w.data_source,
+                w.report_type,
+                w.chart_type,
+                w.config::jsonb,
+                w.display_config::jsonb,
+                w.filter_sensitivity::jsonb
+              FROM "${schema}".user_dashboards d
+              CROSS JOIN (VALUES
+                (
+                  'Total Revenue',
+                  'scorecard',
+                  '{"x":0,"y":0,"w":3,"h":2}',
+                  'opportunities', 'summary', 'gauge',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[]}',
+                  '{"showTrend":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Deals Won',
+                  'scorecard',
+                  '{"x":3,"y":0,"w":3,"h":2}',
+                  'opportunities', 'summary', 'gauge',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Deals Closed","format":"number"}],"dimensions":[],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[]}',
+                  '{"showTrend":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Total Leads',
+                  'scorecard',
+                  '{"x":6,"y":0,"w":3,"h":2}',
+                  'leads', 'summary', 'gauge',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Leads","format":"number"}],"dimensions":[],"filters":[],"orderBy":[]}',
+                  '{"showTrend":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Avg Deal Size',
+                  'scorecard',
+                  '{"x":9,"y":0,"w":3,"h":2}',
+                  'opportunities', 'summary', 'gauge',
+                  '{"measures":[{"field":"amount","aggregate":"avg","label":"Avg Deal Size","format":"currency"}],"dimensions":[],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[]}',
+                  '{"showTrend":false}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Company Revenue Trajectory',
+                  'chart',
+                  '{"x":0,"y":2,"w":8,"h":5}',
+                  'opportunities', 'summary', 'area',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[{"field":"won_at","type":"date","dateGranularity":"month","label":"Month"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"won_at","direction":"ASC"}],"limit":24}',
+                  '{"showLegend":false}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Revenue Mix',
+                  'chart',
+                  '{"x":8,"y":2,"w":4,"h":5}',
+                  'opportunities', 'summary', 'pie',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[{"field":"type","type":"field","label":"Deal Type"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}],"limit":8}',
+                  '{"showLegend":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Revenue by Industry',
+                  'chart',
+                  '{"x":0,"y":7,"w":6,"h":5}',
+                  'opportunities', 'summary', 'bar',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[{"field":"industry","type":"field","label":"Industry"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}],"limit":10}',
+                  '{"showLegend":false}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Top Performers',
+                  'leaderboard',
+                  '{"x":6,"y":7,"w":6,"h":5}',
+                  'opportunities', 'summary', 'table',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"},{"field":"id","aggregate":"count","label":"Deals","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Rep"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}],"limit":10}',
+                  '{"rankBy":"amount_sum","showCrown":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                )
+              ) AS w(title, widget_type, position, data_source, report_type, chart_type, config, display_config, filter_sensitivity)
+              WHERE d.name = 'Overview';
+
+              -- ────────────────────────────────────────────────────
+              -- SEED WIDGETS: Sales Team Tab
+              -- ────────────────────────────────────────────────────
+              INSERT INTO "${schema}".user_dashboard_widgets
+                (dashboard_id, title, widget_type, position,
+                 data_source, report_type, chart_type,
+                 config, display_config, filter_sensitivity)
+              SELECT
+                d.id,
+                w.title,
+                w.widget_type,
+                w.position::jsonb,
+                w.data_source,
+                w.report_type,
+                w.chart_type,
+                w.config::jsonb,
+                w.display_config::jsonb,
+                w.filter_sensitivity::jsonb
+              FROM "${schema}".user_dashboards d
+              CROSS JOIN (VALUES
+                (
+                  'Revenue Won',
+                  'scorecard',
+                  '{"x":0,"y":0,"w":4,"h":2}',
+                  'opportunities', 'summary', 'gauge',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[]}',
+                  '{"showTrend":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Deals Closed',
+                  'scorecard',
+                  '{"x":4,"y":0,"w":4,"h":2}',
+                  'opportunities', 'summary', 'gauge',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Closed","format":"number"}],"dimensions":[],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[]}',
+                  '{"showTrend":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Avg Deal Size',
+                  'scorecard',
+                  '{"x":8,"y":0,"w":4,"h":2}',
+                  'opportunities', 'summary', 'gauge',
+                  '{"measures":[{"field":"amount","aggregate":"avg","label":"Avg Size","format":"currency"}],"dimensions":[],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[]}',
+                  '{"showTrend":false}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Revenue Contribution by Rep',
+                  'chart',
+                  '{"x":0,"y":2,"w":12,"h":5}',
+                  'opportunities', 'summary', 'bar',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[{"field":"owner_name","type":"field","label":"Rep"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}],"limit":15}',
+                  '{"showLegend":false}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Sales Representatives Performance',
+                  'leaderboard',
+                  '{"x":0,"y":7,"w":7,"h":6}',
+                  'opportunities', 'summary', 'table',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"},{"field":"id","aggregate":"count","label":"Deals Won","format":"number"},{"field":"amount","aggregate":"avg","label":"Avg Deal","format":"currency"}],"dimensions":[{"field":"owner_name","type":"field","label":"Rep"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"amount_sum","direction":"DESC"}],"limit":20}',
+                  '{"rankBy":"amount_sum","showCrown":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Quarterly Revenue by Rep',
+                  'chart',
+                  '{"x":7,"y":7,"w":5,"h":6}',
+                  'opportunities', 'summary', 'stacked_bar',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[{"field":"owner_name","type":"field","label":"Rep"},{"field":"won_at","type":"date","dateGranularity":"quarter","label":"Quarter"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"won_at","direction":"ASC"}],"limit":40}',
+                  '{"showLegend":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Deal Transaction Log',
+                  'table',
+                  '{"x":0,"y":13,"w":12,"h":6}',
+                  'opportunities', 'tabular', 'table',
+                  '{"fields":["name","owner_name","stage_name","amount","type","source","close_date","won_at"],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"won_at","direction":"DESC"}],"limit":50}',
+                  '{"showLegend":false}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                )
+              ) AS w(title, widget_type, position, data_source, report_type, chart_type, config, display_config, filter_sensitivity)
+              WHERE d.name = 'Sales Team';
+
+              -- ────────────────────────────────────────────────────
+              -- SEED WIDGETS: Lead Gen Tab
+              -- ────────────────────────────────────────────────────
+              INSERT INTO "${schema}".user_dashboard_widgets
+                (dashboard_id, title, widget_type, position,
+                 data_source, report_type, chart_type,
+                 config, display_config, filter_sensitivity)
+              SELECT
+                d.id,
+                w.title,
+                w.widget_type,
+                w.position::jsonb,
+                w.data_source,
+                w.report_type,
+                w.chart_type,
+                w.config::jsonb,
+                w.display_config::jsonb,
+                w.filter_sensitivity::jsonb
+              FROM "${schema}".user_dashboards d
+              CROSS JOIN (VALUES
+                (
+                  'Total Leads',
+                  'scorecard',
+                  '{"x":0,"y":0,"w":3,"h":2}',
+                  'leads', 'summary', 'gauge',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Total Leads","format":"number"}],"dimensions":[],"filters":[],"orderBy":[]}',
+                  '{"showTrend":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Converted Leads',
+                  'scorecard',
+                  '{"x":3,"y":0,"w":3,"h":2}',
+                  'leads', 'summary', 'gauge',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Converted","format":"number"}],"dimensions":[],"filters":[{"field":"converted_at","operator":"is_not_null","value":null}],"orderBy":[]}',
+                  '{"showTrend":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Leads This Month',
+                  'scorecard',
+                  '{"x":6,"y":0,"w":3,"h":2}',
+                  'leads', 'summary', 'gauge',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"New Leads","format":"number"}],"dimensions":[],"filters":[{"field":"created_at","operator":"relative_date","value":null,"dateRelative":"this_month"}],"orderBy":[]}',
+                  '{"showTrend":false}',
+                  '{"respondsToDashboardDateRange":false,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Avg Lead Score',
+                  'scorecard',
+                  '{"x":9,"y":0,"w":3,"h":2}',
+                  'leads', 'summary', 'gauge',
+                  '{"measures":[{"field":"score","aggregate":"avg","label":"Avg Score","format":"number"}],"dimensions":[],"filters":[],"orderBy":[]}',
+                  '{"showTrend":false}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Lead Volume Trend',
+                  'chart',
+                  '{"x":0,"y":2,"w":8,"h":5}',
+                  'leads', 'summary', 'area',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Leads Created","format":"number"}],"dimensions":[{"field":"created_at","type":"date","dateGranularity":"month","label":"Month"}],"filters":[],"orderBy":[{"field":"created_at","direction":"ASC"}],"limit":24}',
+                  '{"showLegend":false}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Leads by Source',
+                  'chart',
+                  '{"x":8,"y":2,"w":4,"h":5}',
+                  'leads', 'summary', 'pie',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Count","format":"number"}],"dimensions":[{"field":"source_name","type":"field","label":"Source"}],"filters":[],"orderBy":[{"field":"id_count","direction":"DESC"}],"limit":8}',
+                  '{"showLegend":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Lead Gen Performance by Rep',
+                  'leaderboard',
+                  '{"x":0,"y":7,"w":6,"h":6}',
+                  'leads', 'summary', 'table',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Total Leads","format":"number"},{"field":"converted_at","aggregate":"count","label":"Converted","format":"number"},{"field":"score","aggregate":"avg","label":"Avg Score","format":"number"}],"dimensions":[{"field":"owner_name","type":"field","label":"Rep"}],"filters":[],"orderBy":[{"field":"id_count","direction":"DESC"}],"limit":15}',
+                  '{"rankBy":"id_count","showCrown":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Leads by Stage',
+                  'chart',
+                  '{"x":6,"y":7,"w":6,"h":6}',
+                  'leads', 'summary', 'bar',
+                  '{"measures":[{"field":"id","aggregate":"count","label":"Leads","format":"number"}],"dimensions":[{"field":"stage_name","type":"field","label":"Stage"}],"filters":[],"orderBy":[{"field":"id_count","direction":"DESC"}],"limit":10}',
+                  '{"showLegend":false}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                )
+              ) AS w(title, widget_type, position, data_source, report_type, chart_type, config, display_config, filter_sensitivity)
+              WHERE d.name = 'Lead Gen';
+
+              -- ────────────────────────────────────────────────────
+              -- SEED WIDGETS: Projections Tab
+              -- ────────────────────────────────────────────────────
+              INSERT INTO "${schema}".user_dashboard_widgets
+                (dashboard_id, title, widget_type, position,
+                 data_source, report_type, chart_type,
+                 config, display_config, filter_sensitivity)
+              SELECT
+                d.id,
+                w.title,
+                w.widget_type,
+                w.position::jsonb,
+                w.data_source,
+                w.report_type,
+                w.chart_type,
+                w.config::jsonb,
+                w.display_config::jsonb,
+                w.filter_sensitivity::jsonb
+              FROM "${schema}".user_dashboards d
+              CROSS JOIN (VALUES
+                (
+                  'Baseline Revenue',
+                  'scorecard',
+                  '{"x":0,"y":0,"w":4,"h":2}',
+                  'opportunities', 'summary', 'gauge',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Total Revenue","format":"currency"}],"dimensions":[],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[]}',
+                  '{"showTrend":true}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Pipeline Value',
+                  'scorecard',
+                  '{"x":4,"y":0,"w":4,"h":2}',
+                  'opportunities', 'summary', 'gauge',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Pipeline","format":"currency"}],"dimensions":[],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null}],"orderBy":[]}',
+                  '{"showTrend":false}',
+                  '{"respondsToDashboardDateRange":false,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Weighted Forecast',
+                  'scorecard',
+                  '{"x":8,"y":0,"w":4,"h":2}',
+                  'opportunities', 'summary', 'gauge',
+                  '{"measures":[{"field":"weighted_amount","aggregate":"sum","label":"Weighted","format":"currency"}],"dimensions":[],"filters":[{"field":"won_at","operator":"is_null","value":null},{"field":"lost_at","operator":"is_null","value":null}],"orderBy":[]}',
+                  '{"showTrend":false}',
+                  '{"respondsToDashboardDateRange":false,"respondsToDashboardScope":true}'
+                ),
+                (
+                  'Revenue Growth Simulator',
+                  'projection',
+                  '{"x":0,"y":2,"w":12,"h":9}',
+                  'opportunities', 'summary', 'bar',
+                  '{"measures":[{"field":"amount","aggregate":"sum","label":"Revenue","format":"currency"}],"dimensions":[{"field":"won_at","type":"date","dateGranularity":"quarter","label":"Quarter"}],"filters":[{"field":"won_at","operator":"is_not_null","value":null}],"orderBy":[{"field":"won_at","direction":"ASC"}],"limit":20}',
+                  '{"sliderLabel":"YoY Growth Target","sliderMin":0,"sliderMax":100,"sliderStep":5,"sliderDefault":20,"baseSeriesLabel":"This Year Actual","projectedSeriesLabel":"Next Year Projected"}',
+                  '{"respondsToDashboardDateRange":true,"respondsToDashboardScope":true}'
+                )
+              ) AS w(title, widget_type, position, data_source, report_type, chart_type, config, display_config, filter_sensitivity)
+              WHERE d.name = 'Projections';
+            `,
+          },
         ];
 
         // ── Execute pending migrations ────────────────────────────
