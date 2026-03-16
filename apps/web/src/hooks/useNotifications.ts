@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import toast from 'react-hot-toast';
 import type { Notification } from '../api/notifications.api';
 import { notificationsApi } from '../api/notifications.api';
 
@@ -58,6 +59,10 @@ export function useNotifications(): UseNotificationsReturn {
     socket.on('notification', (notification: Notification) => {
       if (!mountedRef.current) return;
       setNotifications(prev => [notification, ...prev]);
+      toast(notification.title || 'New notification', {
+        icon: 'bell' === notification.icon ? '\uD83D\uDD14' : '\uD83D\uDCE8',
+        duration: 5000,
+      });
     });
 
     // Unread count updated

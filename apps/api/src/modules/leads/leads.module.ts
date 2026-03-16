@@ -14,9 +14,10 @@ import { DocumentsService } from '../shared/documents.service';
 import { NotesService } from '../shared/notes.service';
 import { SlaService } from './sla.service';
 import { WorkflowsModule } from '../workflows/workflows.module';
+import { NotificationModule } from '../notifications/notification.module';
 
 @Module({
-  imports: [WorkflowsModule],
+  imports: [WorkflowsModule, NotificationModule],
   controllers: [LeadsController, LeadSettingsController],
   providers: [
     LeadsService,

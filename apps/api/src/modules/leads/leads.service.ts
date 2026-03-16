@@ -13,6 +13,7 @@ import { RecordTeamService } from '../shared/record-team.service';
 import { FieldValidationService } from '../shared/field-validation.service';
 import { SlaService } from './sla.service';
 import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
+import { NotificationService } from '../notifications/notification.service';
 
 @Injectable()
 export class LeadsService {
@@ -34,6 +35,7 @@ export class LeadsService {
     private fieldValidationService: FieldValidationService,
     private slaService: SlaService,
     private workflowRunner: WorkflowRunnerService,
+    private notificationService: NotificationService,
   ) {}
 
   // ============================================================
@@ -1962,6 +1964,18 @@ export class LeadsService {
       metadata: { previousOwnerId, newOwnerId },
       performedBy: changedBy,
     });
+
+    // Notify new owner
+    this.notificationService.notify(schemaName, {
+      userId: newOwnerId,
+      eventType: 'lead_assigned',
+      title: 'Lead assigned to you',
+      body: 'A lead has been assigned to you.',
+      icon: 'user-plus',
+      actionUrl: `/leads/${leadId}`,
+      entityType: 'leads',
+      entityId: leadId,
+    }).catch(err => this.logger.error(`Failed to notify lead assignment: ${err.message}`));
   }
 
   // ============================================================

@@ -8,6 +8,7 @@ import { DataSource } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { EmailService } from '../email/email.service';
 import { CalendarSyncService } from '../calendar-sync/calendar-sync.service';
+import { NotificationService } from '../notifications/notification.service';
 
 @Injectable()
 export class SchedulingService {
@@ -17,6 +18,7 @@ export class SchedulingService {
     private readonly dataSource: DataSource,
     private readonly emailService: EmailService,
     private readonly calendarSyncService: CalendarSyncService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // ── List meeting booking forms owned by a user ─────────────
@@ -552,6 +554,18 @@ export class SchedulingService {
       this.logger.warn(`Emails failed for booking ${booking.id}: ${err.message}`);
     }
 
+    // Notify host about new booking
+    this.notificationService.notify(schemaName, {
+      userId: hostUserId,
+      eventType: 'meeting_booked',
+      title: 'New meeting booked',
+      body: `${dto.inviteeName} booked a meeting: ${form.name}`,
+      icon: 'calendar',
+      actionUrl: `/scheduling`,
+      entityType: 'bookings',
+      entityId: booking.id,
+    }).catch(err => this.logger.error(`Failed to notify meeting booking: ${err.message}`));
+
     return this.formatBooking({
       ...booking,
       meet_link: meetLink,
@@ -589,6 +603,18 @@ export class SchedulingService {
         [booking.crm_task_id],
       ).catch(() => {});
     }
+
+    // Notify host about cancellation
+    this.notificationService.notify(schemaName, {
+      userId: booking.host_user_id,
+      eventType: 'meeting_cancelled',
+      title: 'Meeting cancelled',
+      body: `${booking.invitee_name} cancelled a meeting`,
+      icon: 'calendar-x',
+      actionUrl: `/scheduling`,
+      entityType: 'bookings',
+      entityId: booking.id,
+    }).catch(err => this.logger.error(`Failed to notify meeting cancellation: ${err.message}`));
 
     return { cancelled: true, bookingId: booking.id };
   }

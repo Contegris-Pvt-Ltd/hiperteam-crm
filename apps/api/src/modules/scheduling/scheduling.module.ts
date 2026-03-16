@@ -9,9 +9,10 @@ import {
 import { SchedulingService } from './scheduling.service';
 import { EmailModule } from '../email/email.module';
 import { CalendarSyncModule } from '../calendar-sync/calendar-sync.module';
+import { NotificationModule } from '../notifications/notification.module';
 
 @Module({
-  imports: [EmailModule, CalendarSyncModule],
+  imports: [EmailModule, CalendarSyncModule, NotificationModule],
   controllers: [SchedulingController, SchedulingPublicController],
   providers: [SchedulingService],
   exports: [SchedulingService],

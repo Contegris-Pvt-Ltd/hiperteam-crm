@@ -16,6 +16,7 @@ import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
 import { ApprovalService } from '../shared/approval.service';
 import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
+import { NotificationService } from '../notifications/notification.service';
 import {
   CreateOpportunityDto,
   UpdateOpportunityDto,
@@ -43,6 +44,7 @@ export class OpportunitiesService {
     private activityService: ActivityService,
     private approvalService: ApprovalService,
     private workflowRunner: WorkflowRunnerService,
+    private notificationService: NotificationService,
   ) {}
 
   // ============================================================
@@ -629,6 +631,16 @@ export class OpportunitiesService {
     this.workflowRunner.trigger(schemaName, 'opportunities', 'opportunity_updated', id, updated).catch(() => {});
     if (updated.ownerId && updated.ownerId !== prevOwnerId) {
       this.workflowRunner.trigger(schemaName, 'opportunities', 'opportunity_assigned', id, updated).catch(() => {});
+      this.notificationService.notify(schemaName, {
+        userId: updated.ownerId,
+        eventType: 'opportunity_assigned',
+        title: 'Opportunity assigned to you',
+        body: `Opportunity "${updated.name}" has been assigned to you.`,
+        icon: 'briefcase',
+        actionUrl: `/opportunities/${id}`,
+        entityType: 'opportunities',
+        entityId: id,
+      }).catch(err => this.logger.error(`Failed to notify opportunity assignment: ${err.message}`));
     }
     if (updated.stageId && updated.stageId !== prevStageId) {
       this.workflowRunner.trigger(schemaName, 'opportunities', 'opportunity_stage_changed', id, updated).catch(() => {});
