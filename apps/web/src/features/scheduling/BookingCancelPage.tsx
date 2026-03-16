@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { CalendarX2, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { schedulingApi } from '../../api/scheduling.api';

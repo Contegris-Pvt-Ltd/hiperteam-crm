@@ -165,7 +165,7 @@ export class SchedulingService {
         date: dateStr,
         slots: this.computeSlots(
           windows, existingBookings, requestedDate,
-          durationMins, bufferBefore, bufferAfter, minNoticeMs, now, null,
+          durationMins, bufferBefore, bufferAfter, minNoticeMs, now,
         ),
       };
     }
@@ -197,7 +197,7 @@ export class SchedulingService {
 
       const freeSlots = this.computeSlots(
         windows, existingBookings, requestedDate,
-        durationMins, bufferBefore, bufferAfter, minNoticeMs, now, null,
+        durationMins, bufferBefore, bufferAfter, minNoticeMs, now,
       );
 
       for (const slot of freeSlots) {
@@ -252,7 +252,6 @@ export class SchedulingService {
     bufferAfter: number,
     minNoticeMs: number,
     now: number,
-    _hostUserId: string | null,
   ): string[] {
     const slots: string[] = [];
 

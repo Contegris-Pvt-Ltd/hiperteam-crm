@@ -158,7 +158,7 @@ export function FormsPage() {
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">No forms yet</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Create your first form to start collecting data</p>
           <button
-            onClick={handleCreate}
+            onClick={() => handleCreate()}
             className="mt-4 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium transition-colors"
           >
             Create Form

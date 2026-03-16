@@ -8,9 +8,6 @@ import {
   Copy,
   Users,
   Clock,
-  CheckCircle2,
-  XCircle,
-  MoreVertical,
   Calendar,
   ChevronRight,
 } from 'lucide-react';
