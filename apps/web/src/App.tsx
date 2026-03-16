@@ -56,7 +56,9 @@ import ProjectSettingsPage from './features/admin/ProjectSettingsPage';
 import { ProjectsPage } from './features/projects/ProjectsPage';
 import { ProjectDetailPage } from './features/projects/ProjectDetailPage';
 import { ClientPortalPage } from './features/projects/ClientPortalPage';
-import { FormsPage, FormBuilderPage, FormSubmissionsPage, FormPublicPage, LandingPagePublicPage } from './features/forms';
+import { FormsPage, FormBuilderPage, FormSubmissionsPage, FormPublicPage, LandingPagePublicPage, EngagementHubPage } from './features/forms';
+import { PublicBookingPage } from './features/scheduling/PublicBookingPage';
+import { BookingCancelPage } from './features/scheduling/BookingCancelPage';
 import { InboxPage, EmailSettingsPage, InboxRulesPage } from './features/email';
 import { WorkflowListPage } from './features/workflows/WorkflowListPage';
 import { WorkflowBuilderPage } from './features/workflows/WorkflowBuilderPage';
@@ -66,6 +68,12 @@ import { ApiKeysPage } from './features/admin/ApiKeysPage';
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
+}
+
+function ProfileRedirect() {
+  const { user } = useAuthStore();
+  if (!user) return <Navigate to="/" replace />;
+  return <Navigate to={`/users/${user.id}`} replace />;
 }
 
 function App() {
@@ -97,6 +105,8 @@ function App() {
         <Route path="/portal/:tenantSlug/:token" element={<ClientPortalPage />} />
         <Route path="/f/:tenantSlug/:token" element={<FormPublicPage />} />
         <Route path="/lp/:tenantSlug/:token" element={<LandingPagePublicPage />} />
+        <Route path="/book/:tenantSlug/:token" element={<PublicBookingPage />} />
+        <Route path="/book/cancel/:cancelToken" element={<BookingCancelPage />} />
 
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<DashboardPage />} />
@@ -137,8 +147,10 @@ function App() {
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
 
-          {/* Forms */}
-          <Route path="/forms" element={<FormsPage />} />
+          {/* Engagement Hub */}
+          <Route path="/engagement/forms" element={<EngagementHubPage />} />
+          <Route path="/engagement/scheduling" element={<EngagementHubPage />} />
+          <Route path="/forms" element={<Navigate to="/engagement/forms" replace />} />
           <Route path="/forms/:id/builder" element={<FormBuilderPage />} />
           <Route path="/forms/:id/submissions" element={<FormSubmissionsPage />} />
 
@@ -163,6 +175,7 @@ function App() {
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:id" element={<UserDetailPage />} />
           <Route path="users/:id/edit" element={<UserEditPage />} />
+          <Route path="profile" element={<ProfileRedirect />} />
           <Route path="/org-chart" element={<OrgChartPage />} />
           <Route path="departments" element={<DepartmentsPage />} />
           <Route path="teams" element={<TeamsPage />} />

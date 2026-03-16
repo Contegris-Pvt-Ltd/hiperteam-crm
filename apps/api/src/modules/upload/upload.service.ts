@@ -83,7 +83,7 @@ export class UploadService {
   async uploadAvatar(
     file: Express.Multer.File,
     tenantSlug: string,
-    entityType: 'contacts' | 'accounts',
+    entityType: 'contacts' | 'accounts' | 'users',
     entityId: string,
   ): Promise<{ path: string; url: string }> {
     const fileExtension = file.originalname.split('.').pop();

@@ -35,6 +35,7 @@ import { GeneralSettingsModule } from './modules/general-settings/general-settin
 import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { SearchModule } from './modules/search/search.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
+import { SchedulingModule } from './modules/scheduling/scheduling.module';
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { ApiKeysModule } from './modules/api-keys/api-keys.module';
     GeneralSettingsModule,
     SearchModule,
     ApiKeysModule,
+    SchedulingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

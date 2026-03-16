@@ -78,4 +78,23 @@ export const usersApi = {
   cancelInvitation: async (id: string) => { const { data } = await api.delete(`/users/invitations/${id}`); return data; },
   getEmailSignature: async (): Promise<{ signature: string }> => { const { data } = await api.get('/users/me/email-signature'); return data; },
   updateEmailSignature: async (signature: string): Promise<{ signature: string }> => { const { data } = await api.put('/users/me/email-signature', { signature }); return data; },
+  getProfileStats: async (id: string): Promise<{
+    leads: { total: number; converted: number; thisMonth: number };
+    deals: { open: number; won: number; revenueThisMonth: number };
+    tasks: { open: number; completedThisMonth: number };
+    activities: { thisMonth: number };
+    projects: { active: number };
+    bookings: { total: number; thisMonth: number };
+  }> => {
+    const { data } = await api.get(`/users/${id}/profile-stats`);
+    return data;
+  },
+  activate: async (id: string) => {
+    const { data } = await api.put(`/users/${id}/activate`);
+    return data;
+  },
+  changePassword: async (currentPassword: string, newPassword: string): Promise<{ message: string }> => {
+    const { data } = await api.post('/auth/change-password', { currentPassword, newPassword });
+    return data;
+  },
 };

@@ -51,9 +51,13 @@ export function FormsPage() {
     loadForms();
   }, [search, statusFilter]);
 
-  const handleCreate = async () => {
+  const handleCreate = async (type: 'standard' | 'meeting_booking' = 'standard') => {
     try {
-      const form = await formsApi.create({ name: 'Untitled Form', status: 'draft' });
+      const form = await formsApi.create({
+        name: type === 'meeting_booking' ? 'New Booking Page' : 'Untitled Form',
+        status: 'draft',
+        type,
+      });
       navigate(`/forms/${form.id}/builder`);
     } catch (err) {
       console.error('Failed to create form', err);
@@ -100,13 +104,22 @@ export function FormsPage() {
             Create and manage web forms for lead capture and data collection
           </p>
         </div>
-        <button
-          onClick={handleCreate}
-          className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New Form
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleCreate('standard')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            New Form
+          </button>
+          <button
+            onClick={() => handleCreate('meeting_booking')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            New Booking Page
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -229,6 +242,11 @@ export function FormsPage() {
                 <span className={`px-2 py-0.5 rounded-full font-medium ${statusColors[form.status] || ''}`}>
                   {form.status}
                 </span>
+                {form.type === 'meeting_booking' && (
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 font-medium">
+                    Booking
+                  </span>
+                )}
                 <span>{form.fields?.length || 0} fields</span>
                 <span>{form.submissionCount} submissions</span>
               </div>

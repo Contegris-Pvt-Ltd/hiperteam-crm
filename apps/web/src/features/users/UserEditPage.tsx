@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import type { User, RoleLookup, DepartmentLookup, TeamLookup } from '../../api/users.api';
 import { usersApi } from '../../api/users.api';
+import { AvatarUpload } from '../../components/shared/AvatarUpload';
+import { uploadApi } from '../../api/upload.api';
 
 
 export function UserEditPage() {
@@ -137,6 +139,29 @@ export function UserEditPage() {
         {error && (
           <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{error}</div>
         )}
+
+        {/* Avatar */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-6">
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4">Profile Photo</h3>
+          <div className="flex items-center gap-4">
+            <AvatarUpload
+              currentUrl={user?.avatarUrl}
+              name={`${formData.firstName || ''} ${formData.lastName || ''}`}
+              type="user"
+              size="lg"
+              onUpload={async (file) => {
+                const result = await uploadApi.uploadAvatar('users', id!, file);
+                await usersApi.update(id!, { avatarUrl: result.url });
+                setUser(prev => prev ? { ...prev, avatarUrl: result.url } : prev);
+                return result.url;
+              }}
+            />
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Upload a photo</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Click the avatar to upload. Max 5MB, images only.</p>
+            </div>
+          </div>
+        </div>
 
         {/* Basic Info */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-6">

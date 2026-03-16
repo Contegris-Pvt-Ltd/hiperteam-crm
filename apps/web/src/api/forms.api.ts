@@ -1,4 +1,5 @@
 import { api } from './contacts.api';
+import type { MeetingConfig } from './scheduling.api';
 
 export interface FormField {
   id: string;
@@ -71,6 +72,8 @@ export interface FormRecord {
   token: string;
   tenantSlug: string;
   submissionCount: number;
+  type?: 'standard' | 'meeting_booking';
+  meetingConfig?: MeetingConfig;
   isLandingPage?: boolean;
   landingPageConfig?: FormLandingPageConfig;
   createdBy: string;

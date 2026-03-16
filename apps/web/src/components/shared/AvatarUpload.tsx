@@ -5,7 +5,7 @@ interface AvatarUploadProps {
   currentUrl: string | null | undefined;
   onUpload: (file: File) => Promise<string>;
   name: string;
-  type: 'contact' | 'account';
+  type: 'contact' | 'account' | 'user';
   size?: 'sm' | 'md' | 'lg';
 }
 
@@ -35,6 +35,7 @@ export function AvatarUpload({ currentUrl, onUpload, name, type, size = 'md' }: 
   const gradients = {
     contact: 'from-blue-500 to-indigo-600',
     account: 'from-emerald-500 to-teal-600',
+    user: 'from-purple-500 to-indigo-600',
   };
 
   const getInitials = (name: string) => {
@@ -76,7 +77,7 @@ export function AvatarUpload({ currentUrl, onUpload, name, type, size = 'md' }: 
         type="button"
         onClick={handleClick}
         disabled={uploading}
-        className={`${sizeClasses[size]} rounded-${type === 'contact' ? 'full' : '2xl'} overflow-hidden relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
+        className={`${sizeClasses[size]} ${type === 'contact' ? 'rounded-full' : 'rounded-2xl'} overflow-hidden relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
       >
         {preview ? (
           <img

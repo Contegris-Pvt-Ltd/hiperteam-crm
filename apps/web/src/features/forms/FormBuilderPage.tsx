@@ -24,9 +24,13 @@ import {
   Copy,
   Code2,
   Globe,
+  Clock,
 } from 'lucide-react';
 import { formsApi } from '../../api/forms.api';
 import type { FormRecord, FormField, FormSubmitAction, FormSettings, FormBranding } from '../../api/forms.api';
+import { schedulingApi } from '../../api/scheduling.api';
+import type { MeetingConfig, BookingAvailabilityWindow } from '../../api/scheduling.api';
+import { DEFAULT_MEETING_CONFIG, DEFAULT_AVAILABILITY, DAY_LABELS_FULL } from '../../api/scheduling.api';
 import { EmbedModal } from './EmbedModal';
 
 const FIELD_TYPES = [
@@ -61,7 +65,7 @@ const CRM_FIELD_OPTIONS = [
   { value: 'notes', label: 'Notes' },
 ];
 
-type Tab = 'fields' | 'actions' | 'settings' | 'branding';
+type Tab = 'fields' | 'actions' | 'settings' | 'branding' | 'meeting';
 
 export function FormBuilderPage() {
   const { id } = useParams<{ id: string }>();
@@ -104,6 +108,8 @@ export function FormBuilderPage() {
         branding: form.branding,
         isLandingPage: form.isLandingPage,
         landingPageConfig: form.landingPageConfig,
+        type: form.type,
+        meetingConfig: form.meetingConfig,
       });
       // Reload from server to ensure complete form state
       const reloaded = await formsApi.getById(id);
@@ -369,7 +375,10 @@ export function FormBuilderPage() {
         <div className="w-80 bg-white dark:bg-slate-800 border-l border-gray-200 dark:border-slate-700 overflow-y-auto">
           {/* Tabs */}
           <div className="flex border-b border-gray-200 dark:border-slate-700">
-            {(['fields', 'actions', 'settings', 'branding'] as Tab[]).map((tab) => (
+            {(form.type === 'meeting_booking'
+              ? (['fields', 'meeting', 'settings', 'branding'] as Tab[])
+              : (['fields', 'actions', 'settings', 'branding'] as Tab[])
+            ).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setRightTab(tab)}
@@ -440,6 +449,15 @@ export function FormBuilderPage() {
               <BrandingPanel
                 branding={form.branding || {}}
                 onChange={(b) => updateForm({ branding: b })}
+              />
+            )}
+
+            {/* Meeting Tab — only for meeting_booking forms */}
+            {rightTab === 'meeting' && form.type === 'meeting_booking' && (
+              <MeetingPanel
+                formId={form.id}
+                config={form.meetingConfig || DEFAULT_MEETING_CONFIG}
+                onChange={(cfg) => updateForm({ meetingConfig: cfg })}
               />
             )}
           </div>
@@ -862,6 +880,385 @@ function BrandingPanel({ branding, onChange }: { branding: FormBranding; onChang
           className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white"
         />
       </div>
+    </div>
+  );
+}
+
+// ── Meeting Panel ───────────────────────────────────────────
+function MeetingPanel({
+  formId,
+  config,
+  onChange,
+}: {
+  formId: string;
+  config: MeetingConfig;
+  onChange: (cfg: MeetingConfig) => void;
+}) {
+  const [availability, setAvailability] = useState<BookingAvailabilityWindow[]>(DEFAULT_AVAILABILITY);
+  const [savingAvail, setSavingAvail] = useState(false);
+  const [availSaved, setAvailSaved] = useState(false);
+
+  // Team assignment
+  const [availabilityMode, setAvailabilityMode] = useState<'custom' | 'user' | 'team'>(
+    (config as any).availabilityMode || 'custom',
+  );
+  const [teamMembers, setTeamMembers] = useState<Array<{ id: string; firstName: string; lastName: string; email: string }>>([]);
+  const [selectedTeamUserIds, setSelectedTeamUserIds] = useState<string[]>(
+    (config as any).teamUserIds || [],
+  );
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  useEffect(() => {
+    schedulingApi.getAvailableDates(formId, new Date().getFullYear(), new Date().getMonth() + 1)
+      .catch(() => {});
+  }, [formId]);
+
+  useEffect(() => {
+    if (availabilityMode === 'team' && teamMembers.length === 0) {
+      loadTeamMembers();
+    }
+  }, [availabilityMode]);
+
+  const loadTeamMembers = async () => {
+    setLoadingUsers(true);
+    try {
+      const { api: axiosApi } = await import('../../api/contacts.api');
+      const { data } = await axiosApi.get('/users', { params: { status: 'active', limit: 200 } });
+      setTeamMembers((data.data || []).map((u: any) => ({
+        id: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email,
+      })));
+    } catch { /* ignore */ }
+    finally { setLoadingUsers(false); }
+  };
+
+  const handleModeChange = (mode: 'custom' | 'user' | 'team') => {
+    setAvailabilityMode(mode);
+    onChange({ ...config, availabilityMode: mode } as any);
+  };
+
+  const toggleTeamUser = (userId: string) => {
+    const next = selectedTeamUserIds.includes(userId)
+      ? selectedTeamUserIds.filter((id) => id !== userId)
+      : [...selectedTeamUserIds, userId];
+    setSelectedTeamUserIds(next);
+    onChange({ ...config, teamUserIds: next } as any);
+  };
+
+  const handleSaveAvailability = async () => {
+    setSavingAvail(true);
+    try {
+      await schedulingApi.saveAvailability(formId, availability);
+      setAvailSaved(true);
+      setTimeout(() => setAvailSaved(false), 2000);
+    } catch { /* ignore */ }
+    finally { setSavingAvail(false); }
+  };
+
+  const inputCls = 'w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white';
+  const labelCls = 'block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1';
+
+  return (
+    <div className="space-y-5">
+      {/* Duration & Buffers */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+          Duration & Buffers
+        </p>
+        <div className="space-y-3">
+          <div>
+            <label className={labelCls}>Duration (minutes)</label>
+            <select
+              value={config.durationMinutes}
+              onChange={(e) => onChange({ ...config, durationMinutes: parseInt(e.target.value, 10) })}
+              className={inputCls}
+            >
+              {[15, 20, 30, 45, 60, 90, 120].map((d) => (
+                <option key={d} value={d}>{d} min</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={labelCls}>Buffer before (min)</label>
+              <input
+                type="number" min={0} max={60} step={5}
+                value={config.bufferBefore}
+                onChange={(e) => onChange({ ...config, bufferBefore: parseInt(e.target.value, 10) || 0 })}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Buffer after (min)</label>
+              <input
+                type="number" min={0} max={60} step={5}
+                value={config.bufferAfter}
+                onChange={(e) => onChange({ ...config, bufferAfter: parseInt(e.target.value, 10) || 0 })}
+                className={inputCls}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={labelCls}>Max days ahead</label>
+              <input
+                type="number" min={1} max={365}
+                value={config.maxDaysAhead}
+                onChange={(e) => onChange({ ...config, maxDaysAhead: parseInt(e.target.value, 10) || 60 })}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Min notice (hours)</label>
+              <input
+                type="number" min={0} max={72}
+                value={config.minNoticeHours}
+                onChange={(e) => onChange({ ...config, minNoticeHours: parseInt(e.target.value, 10) || 1 })}
+                className={inputCls}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Location */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+          Location
+        </p>
+        <div className="space-y-2">
+          <select
+            value={config.locationType}
+            onChange={(e) => onChange({ ...config, locationType: e.target.value as MeetingConfig['locationType'] })}
+            className={inputCls}
+          >
+            <option value="video">Video call</option>
+            <option value="phone">Phone call</option>
+            <option value="in_person">In person</option>
+            <option value="custom">Custom</option>
+          </select>
+          <input
+            value={config.locationValue || ''}
+            onChange={(e) => onChange({ ...config, locationValue: e.target.value })}
+            placeholder={
+              config.locationType === 'video' ? 'https://meet.google.com/...' :
+              config.locationType === 'phone' ? '+1 (555) 000-0000' :
+              config.locationType === 'in_person' ? '123 Main St, City' :
+              'Location details'
+            }
+            className={inputCls}
+          />
+        </div>
+      </div>
+
+      {/* CRM Action */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+          CRM Action on Booking
+        </p>
+        <select
+          value={config.crmAction}
+          onChange={(e) => onChange({ ...config, crmAction: e.target.value as MeetingConfig['crmAction'] })}
+          className={inputCls}
+        >
+          <option value="create_lead">Create Lead</option>
+          <option value="create_contact">Create Contact</option>
+          <option value="none">None (store booking only)</option>
+        </select>
+      </div>
+
+      {/* Confirmation */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+          Confirmation
+        </p>
+        <div className="space-y-2">
+          <div>
+            <label className={labelCls}>Confirmation message</label>
+            <textarea
+              rows={3}
+              value={config.confirmationMessage || ''}
+              onChange={(e) => onChange({ ...config, confirmationMessage: e.target.value })}
+              placeholder="Thanks for booking! We look forward to speaking with you."
+              className={`${inputCls} resize-none`}
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Redirect URL after booking (optional)</label>
+            <input
+              value={config.redirectUrl || ''}
+              onChange={(e) => onChange({ ...config, redirectUrl: e.target.value })}
+              placeholder="https://yoursite.com/thank-you"
+              className={inputCls}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Timezone */}
+      <div>
+        <label className={labelCls}>Host timezone</label>
+        <select
+          value={config.timezone}
+          onChange={(e) => onChange({ ...config, timezone: e.target.value })}
+          className={inputCls}
+        >
+          {Intl.supportedValuesOf('timeZone').map((tz) => (
+            <option key={tz} value={tz}>{tz}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Availability Mode */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+          Availability Source
+        </p>
+        <div className="space-y-2">
+          {([
+            { value: 'custom', label: 'Custom (form-level)', desc: 'Set availability windows per form' },
+            { value: 'user', label: 'Host personal', desc: 'Use the form owner\'s personal availability' },
+            { value: 'team', label: 'Team (round-robin)', desc: 'Distribute across team members with load balancing' },
+          ] as const).map((opt) => (
+            <label key={opt.value}
+              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                availabilityMode === opt.value
+                  ? 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/10'
+                  : 'border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <input
+                type="radio" name="availMode" value={opt.value}
+                checked={availabilityMode === opt.value}
+                onChange={() => handleModeChange(opt.value)}
+                className="mt-0.5 accent-purple-600"
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{opt.label}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{opt.desc}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Team Members (only when team mode) */}
+      {availabilityMode === 'team' && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+            Team Members
+          </p>
+          {loadingUsers ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
+            </div>
+          ) : teamMembers.length === 0 ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400">No active users found</p>
+          ) : (
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {teamMembers.map((u) => (
+                <label key={u.id}
+                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
+                    selectedTeamUserIds.includes(u.id)
+                      ? 'bg-purple-50 dark:bg-purple-900/10'
+                      : 'hover:bg-gray-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedTeamUserIds.includes(u.id)}
+                    onChange={() => toggleTeamUser(u.id)}
+                    className="accent-purple-600"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-gray-900 dark:text-white truncate">
+                      {u.firstName} {u.lastName}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{u.email}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+          {selectedTeamUserIds.length > 0 && (
+            <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
+              {selectedTeamUserIds.length} member{selectedTeamUserIds.length !== 1 ? 's' : ''} selected
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Weekly Availability (only for custom mode) */}
+      {availabilityMode === 'custom' && <div>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            Weekly Availability
+          </p>
+          <button
+            onClick={handleSaveAvailability}
+            disabled={savingAvail}
+            className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg disabled:opacity-50"
+          >
+            {savingAvail
+              ? <Loader2 className="w-3 h-3 animate-spin" />
+              : availSaved
+              ? <><Clock className="w-3 h-3" /> Saved</>
+              : <><Clock className="w-3 h-3" /> Save</>}
+          </button>
+        </div>
+        <div className="space-y-2">
+          {DAY_LABELS_FULL.map((dayLabel, idx) => {
+            const dayOfWeek = idx === 0 ? 0 : idx;
+            const window = availability.find((w) => w.dayOfWeek === dayOfWeek) || {
+              dayOfWeek,
+              startTime: '09:00',
+              endTime: '17:00',
+              isActive: false,
+            };
+            const setWindow = (patch: Partial<BookingAvailabilityWindow>) => {
+              setAvailability((prev) => {
+                const exists = prev.some((w) => w.dayOfWeek === dayOfWeek);
+                const updated = { ...window, ...patch };
+                return exists
+                  ? prev.map((w) => w.dayOfWeek === dayOfWeek ? updated : w)
+                  : [...prev, updated];
+              });
+            };
+            return (
+              <div key={dayOfWeek} className={`flex items-center gap-2 p-2 rounded-lg ${window.isActive ? 'bg-purple-50 dark:bg-purple-900/10' : 'bg-gray-50 dark:bg-slate-700/30'}`}>
+                <button
+                  onClick={() => setWindow({ isActive: !window.isActive })}
+                  className={`w-8 h-8 rounded-full text-xs font-semibold flex-shrink-0 transition-colors ${
+                    window.isActive
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-200 dark:bg-slate-600 text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  {dayLabel.substring(0, 2)}
+                </button>
+                {window.isActive ? (
+                  <>
+                    <input
+                      type="time"
+                      value={window.startTime}
+                      onChange={(e) => setWindow({ startTime: e.target.value })}
+                      className="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 dark:text-white"
+                    />
+                    <span className="text-xs text-gray-400">–</span>
+                    <input
+                      type="time"
+                      value={window.endTime}
+                      onChange={(e) => setWindow({ endTime: e.target.value })}
+                      className="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 dark:text-white"
+                    />
+                  </>
+                ) : (
+                  <span className="text-xs text-gray-400 dark:text-slate-500">Unavailable</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>}
     </div>
   );
 }

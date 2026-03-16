@@ -728,4 +728,90 @@ export class UsersService {
 
     return { tree: roots, total: formatted.length };
   }
+
+  // ============================================================
+  // PROFILE STATS (for user profile page)
+  // ============================================================
+  async getProfileStats(schema: string, userId: string) {
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const monthStartIso = monthStart.toISOString();
+
+    const [leadsRow] = await this.dataSource.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE deleted_at IS NULL)::int AS total_leads,
+         COUNT(*) FILTER (WHERE deleted_at IS NULL AND converted_at IS NOT NULL)::int AS converted_leads,
+         COUNT(*) FILTER (WHERE deleted_at IS NULL AND created_at >= $2)::int AS leads_this_month
+       FROM "${schema}".leads WHERE owner_id = $1`,
+      [userId, monthStartIso],
+    );
+
+    const [oppsRow] = await this.dataSource.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE deleted_at IS NULL AND won_at IS NULL AND lost_at IS NULL)::int AS open_deals,
+         COUNT(*) FILTER (WHERE deleted_at IS NULL AND won_at IS NOT NULL)::int AS won_deals,
+         COALESCE(SUM(amount) FILTER (WHERE deleted_at IS NULL AND won_at IS NOT NULL AND won_at >= $2), 0)::numeric AS revenue_this_month
+       FROM "${schema}".opportunities WHERE owner_id = $1`,
+      [userId, monthStartIso],
+    );
+
+    const [tasksRow] = await this.dataSource.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE completed_at IS NULL AND deleted_at IS NULL)::int AS open_tasks,
+         COUNT(*) FILTER (WHERE completed_at IS NOT NULL AND deleted_at IS NULL AND completed_at >= $2)::int AS tasks_completed_this_month
+       FROM "${schema}".tasks WHERE assigned_to = $1 OR owner_id = $1`,
+      [userId, monthStartIso],
+    );
+
+    const [activitiesRow] = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS activities_this_month
+       FROM "${schema}".activities
+       WHERE performed_by = $1 AND created_at >= $2`,
+      [userId, monthStartIso],
+    );
+
+    const [projectsRow] = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS active_projects
+       FROM "${schema}".projects p
+       JOIN "${schema}".project_members pm ON pm.project_id = p.id
+       WHERE pm.user_id = $1 AND p.deleted_at IS NULL`,
+      [userId],
+    ).catch(() => [{ active_projects: 0 }]);
+
+    const [bookingsRow] = await this.dataSource.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'confirmed')::int AS total_bookings,
+         COUNT(*) FILTER (WHERE status = 'confirmed' AND start_time >= $2)::int AS bookings_this_month
+       FROM "${schema}".form_bookings WHERE host_user_id = $1`,
+      [userId, monthStartIso],
+    ).catch(() => [{ total_bookings: 0, bookings_this_month: 0 }]);
+
+    return {
+      leads: {
+        total: leadsRow.total_leads,
+        converted: leadsRow.converted_leads,
+        thisMonth: leadsRow.leads_this_month,
+      },
+      deals: {
+        open: oppsRow.open_deals,
+        won: oppsRow.won_deals,
+        revenueThisMonth: parseFloat(oppsRow.revenue_this_month) || 0,
+      },
+      tasks: {
+        open: tasksRow.open_tasks,
+        completedThisMonth: tasksRow.tasks_completed_this_month,
+      },
+      activities: {
+        thisMonth: activitiesRow.activities_this_month,
+      },
+      projects: {
+        active: projectsRow.active_projects,
+      },
+      bookings: {
+        total: bookingsRow.total_bookings,
+        thisMonth: bookingsRow.bookings_this_month,
+      },
+    };
+  }
 }

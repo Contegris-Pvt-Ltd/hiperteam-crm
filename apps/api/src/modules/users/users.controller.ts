@@ -230,4 +230,17 @@ export class UsersController {
   ) {
     return this.usersService.getDirectReports(req.user.tenantSchema, id);
   }
+
+  // ============================================================
+  // PROFILE STATS
+  // ============================================================
+  @Get(':id/profile-stats')
+  @RequirePermission('users', 'view')
+  @ApiOperation({ summary: 'Get activity and performance stats for a user profile page' })
+  async getProfileStats(
+    @Request() req: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.usersService.getProfileStats(req.user.tenantSchema, id);
+  }
 }

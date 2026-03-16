@@ -677,6 +677,35 @@ export class AuthService {
     }
   }
 
+  // ── Change Password (authenticated) ──────────────────────
+  async changePassword(
+    tenantSchema: string,
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('New password must be at least 8 characters');
+    }
+
+    const [user] = await this.dataSource.query(
+      `SELECT id, password_hash FROM "${tenantSchema}".users WHERE id = $1 AND deleted_at IS NULL`,
+      [userId],
+    );
+    if (!user) throw new BadRequestException('User not found');
+
+    const isValid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isValid) throw new BadRequestException('Current password is incorrect');
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+    await this.dataSource.query(
+      `UPDATE "${tenantSchema}".users SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+      [newHash, userId],
+    );
+
+    return { message: 'Password changed successfully' };
+  }
+
   private generateTokens(payload: JwtPayload) {
     return {
       accessToken: this.jwtService.sign(payload, { expiresIn: '1h' }),

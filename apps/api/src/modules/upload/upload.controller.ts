@@ -48,7 +48,7 @@ export class UploadController {
   )
   @ApiConsumes('multipart/form-data')
   async uploadAvatar(
-    @Param('entityType') entityType: 'contacts' | 'accounts',
+    @Param('entityType') entityType: 'contacts' | 'accounts' | 'users',
     @Param('entityId') entityId: string,
     @UploadedFile() file: Express.Multer.File,
     @Req() req: AuthenticatedRequest,

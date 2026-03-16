@@ -769,6 +769,87 @@ export class CalendarSyncService {
     };
   }
 
+  // ============================================================
+  // CREATE BOOKING EVENT (called from SchedulingService)
+  // Creates a Google Calendar event with Google Meet link.
+  // Returns { meetLink, googleEventId } or null if user has no connection.
+  // ============================================================
+  async createBookingEvent(
+    schemaName: string,
+    hostUserId: string,
+    dto: {
+      title: string;
+      description: string;
+      startTime: string;   // ISO string
+      endTime: string;     // ISO string
+      timezone: string;
+      inviteeEmail: string;
+      inviteeName: string;
+      location?: string;
+    },
+  ): Promise<{ meetLink: string | null; googleEventId: string | null }> {
+    const conn = await this.getRawConnection(schemaName, hostUserId);
+    if (!conn || !conn.is_active) {
+      return { meetLink: null, googleEventId: null };
+    }
+
+    try {
+      const accessToken = await this.getValidToken(schemaName, conn);
+
+      const event = {
+        summary: dto.title,
+        description: dto.description,
+        start: { dateTime: dto.startTime, timeZone: dto.timezone },
+        end: { dateTime: dto.endTime, timeZone: dto.timezone },
+        attendees: [{ email: dto.inviteeEmail, displayName: dto.inviteeName }],
+        location: dto.location || undefined,
+        conferenceData: {
+          createRequest: {
+            requestId: `booking-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            conferenceSolutionKey: { type: 'hangoutsMeet' },
+          },
+        },
+      };
+
+      const url = `${this.GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(conn.calendar_id)}/events?conferenceDataVersion=1&sendUpdates=all`;
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(event),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        this.logger.warn(`Google Calendar booking event creation failed: ${errText}`);
+        return { meetLink: null, googleEventId: null };
+      }
+
+      const created = await res.json();
+
+      const meetLink: string | null =
+        created.conferenceData?.entryPoints?.find(
+          (e: any) => e.entryPointType === 'video',
+        )?.uri || created.hangoutLink || null;
+
+      const googleEventId: string | null = created.id || null;
+
+      this.logger.log(
+        `Booking calendar event created for ${hostUserId}: ${googleEventId}, Meet: ${meetLink}`,
+      );
+
+      return { meetLink, googleEventId };
+    } catch (err: any) {
+      this.logger.warn(
+        `createBookingEvent failed for user ${hostUserId}: ${err.message}`,
+      );
+      return { meetLink: null, googleEventId: null };
+    }
+  }
+
   private formatEvent(e: any): CalendarEvent {
     // Extract htmlLink from stored raw Google response
     let htmlLink: string | null = null;

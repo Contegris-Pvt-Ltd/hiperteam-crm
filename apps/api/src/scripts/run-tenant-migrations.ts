@@ -2935,6 +2935,130 @@ async function runTenantMigrations() {
                 ON "${schema}".users(is_api_user) WHERE is_api_user = true;
             `,
           },
+          {
+            name: '051_meeting_scheduling',
+            sql: `
+              -- 1. Extend forms table with type + meeting_config
+              ALTER TABLE "${schema}".forms
+                ADD COLUMN IF NOT EXISTS type VARCHAR(20) NOT NULL DEFAULT 'standard';
+
+              ALTER TABLE "${schema}".forms
+                ADD COLUMN IF NOT EXISTS meeting_config JSONB NOT NULL DEFAULT '{}';
+
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_constraint
+                  WHERE conname = 'chk_forms_type'
+                    AND conrelid = '"${schema}".forms'::regclass
+                ) THEN
+                  ALTER TABLE "${schema}".forms
+                    ADD CONSTRAINT chk_forms_type
+                    CHECK (type IN ('standard', 'meeting_booking'));
+                END IF;
+              END $$;
+
+              CREATE INDEX IF NOT EXISTS idx_forms_type
+                ON "${schema}".forms(type) WHERE deleted_at IS NULL;
+
+              -- 2. Weekly availability windows per meeting booking form
+              CREATE TABLE IF NOT EXISTS "${schema}".form_booking_availability (
+                id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                form_id         UUID NOT NULL REFERENCES "${schema}".forms(id) ON DELETE CASCADE,
+                day_of_week     SMALLINT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+                start_time      TIME NOT NULL,
+                end_time        TIME NOT NULL,
+                is_active       BOOLEAN NOT NULL DEFAULT true
+              );
+              CREATE INDEX IF NOT EXISTS idx_fba_form_id
+                ON "${schema}".form_booking_availability(form_id);
+
+              -- 3. Confirmed bookings
+              CREATE TABLE IF NOT EXISTS "${schema}".form_bookings (
+                id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                form_id          UUID NOT NULL REFERENCES "${schema}".forms(id) ON DELETE CASCADE,
+                host_user_id     UUID REFERENCES "${schema}".users(id) ON DELETE SET NULL,
+                invitee_name     VARCHAR(255) NOT NULL,
+                invitee_email    VARCHAR(255) NOT NULL,
+                invitee_phone    VARCHAR(50),
+                invitee_notes    TEXT,
+                answers          JSONB NOT NULL DEFAULT '{}',
+                start_time       TIMESTAMPTZ NOT NULL,
+                end_time         TIMESTAMPTZ NOT NULL,
+                timezone         VARCHAR(100) NOT NULL DEFAULT 'UTC',
+                status           VARCHAR(20) NOT NULL DEFAULT 'confirmed'
+                  CHECK (status IN ('confirmed', 'cancelled', 'rescheduled', 'no_show')),
+                location_type    VARCHAR(30),
+                location_value   TEXT,
+                cancel_token     VARCHAR(100),
+                reschedule_token VARCHAR(100),
+                crm_lead_id      UUID,
+                crm_contact_id   UUID,
+                crm_task_id      UUID,
+                google_event_id  TEXT,
+                cancelled_at     TIMESTAMPTZ,
+                cancelled_by     VARCHAR(20),
+                cancel_reason    TEXT,
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_form_bookings_form_id
+                ON "${schema}".form_bookings(form_id);
+              CREATE INDEX IF NOT EXISTS idx_form_bookings_host
+                ON "${schema}".form_bookings(host_user_id);
+              CREATE INDEX IF NOT EXISTS idx_form_bookings_start
+                ON "${schema}".form_bookings(start_time);
+              CREATE INDEX IF NOT EXISTS idx_form_bookings_status
+                ON "${schema}".form_bookings(status);
+              CREATE UNIQUE INDEX IF NOT EXISTS idx_form_bookings_cancel_token
+                ON "${schema}".form_bookings(cancel_token)
+                WHERE cancel_token IS NOT NULL;
+            `,
+          },
+          {
+            name: '052_user_availability_and_booking_meet',
+            sql: `
+              -- 1. Personal weekly availability per user
+              CREATE TABLE IF NOT EXISTS "${schema}".user_availability (
+                id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id      UUID NOT NULL REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+                day_of_week  SMALLINT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+                start_time   TIME NOT NULL DEFAULT '09:00',
+                end_time     TIME NOT NULL DEFAULT '17:00',
+                is_active    BOOLEAN NOT NULL DEFAULT true,
+                UNIQUE(user_id, day_of_week)
+              );
+              CREATE INDEX IF NOT EXISTS idx_user_availability_user
+                ON "${schema}".user_availability(user_id);
+
+              -- Seed Mon-Fri 9-5 for all existing users
+              INSERT INTO "${schema}".user_availability
+                (user_id, day_of_week, start_time, end_time, is_active)
+              SELECT u.id, d.dow, '09:00'::TIME, '17:00'::TIME,
+                     CASE WHEN d.dow BETWEEN 1 AND 5 THEN true ELSE false END
+              FROM "${schema}".users u
+              CROSS JOIN (SELECT generate_series(0,6) AS dow) d
+              WHERE u.deleted_at IS NULL
+              ON CONFLICT (user_id, day_of_week) DO NOTHING;
+
+              -- 2. Extend form_bookings with Meet link + Google Calendar event
+              ALTER TABLE "${schema}".form_bookings
+                ADD COLUMN IF NOT EXISTS meet_link TEXT,
+                ADD COLUMN IF NOT EXISTS google_calendar_event_id TEXT;
+
+              -- 3. Profile permission for all system roles
+              UPDATE "${schema}".roles SET
+                permissions = permissions || '{"profile":{"view":true,"edit":true}}'::jsonb
+              WHERE name = 'admin' AND NOT (permissions ? 'profile');
+
+              UPDATE "${schema}".roles SET
+                permissions = permissions || '{"profile":{"view":true,"edit":true}}'::jsonb
+              WHERE name = 'manager' AND NOT (permissions ? 'profile');
+
+              UPDATE "${schema}".roles SET
+                permissions = permissions || '{"profile":{"view":true,"edit":false}}'::jsonb
+              WHERE name = 'user' AND NOT (permissions ? 'profile');
+            `,
+          },
         ];
 
         // ── Execute pending migrations ────────────────────────────

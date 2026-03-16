@@ -90,8 +90,9 @@ export class FormsService {
     const [row] = await this.dataSource.query(
       `INSERT INTO "${schemaName}".forms
         (name, description, slug, status, fields, settings, submit_actions, branding,
-         token, tenant_slug, is_landing_page, landing_page_config, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
+         token, tenant_slug, is_landing_page, landing_page_config,
+         type, meeting_config, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
        RETURNING *`,
       [
         data.name,
@@ -106,6 +107,8 @@ export class FormsService {
         tenantSlug,
         data.isLandingPage ?? false,
         JSON.stringify(data.landingPageConfig || {}),
+        data.type || 'standard',
+        JSON.stringify(data.meetingConfig || {}),
         userId,
       ],
     );
@@ -138,7 +141,9 @@ export class FormsService {
         branding = COALESCE($9, branding),
         is_landing_page = COALESCE($10, is_landing_page),
         landing_page_config = COALESCE($11, landing_page_config),
-        updated_by = $12,
+        type = COALESCE($12, type),
+        meeting_config = COALESCE($13, meeting_config),
+        updated_by = $14,
         updated_at = NOW()
        WHERE id = $1 AND deleted_at IS NULL
        RETURNING *`,
@@ -154,6 +159,8 @@ export class FormsService {
         data.branding ? JSON.stringify(data.branding) : null,
         data.isLandingPage ?? null,
         data.landingPageConfig ? JSON.stringify(data.landingPageConfig) : null,
+        data.type ?? null,
+        data.meetingConfig ? JSON.stringify(data.meetingConfig) : null,
         userId,
       ],
     );
@@ -754,6 +761,9 @@ export class FormsService {
       token: r.token,
       tenantSlug: r.tenant_slug,
       submissionCount: r.submission_count,
+      type: r.type || 'standard',
+      meetingConfig: typeof r.meeting_config === 'string'
+        ? JSON.parse(r.meeting_config) : (r.meeting_config || {}),
       isLandingPage: r.is_landing_page ?? false,
       landingPageConfig: typeof r.landing_page_config === 'string'
         ? JSON.parse(r.landing_page_config) : (r.landing_page_config ?? {}),

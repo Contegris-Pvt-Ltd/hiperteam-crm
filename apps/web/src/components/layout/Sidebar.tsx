@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useSidebarStore } from '../../stores/sidebar.store';
 import {
@@ -38,7 +38,7 @@ const navigation = [
   { name: 'Inbox', href: '/inbox', icon: Mail },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Approvals', href: '/approvals', icon: ClipboardCheck },
-  { name: 'Forms', href: '/forms', icon: FileText },
+  { name: 'Engagement', href: '/engagement/forms', icon: FileText },
   { name: 'Workflows', href: '/workflows', icon: Zap },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
 ];
@@ -90,7 +90,10 @@ export function Sidebar() {
           </p>
         )}
         {navigation.map((item) => {
-          const isActive = location.pathname === item.href;
+          const isActive = item.href === '/'
+            ? location.pathname === '/'
+            : location.pathname === item.href || location.pathname.startsWith(item.href + '/')
+              || (item.href.startsWith('/engagement/') && location.pathname.startsWith('/engagement/'));
           return (
             <NavLink
               key={item.name}
@@ -150,21 +153,40 @@ export function Sidebar() {
         )}
       </nav>
 
-      {/* Collapse Toggle - Desktop Only */}
-      <div className="hidden lg:block p-3 border-t border-slate-700/50">
-        <button
-          onClick={toggle}
-          className={`flex items-center gap-2 w-full px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all ${isCollapsed ? 'justify-center' : ''}`}
+      {/* User Profile + Collapse Toggle */}
+      <div className="border-t border-slate-700/50">
+        <Link
+          to="/profile"
+          className={`flex items-center gap-3 px-4 py-3 hover:bg-slate-700/50 transition-colors rounded-lg mx-2 mt-2 ${isCollapsed ? 'justify-center' : ''}`}
+          title="My Profile"
         >
-          {isCollapsed ? (
-            <ChevronRight className="w-5 h-5" />
-          ) : (
-            <>
-              <ChevronLeft className="w-5 h-5" />
-              <span className="text-sm">Collapse</span>
-            </>
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+            {user?.firstName?.[0]}{user?.lastName?.[0]}
+          </div>
+          {!isCollapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-white truncate">
+                {user?.firstName} {user?.lastName}
+              </p>
+              <p className="text-xs text-slate-400 truncate">{user?.email || tenant?.name}</p>
+            </div>
           )}
-        </button>
+        </Link>
+        <div className="hidden lg:block px-3 pb-3 pt-1">
+          <button
+            onClick={toggle}
+            className={`flex items-center gap-2 w-full px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all ${isCollapsed ? 'justify-center' : ''}`}
+          >
+            {isCollapsed ? (
+              <ChevronRight className="w-5 h-5" />
+            ) : (
+              <>
+                <ChevronLeft className="w-5 h-5" />
+                <span className="text-sm">Collapse</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </>
   );
