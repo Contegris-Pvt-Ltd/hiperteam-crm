@@ -3,7 +3,8 @@
 // Event bus + tab filter state for the dashboard.
 // v1: filter state only. Cross-widget click filtering in v2.
 // ============================================================
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import { DATE_RANGE_OPTIONS } from '../../api/dashboard-layout.api';
 import type { DashboardTabFilters } from '../../api/dashboard-layout.api';
 

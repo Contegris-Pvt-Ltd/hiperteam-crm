@@ -4,8 +4,8 @@
 // ============================================================
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import GridLayout from 'react-grid-layout';
-import type { Layout } from 'react-grid-layout';
+import GridLayout from 'react-grid-layout/legacy';
+import type { LayoutItem } from 'react-grid-layout/legacy';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import {
@@ -84,7 +84,7 @@ export function SharedDashboardPage() {
     }
   };
 
-  const layout: Layout[] = widgets.map(w => ({
+  const layout: LayoutItem[] = widgets.map(w => ({
     i: w.id,
     x: w.position.x,
     y: w.position.y,

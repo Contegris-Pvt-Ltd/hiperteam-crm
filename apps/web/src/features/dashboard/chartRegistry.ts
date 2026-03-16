@@ -2,9 +2,9 @@
 // FILE: apps/web/src/features/dashboard/chartRegistry.ts
 // ============================================================
 import {
-  BarChart3, TrendingUp, PieChart, Activity, Target,
+  BarChart3, TrendingUp, PieChart, Activity,
   Table2, Grid3X3, ScatterChart, Layers, Gauge,
-  LayoutDashboard, Users, TrendingDown,
+  TrendingDown,
 } from 'lucide-react';
 
 export interface ChartTypeDefinition {

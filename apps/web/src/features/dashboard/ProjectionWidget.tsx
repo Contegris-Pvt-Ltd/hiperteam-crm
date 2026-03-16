@@ -140,7 +140,7 @@ export function ProjectionWidget({ data, displayConfig, loading }: ProjectionWid
             <XAxis dataKey="name" tick={{ fontSize: 10 }} />
             <YAxis tick={{ fontSize: 10 }} tickFormatter={v => fmt(v, measureCol?.format)} width={45} />
             <Tooltip
-              formatter={(val: any, name: string) => [fmt(Number(val), measureCol?.format), name]}
+              formatter={(val: any, name: string | undefined) => [fmt(Number(val), measureCol?.format), name || '']}
               cursor={{ fill: '#f8fafc' }}
             />
             <Legend wrapperStyle={{ fontSize: 10 }} />

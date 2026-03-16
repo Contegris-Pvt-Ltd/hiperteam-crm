@@ -35,7 +35,7 @@ interface ChartProps {
   data: Record<string, any>[];
   columns: ReportColumn[];
   chartType: string;
-  height?: number | string;
+  height?: number | `${number}%`;
   compact?: boolean;
 }
 
@@ -680,7 +680,8 @@ function HeatmapRenderer({ data, columns, height, compact: _compact }: Omit<Char
     return `rgba(${r},${g},${b},${alpha})`;
   };
 
-  const cellHeight = Math.max(28, Math.floor((height - 60) / Math.max(yVals.length, 1)));
+  const numHeight = typeof height === 'number' ? height : 300;
+  const cellHeight = Math.max(28, Math.floor((numHeight - 60) / Math.max(yVals.length, 1)));
   const cellWidth = Math.max(40, Math.floor(500 / Math.max(xVals.length, 1)));
 
   return (
@@ -776,7 +777,7 @@ function TreemapRenderer({ data, columns, height, compact: _compact }: Omit<Char
             style={{
               width: `calc(${Math.min(displayPct, 100)}% - 4px)`,
               minWidth: 60,
-              height: Math.max(50, Math.min(120, (pct / 100) * height * 2)),
+              height: Math.max(50, Math.min(120, (pct / 100) * (typeof height === 'number' ? height : 300) * 2)),
               backgroundColor: COLORS[i % COLORS.length],
               padding: 4,
             }}

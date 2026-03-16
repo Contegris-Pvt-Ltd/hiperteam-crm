@@ -4,12 +4,12 @@
 // widget builder panel, tab-level filters.
 // ============================================================
 import { useState, useEffect, useCallback, useRef } from 'react';
-import GridLayout from 'react-grid-layout';
-import type { Layout } from 'react-grid-layout';
+import GridLayout from 'react-grid-layout/legacy';
+import type { Layout, LayoutItem } from 'react-grid-layout/legacy';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import {
-  Plus, Edit3, Check, X, Trash2, MoreHorizontal,
+  Plus, Edit3, Check, X, MoreHorizontal,
   ChevronDown, LayoutDashboard, Filter, RefreshCw,
   PlusCircle, AlertTriangle, Download, Upload, Share2,
   FileImage, FileText, Loader2,
@@ -300,7 +300,7 @@ function DashboardInner({
   }, [dashboard.id]);
 
   // Build react-grid-layout layout from widgets
-  const layout: Layout[] = widgets.map(w => {
+  const layout: LayoutItem[] = widgets.map(w => {
     const isScorecard = w.widgetType === 'scorecard';
     return {
       i: w.id,
@@ -330,7 +330,7 @@ function DashboardInner({
   // Track whether user has actually dragged/resized (vs. layout change from entering edit mode)
   const userInteractedRef = useRef(false);
 
-  const handleLayoutChange = useCallback((newLayout: Layout[]) => {
+  const handleLayoutChange = useCallback((newLayout: Layout) => {
     if (!isEditMode) return;
     // Only update local positions if user has actually interacted (drag/resize)
     if (!userInteractedRef.current) return;
@@ -346,7 +346,7 @@ function DashboardInner({
 
   // Save positions when drag or resize finishes — use the full layout array
   // which has ALL widgets' final positions (including pushed/shifted ones)
-  const handleDragResizeStop = useCallback((finalLayout: Layout[]) => {
+  const handleDragResizeStop = useCallback((finalLayout: Layout) => {
     if (!isEditMode) return;
     userInteractedRef.current = true;
 
@@ -866,9 +866,8 @@ function TabBar({
 // ── Main exported component ───────────────────────────────────
 
 export function DashboardPage() {
-  const { canCreate, canEdit, canDelete } = usePermissions();
+  const { canCreate, canDelete } = usePermissions();
   const canCreateDashboard = canCreate('reports');
-  const canEditDashboard = canEdit('reports');
   const canDeleteDashboard = canDelete('reports');
 
   const [dashboards, setDashboards] = useState<UserDashboard[]>([]);

@@ -30,8 +30,8 @@ interface ScorecardWidgetProps {
 // Count-up animation hook
 function useCountUp(target: number, duration = 800) {
   const [count, setCount] = useState(0);
-  const rafRef = useRef<number>();
-  const startRef = useRef<number>();
+  const rafRef = useRef<number | undefined>(undefined);
+  const startRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!target) { setCount(0); return; }
@@ -150,7 +150,7 @@ function ScorecardItem({
   pctChange,
   showTrend,
   targetPct,
-  targetValue,
+  targetValue: _targetValue,
   targetLabel,
   fontSize = 'auto',
   fontColor,
