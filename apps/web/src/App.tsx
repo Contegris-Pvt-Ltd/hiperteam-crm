@@ -11,13 +11,8 @@ import { ContactsPage, ContactDetailPage, ContactEditPage } from './features/con
 import { AccountsPage, AccountDetailPage, AccountEditPage } from './features/accounts';
 import { ProductsPage, ProductDetailPage, ProductEditPage, PriceBooksPage } from './features/products';
 import { AdminLayout } from './features/admin/AdminLayout';
-import { CustomFieldsPage } from './features/admin/CustomFieldsPage';
 import { ProfileCompletionPage } from './features/admin/ProfileCompletionPage';
-import { FormLayoutPage } from './features/admin/FormLayoutPage';
-import { LayoutBuilderPage } from './features/admin/LayoutBuilderPage';
-import { FormDesignerPage } from './features/admin/FormDesignerPage';
 import { PageDesignerPage } from './features/admin/PageDesignerPage';
-import { ModuleLayoutSettingsPage } from './features/admin/ModuleLayoutSettingsPage';
 import { UsersPage, UserDetailPage, UserEditPage } from './features/users';
 import { DepartmentsPage } from './features/departments';
 import { TeamsPage } from './features/teams';
@@ -66,6 +61,7 @@ import { WorkflowListPage } from './features/workflows/WorkflowListPage';
 import { WorkflowBuilderPage } from './features/workflows/WorkflowBuilderPage';
 import { WorkflowRunsPage } from './features/workflows/WorkflowRunsPage';
 import { ApiKeysPage } from './features/admin/ApiKeysPage';
+import { FormFieldOrderPage } from './features/admin/FormFieldOrderPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -198,14 +194,15 @@ function App() {
 
         {/* Admin Routes - Outside main layout */}
         <Route path="/admin" element={<PrivateRoute><AdminLayout /></PrivateRoute>}>
-          <Route index element={<Navigate to="/admin/custom-fields" replace />} />
-          <Route path="custom-fields" element={<CustomFieldsPage />} />
+          <Route index element={<Navigate to="/admin/form-builder" replace />} />
+          <Route path="custom-fields" element={<Navigate to="/admin/form-builder" replace />} />
           <Route path="profile-completion" element={<ProfileCompletionPage />} />
-          <Route path="form-layout" element={<FormLayoutPage />} />
-          <Route path="layout-builder" element={<LayoutBuilderPage />} />
-          <Route path="form-designer" element={<FormDesignerPage />} />
-          <Route path="page-designer" element={<PageDesignerPage />} />
-          <Route path="module-layout-settings" element={<ModuleLayoutSettingsPage />} />
+          <Route path="layout-designer" element={<PageDesignerPage />} />
+          <Route path="page-designer" element={<Navigate to="/admin/layout-designer" replace />} />
+          <Route path="module-layout-settings" element={<Navigate to="/admin/layout-designer" replace />} />
+          <Route path="layout-builder" element={<Navigate to="/admin/form-builder" replace />} />
+          <Route path="form-designer" element={<Navigate to="/admin/form-builder" replace />} />
+          <Route path="form-field-order" element={<Navigate to="/admin/form-builder" replace />} />
           <Route path="audit-logs" element={<AuditLogViewer />} />
           <Route path="lead-settings" element={<LeadSettingsPage />} />
           <Route path="opportunity-settings" element={<OpportunitySettingsPage />} />
@@ -219,6 +216,7 @@ function App() {
           <Route path="general-settings" element={<GeneralSettingsPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="api-keys" element={<ApiKeysPage />} />
+          <Route path="form-builder" element={<FormFieldOrderPage />} />
           <Route path="xero-matching" element={<XeroContactMatchingPage />} />
           <Route path="xero/callback" element={<XeroCallbackPage />} />
         </Route>

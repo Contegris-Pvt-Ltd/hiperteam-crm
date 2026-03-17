@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Settings, ListPlus, BarChart3, Users, Building2, Shield, ShieldCheck,
-  Target, Briefcase, LayoutGrid, ArrowLeft, LayoutTemplate, ClipboardList,
-  CheckSquare, Bell, Award, FileSpreadsheet, Plug, FolderKanban, Key,
+import { Settings, BarChart3, Users, Building2, Shield, ShieldCheck,
+  Target, Briefcase, ArrowLeft, LayoutTemplate, ClipboardList,
+  CheckSquare, Bell, Award, FileSpreadsheet, Plug, FolderKanban, Key, ArrowUpDown,
 } from 'lucide-react';
 
 const adminNavItems = [
@@ -12,46 +12,22 @@ const adminNavItems = [
     description: 'Company profile, industries & picklists',
   },
   {
-    label: 'Custom Fields',
-    path: '/admin/custom-fields',
-    icon: ListPlus,
-    description: 'Manage custom fields for all modules'
-  },
-  { 
-    label: 'Profile Completion', 
+    label: 'Profile Completion',
     path: '/admin/profile-completion',
     icon: BarChart3,
     description: 'Configure profile completion weights'
   },
-  /*{ 
-    label: 'Form Layout', 
-    path: '/admin/form-layout',
-    icon: LayoutGrid,
-    description: 'Organize fields into tabs and groups'
-  },*/
-  { 
-    label: 'Layout Builder', 
-    path: '/admin/layout-builder', 
-    icon: LayoutGrid,
-    description: 'Organize fields into tabs and groups'
+  {
+    label: 'Form Builder',
+    path: '/admin/form-builder',
+    icon: ArrowUpDown,
+    description: 'Organize fields, ordering & custom fields',
   },
-  { 
-    label: 'Form Designer', 
-    path: '/admin/form-designer', 
-    icon: LayoutGrid, 
-    description: "Design and organize your own custom fields into tabs and groups" 
-  },
-  { 
-    label: 'Page Designer', 
-    path: '/admin/page-designer', 
+  {
+    label: 'Layout Designer',
+    path: '/admin/layout-designer',
     icon: LayoutTemplate,
-    description: 'Design custom page layouts'
-  },
-  { 
-    label: 'Module Layouts', 
-    path: '/admin/module-layout-settings', 
-    icon: LayoutTemplate,
-    description: 'Choose your Layouts'
+    description: 'Design custom page layouts',
   },
   {
     label: 'Org Chart',
@@ -209,7 +185,7 @@ export function AdminLayout() {
                   {Object.entries(moduleIcons).map(([module, Icon]) => (
                     <NavLink
                       key={module}
-                      to={`/admin/custom-fields?module=${module}`}
+                      to={`/admin/form-builder?module=${module}`}
                       className="flex items-center gap-3 px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                     >
                       <Icon className="w-4 h-4" />

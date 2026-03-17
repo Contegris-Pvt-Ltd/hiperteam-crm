@@ -20,9 +20,11 @@ import type { CustomField, CustomTab, CustomFieldGroup } from '../../api/admin.a
 import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer';
 import { useModuleLayout } from '../../hooks/useModuleLayout';
 import { useIndustries } from '../../hooks/useIndustries';
+import { useFormFieldOrder } from '../../hooks/useFormFieldOrder';
 import { teamsApi } from '../../api/teams.api';
 import type { TeamLookupItem } from '../../api/teams.api';
 import { moduleSettingsApi } from '../../api/module-settings.api';
+import { StageFieldInput } from '../../components/shared/StageFieldInput';
 import type { FieldValidationConfig } from '../../api/module-settings.api';
 import { validateFields } from '../../utils/field-validation';
 
@@ -86,6 +88,21 @@ export function OpportunityEditPage() {
 
   // Page Designer hook
   const { useCustomLayout: _useCustomLayout, loading: _layoutLoading } = useModuleLayout('opportunities', isNew ? 'create' : 'edit');
+
+  // Field ordering
+  const { getOrderedFields } = useFormFieldOrder('opportunities');
+
+  /** Helper: returns { visible: Set<string>, idx: (key) => number } for a tab */
+  const fieldOrder = (tab: string, defaults: string[]) => {
+    const ordered = getOrderedFields(tab, defaults);
+    return {
+      visible: new Set(ordered),
+      idx: (key: string) => {
+        const i = ordered.indexOf(key);
+        return i >= 0 ? i : 999;
+      },
+    };
+  };
 
   // Form data
   const [formData, setFormData] = useState<CreateOpportunityData>({
@@ -559,11 +576,14 @@ export function OpportunityEditPage() {
       {/* Tab Content */}
       <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
         {/* ── Basic Info Tab ── */}
-        {activeTab === 'basic' && (
+        {activeTab === 'basic' && (() => {
+          const bo = fieldOrder('basic', ['name', 'accountId', 'primaryContactId', 'amount', 'closeDate', 'ownerId', 'teamId', 'type', 'industry', 'description']);
+          return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Name */}
-              <div className="md:col-span-2">
+              {bo.visible.has('name') && (
+              <div className="md:col-span-2" style={{ order: bo.idx('name') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
                   Opportunity Name <span className="text-red-500">*</span>
                 </label>
@@ -575,9 +595,11 @@ export function OpportunityEditPage() {
                   className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800"
                 />
               </div>
+              )}
 
               {/* Account (search) */}
-              <div>
+              {bo.visible.has('accountId') && (
+              <div style={{ order: bo.idx('accountId') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Account</label>
                 {selectedAccount ? (
                   <div className="flex items-center gap-2 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
@@ -617,9 +639,11 @@ export function OpportunityEditPage() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Primary Contact (search) */}
-              <div>
+              {bo.visible.has('primaryContactId') && (
+              <div style={{ order: bo.idx('primaryContactId') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Primary Contact</label>
                 {selectedContact ? (
                   <div className="flex items-center gap-2 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
@@ -659,9 +683,11 @@ export function OpportunityEditPage() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Amount */}
-              <div>
+              {bo.visible.has('amount') && (
+              <div style={{ order: bo.idx('amount') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Amount</label>
                 <input
                   type="number"
@@ -671,9 +697,11 @@ export function OpportunityEditPage() {
                   className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800"
                 />
               </div>
+              )}
 
               {/* Close Date */}
-              <div>
+              {bo.visible.has('closeDate') && (
+              <div style={{ order: bo.idx('closeDate') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Close Date</label>
                 <input
                   type="date"
@@ -682,9 +710,11 @@ export function OpportunityEditPage() {
                   className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800"
                 />
               </div>
+              )}
 
               {/* Owner */}
-              <div>
+              {bo.visible.has('ownerId') && (
+              <div style={{ order: bo.idx('ownerId') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Owner</label>
                 <select
                   value={formData.ownerId || ''}
@@ -697,10 +727,11 @@ export function OpportunityEditPage() {
                   ))}
                 </select>
               </div>
+              )}
 
               {/* Team */}
-              {teams.length > 0 && (
-                <div>
+              {teams.length > 0 && bo.visible.has('teamId') && (
+                <div style={{ order: bo.idx('teamId') }}>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Team</label>
                   <select
                     value={formData.teamId || ''}
@@ -716,7 +747,8 @@ export function OpportunityEditPage() {
               )}
 
               {/* Type */}
-              <div>
+              {bo.visible.has('type') && (
+              <div style={{ order: bo.idx('type') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Type</label>
                 <select
                   value={formData.type || ''}
@@ -727,9 +759,11 @@ export function OpportunityEditPage() {
                   {OPPORTUNITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
+              )}
 
               {/* Industry */}
-              <div>
+              {bo.visible.has('industry') && (
+              <div style={{ order: bo.idx('industry') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Industry</label>
                 <select
                   value={formData.industry || ''}
@@ -740,10 +774,12 @@ export function OpportunityEditPage() {
                   {industries.map(i => <option key={i.id} value={i.name}>{i.name}</option>)}
                 </select>
               </div>
+              )}
             </div>
 
             {/* Description */}
-            <div>
+            {bo.visible.has('description') && (
+            <div style={{ order: bo.idx('description') }}>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Description</label>
               <textarea
                 value={formData.description || ''}
@@ -752,17 +788,22 @@ export function OpportunityEditPage() {
                 className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 resize-none"
               />
             </div>
+            )}
 
             {renderCustomFieldsForSection('basic')}
           </div>
-        )}
+          );
+        })()}
 
         {/* ── Deal Details Tab ── */}
-        {activeTab === 'deal-details' && (
+        {activeTab === 'deal-details' && (() => {
+          const ddo = fieldOrder('deal-details', ['pipelineId', 'stageId', 'probability', 'priorityId', 'forecastCategory', 'source', 'nextStep', 'competitor', 'tags']);
+          return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Pipeline */}
-              <div>
+              {ddo.visible.has('pipelineId') && (
+              <div style={{ order: ddo.idx('pipelineId') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
                   Pipeline <span className="text-red-500">*</span>
                 </label>
@@ -777,9 +818,11 @@ export function OpportunityEditPage() {
                   ))}
                 </select>
               </div>
+              )}
 
               {/* Stage */}
-              <div>
+              {ddo.visible.has('stageId') && (
+              <div style={{ order: ddo.idx('stageId') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
                   Stage <span className="text-red-500">*</span>
                 </label>
@@ -796,9 +839,11 @@ export function OpportunityEditPage() {
                   ))}
                 </select>
               </div>
+              )}
 
               {/* Probability */}
-              <div>
+              {ddo.visible.has('probability') && (
+              <div style={{ order: ddo.idx('probability') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Probability (%)</label>
                 <input
                   type="number"
@@ -810,9 +855,11 @@ export function OpportunityEditPage() {
                   className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800"
                 />
               </div>
+              )}
 
               {/* Priority */}
-              <div>
+              {ddo.visible.has('priorityId') && (
+              <div style={{ order: ddo.idx('priorityId') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Priority</label>
                 <select
                   value={formData.priorityId || ''}
@@ -825,9 +872,11 @@ export function OpportunityEditPage() {
                   ))}
                 </select>
               </div>
+              )}
 
               {/* Forecast Category */}
-              <div>
+              {ddo.visible.has('forecastCategory') && (
+              <div style={{ order: ddo.idx('forecastCategory') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Forecast Category</label>
                 <select
                   value={formData.forecastCategory || ''}
@@ -842,9 +891,11 @@ export function OpportunityEditPage() {
                   <option value="Omitted">Omitted</option>
                 </select>
               </div>
+              )}
 
               {/* Source */}
-              <div>
+              {ddo.visible.has('source') && (
+              <div style={{ order: ddo.idx('source') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Source</label>
                 <select
                   value={formData.source || ''}
@@ -855,9 +906,11 @@ export function OpportunityEditPage() {
                   {sources.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                 </select>
               </div>
+              )}
 
               {/* Next Step */}
-              <div>
+              {ddo.visible.has('nextStep') && (
+              <div style={{ order: ddo.idx('nextStep') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Next Step</label>
                 <input
                   type="text"
@@ -867,9 +920,11 @@ export function OpportunityEditPage() {
                   className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800"
                 />
               </div>
+              )}
 
               {/* Competitor */}
-              <div>
+              {ddo.visible.has('competitor') && (
+              <div style={{ order: ddo.idx('competitor') }}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Competitor</label>
                 <input
                   type="text"
@@ -878,10 +933,12 @@ export function OpportunityEditPage() {
                   className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800"
                 />
               </div>
+              )}
             </div>
 
             {/* Tags */}
-            <div>
+            {ddo.visible.has('tags') && (
+            <div style={{ order: ddo.idx('tags') }}>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Tags</label>
               <div className="flex flex-wrap gap-1 mb-2">
                 {(formData.tags || []).map(tag => (
@@ -905,10 +962,12 @@ export function OpportunityEditPage() {
                 </button>
               </div>
             </div>
+            )}
 
             {renderCustomFieldsForSection('deal-details')}
           </div>
-        )}
+          );
+        })()}
 
         {/* ── Other Tab ── */}
         {activeTab === 'other' && (
@@ -964,14 +1023,15 @@ export function OpportunityEditPage() {
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
                     {f.fieldLabel} <span className="text-red-500">*</span>
                   </label>
-                  {f.fieldType === 'date' ? (
-                    <input type="date" value={stageFieldValues[f.fieldKey] || ''} onChange={(e) => setStageFieldValues(prev => ({ ...prev, [f.fieldKey]: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800" />
-                  ) : f.fieldType === 'number' ? (
-                    <input type="number" value={stageFieldValues[f.fieldKey] || ''} onChange={(e) => setStageFieldValues(prev => ({ ...prev, [f.fieldKey]: e.target.value ? Number(e.target.value) : '' }))} className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800" />
-                  ) : (
-                    <input type="text" value={stageFieldValues[f.fieldKey] || ''} onChange={(e) => setStageFieldValues(prev => ({ ...prev, [f.fieldKey]: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800" />
-                  )}
-                  {stageFieldErrors[f.fieldKey] && <p className="text-xs text-red-500 mt-1">{stageFieldErrors[f.fieldKey]}</p>}
+                  <StageFieldInput
+                    fieldKey={f.fieldKey}
+                    fieldLabel={f.fieldLabel}
+                    fieldType={f.fieldType}
+                    value={stageFieldValues[f.fieldKey]}
+                    error={stageFieldErrors[f.fieldKey]}
+                    onChange={(val) => setStageFieldValues(prev => ({ ...prev, [f.fieldKey]: val }))}
+                    onClearError={() => setStageFieldErrors(prev => { const n = { ...prev }; delete n[f.fieldKey]; return n; })}
+                  />
                 </div>
               ))}
             </div>

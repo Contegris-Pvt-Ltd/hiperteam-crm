@@ -37,6 +37,7 @@ import { PhoneInput } from '../../components/shared/PhoneInput';
 import { CountrySelect } from '../../components/shared/CountrySelect';
 import { CitySelect } from '../../components/shared/CitySelect';
 import { useGeneralSettings } from '../../hooks/useGeneralSettings';
+import { useFormFieldOrder } from '../../hooks/useFormFieldOrder';
 import { COUNTRIES, getCountryCodeByName } from '../../data/countries';
 
 type TabType = 'basic' | 'contact' | 'address' | 'social' | 'other' | string;
@@ -91,6 +92,21 @@ export function ContactEditPage() {
   // General settings (base country for phone input)
   const { settings: tenantSettings } = useGeneralSettings();
   const baseCountry = tenantSettings.baseCountry ?? 'US';
+
+  // ============ FIELD ORDER HOOK ============
+  const { getOrderedFields } = useFormFieldOrder('contacts');
+
+  const fieldOrder = (tab: string, defaults: string[]) => {
+    const ordered = getOrderedFields(tab, defaults);
+    return {
+      visible: new Set(ordered),
+      idx: (key: string) => {
+        const i = ordered.indexOf(key);
+        return i >= 0 ? i : 999;
+      },
+    };
+  };
+  // ============================================
 
   // ============ PAGE DESIGNER HOOK ============
   // Check if admin has enabled custom layout for edit pages
@@ -845,10 +861,13 @@ export function ContactEditPage() {
           {/* Tab Content */}
           <div className="p-6">
             {/* Basic Info Tab */}
-            {activeTab === 'basic' && (
+            {activeTab === 'basic' && (() => {
+              const bo = fieldOrder('basic', ['firstName', 'lastName', 'jobTitle', 'company', 'industry', 'accountId', 'tags']);
+              return (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+                  {bo.visible.has('firstName') && (
+                  <div style={{ order: bo.idx('firstName') }}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       First Name *
                     </label>
@@ -860,7 +879,9 @@ export function ContactEditPage() {
                       required
                     />
                   </div>
-                  <div>
+                  )}
+                  {bo.visible.has('lastName') && (
+                  <div style={{ order: bo.idx('lastName') }}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       Last Name *
                     </label>
@@ -872,10 +893,9 @@ export function ContactEditPage() {
                       required
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+                  )}
+                  {bo.visible.has('jobTitle') && (
+                  <div style={{ order: bo.idx('jobTitle') }}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       Job Title
                     </label>
@@ -886,7 +906,9 @@ export function ContactEditPage() {
                       className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
-                  <div>
+                  )}
+                  {bo.visible.has('company') && (
+                  <div style={{ order: bo.idx('company') }}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       Company
                     </label>
@@ -897,10 +919,9 @@ export function ContactEditPage() {
                       className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+                  )}
+                  {bo.visible.has('industry') && (
+                  <div style={{ order: bo.idx('industry') }}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       Industry
                     </label>
@@ -915,10 +936,12 @@ export function ContactEditPage() {
                       ))}
                     </select>
                   </div>
+                  )}
                 </div>
 
                 {/* Link Account */}
-                <div>
+                {bo.visible.has('accountId') && (
+                <div style={{ order: bo.idx('accountId') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Link to Account
                   </label>
@@ -970,9 +993,11 @@ export function ContactEditPage() {
                     Search and link to an existing account, or create a new one
                   </p>
                 </div>
+                )}
 
                 {/* Tags */}
-                <div>
+                {bo.visible.has('tags') && (
+                <div style={{ order: bo.idx('tags') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Tags
                   </label>
@@ -1016,14 +1041,18 @@ export function ContactEditPage() {
                     </button>
                   </div>
                 </div>
+                )}
 
                 {/* Custom fields for basic section */}
                 {renderCustomFieldsForSection('basic')}
               </div>
-            )}
+              );
+            })()}
 
             {/* Contact Details Tab */}
-            {activeTab === 'contact' && (
+            {activeTab === 'contact' && (() => {
+              const co = fieldOrder('contact', ['emails', 'phones', 'doNotContact', 'doNotEmail', 'doNotCall']);
+              return (
               <div className="space-y-6">
                 {/* Contact Info Required Error Banner */}
                 {validationErrors.contactInfo && (
@@ -1043,7 +1072,8 @@ export function ContactEditPage() {
                 </div>
 
                 {/* Additional Emails */}
-                <div>
+                {co.visible.has('emails') && (
+                <div style={{ order: co.idx('emails') }}>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
                       Email Addresses
@@ -1115,9 +1145,11 @@ export function ContactEditPage() {
                     );
                   })}
                 </div>
+                )}
 
                 {/* Additional Phones */}
-                <div>
+                {co.visible.has('phones') && (
+                <div style={{ order: co.idx('phones') }}>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
                       Phone Numbers
@@ -1187,6 +1219,7 @@ export function ContactEditPage() {
                     );
                   })}
                 </div>
+                )}
 
                 {/* Communication Preferences */}
                 <div className="pt-4 border-t border-gray-200 dark:border-slate-700">
@@ -1194,7 +1227,8 @@ export function ContactEditPage() {
                     Communication Preferences
                   </h4>
                   <div className="space-y-2">
-                    <label className="flex items-center gap-2">
+                    {co.visible.has('doNotContact') && (
+                    <label className="flex items-center gap-2" style={{ order: co.idx('doNotContact') }}>
                       <input
                         type="checkbox"
                         checked={formData.doNotContact}
@@ -1203,7 +1237,9 @@ export function ContactEditPage() {
                       />
                       <span className="text-sm text-gray-600 dark:text-slate-400">Do Not Contact</span>
                     </label>
-                    <label className="flex items-center gap-2">
+                    )}
+                    {co.visible.has('doNotEmail') && (
+                    <label className="flex items-center gap-2" style={{ order: co.idx('doNotEmail') }}>
                       <input
                         type="checkbox"
                         checked={formData.doNotEmail}
@@ -1212,7 +1248,9 @@ export function ContactEditPage() {
                       />
                       <span className="text-sm text-gray-600 dark:text-slate-400">Do Not Email</span>
                     </label>
-                    <label className="flex items-center gap-2">
+                    )}
+                    {co.visible.has('doNotCall') && (
+                    <label className="flex items-center gap-2" style={{ order: co.idx('doNotCall') }}>
                       <input
                         type="checkbox"
                         checked={formData.doNotCall}
@@ -1221,21 +1259,27 @@ export function ContactEditPage() {
                       />
                       <span className="text-sm text-gray-600 dark:text-slate-400">Do Not Call</span>
                     </label>
+                    )}
                   </div>
                 </div>
 
                 {/* Custom fields for contact section */}
                 {renderCustomFieldsForSection('contact')}
               </div>
-            )}
+              );
+            })()}
 
             {/* Address Tab */}
-            {activeTab === 'address' && (
+            {activeTab === 'address' && (() => {
+              const ao = fieldOrder('address', ['addressLine1', 'addressLine2', 'country', 'city', 'state', 'postalCode', 'additionalAddresses']);
+              return (
               <div className="space-y-6">
                 {/* Primary Address */}
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">Primary Address</h4>
                   <div className="space-y-4">
+                    {ao.visible.has('addressLine1') && (
+                    <div style={{ order: ao.idx('addressLine1') }}>
                     <input
                       type="text"
                       value={formData.addressLine1}
@@ -1243,6 +1287,10 @@ export function ContactEditPage() {
                       placeholder="Address Line 1"
                       className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                     />
+                    </div>
+                    )}
+                    {ao.visible.has('addressLine2') && (
+                    <div style={{ order: ao.idx('addressLine2') }}>
                     <input
                       type="text"
                       value={formData.addressLine2}
@@ -1250,7 +1298,11 @@ export function ContactEditPage() {
                       placeholder="Address Line 2"
                       className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                     />
+                    </div>
+                    )}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {ao.visible.has('country') && (
+                      <div style={{ order: ao.idx('country') }}>
                       <CountrySelect
                         value={(formData as any).countryCode ?? ''}
                         onChange={code => setFormData(prev => ({
@@ -1260,11 +1312,19 @@ export function ContactEditPage() {
                           city: '',
                         } as any))}
                       />
+                      </div>
+                      )}
+                      {ao.visible.has('city') && (
+                      <div style={{ order: ao.idx('city') }}>
                       <CitySelect
                         countryCode={(formData as any).countryCode ?? ''}
                         value={formData.city || ''}
                         onChange={city => setFormData(prev => ({ ...prev, city }))}
                       />
+                      </div>
+                      )}
+                      {ao.visible.has('state') && (
+                      <div style={{ order: ao.idx('state') }}>
                       <input
                         type="text"
                         value={formData.state}
@@ -1272,6 +1332,10 @@ export function ContactEditPage() {
                         placeholder="State / Region"
                         className="px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-gray-900 dark:text-white"
                       />
+                      </div>
+                      )}
+                      {ao.visible.has('postalCode') && (
+                      <div style={{ order: ao.idx('postalCode') }}>
                       <input
                         type="text"
                         value={formData.postalCode}
@@ -1279,12 +1343,15 @@ export function ContactEditPage() {
                         placeholder="ZIP / Postal code"
                         className="px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-gray-900 dark:text-white"
                       />
+                      </div>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* Additional Addresses */}
-                <div>
+                {ao.visible.has('additionalAddresses') && (
+                <div style={{ order: ao.idx('additionalAddresses') }}>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
                       Additional Addresses
@@ -1376,16 +1443,21 @@ export function ContactEditPage() {
                     </div>
                   ))}
                 </div>
+                )}
 
                 {/* Custom fields for address section */}
                 {renderCustomFieldsForSection('address')}
               </div>
-            )}
+              );
+            })()}
 
             {/* Social Profiles Tab */}
-            {activeTab === 'social' && (
+            {activeTab === 'social' && (() => {
+              const so = fieldOrder('social', ['linkedin', 'twitter', 'facebook', 'instagram']);
+              return (
               <div className="space-y-4">
-                <div>
+                {so.visible.has('linkedin') && (
+                <div style={{ order: so.idx('linkedin') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     LinkedIn
                   </label>
@@ -1397,7 +1469,9 @@ export function ContactEditPage() {
                     className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                   />
                 </div>
-                <div>
+                )}
+                {so.visible.has('twitter') && (
+                <div style={{ order: so.idx('twitter') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Twitter
                   </label>
@@ -1409,7 +1483,9 @@ export function ContactEditPage() {
                     className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                   />
                 </div>
-                <div>
+                )}
+                {so.visible.has('facebook') && (
+                <div style={{ order: so.idx('facebook') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Facebook
                   </label>
@@ -1421,7 +1497,9 @@ export function ContactEditPage() {
                     className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                   />
                 </div>
-                <div>
+                )}
+                {so.visible.has('instagram') && (
+                <div style={{ order: so.idx('instagram') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Instagram
                   </label>
@@ -1433,16 +1511,21 @@ export function ContactEditPage() {
                     className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                   />
                 </div>
+                )}
 
                 {/* Custom fields for social section */}
                 {renderCustomFieldsForSection('social')}
               </div>
-            )}
+              );
+            })()}
 
             {/* Other Tab */}
-            {activeTab === 'other' && (
+            {activeTab === 'other' && (() => {
+              const oo = fieldOrder('other', ['source', 'notes']);
+              return (
               <div className="space-y-4">
-                <div>
+                {oo.visible.has('source') && (
+                <div style={{ order: oo.idx('source') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Lead Source
                   </label>
@@ -1461,7 +1544,9 @@ export function ContactEditPage() {
                     <option value="other">Other</option>
                   </select>
                 </div>
-                <div>
+                )}
+                {oo.visible.has('notes') && (
+                <div style={{ order: oo.idx('notes') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Notes
                   </label>
@@ -1473,11 +1558,13 @@ export function ContactEditPage() {
                     placeholder="Add any notes about this contact..."
                   />
                 </div>
+                )}
 
                 {/* Custom fields for other section */}
                 {renderCustomFieldsForSection('other')}
               </div>
-            )}
+              );
+            })()}
 
             {/* Custom Fields Tab (for 'custom' section) */}
             {activeTab === 'custom' && hasCustomSectionFields && (

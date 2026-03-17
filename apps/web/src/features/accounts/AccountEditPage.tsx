@@ -49,6 +49,7 @@ import { CountrySelect } from '../../components/shared/CountrySelect';
 import { CitySelect } from '../../components/shared/CitySelect';
 import { PhoneInput } from '../../components/shared/PhoneInput';
 import { useGeneralSettings } from '../../hooks/useGeneralSettings';
+import { useFormFieldOrder } from '../../hooks/useFormFieldOrder';
 import { COUNTRIES, getCountryCodeByName } from '../../data/countries';
 
 type TabType = 'basic' | 'contact' | 'address' | 'social' | 'other' | string;
@@ -115,6 +116,21 @@ export function AccountEditPage() {
   // ============ PAGE DESIGNER HOOK ============
   const { } = useModuleLayout('accounts', isNew ? 'create' : 'edit');
   // ============================================
+
+  // ============ FIELD ORDER HOOK ============
+  const { getOrderedFields } = useFormFieldOrder('accounts');
+
+  const fieldOrder = (tab: string, defaults: string[]) => {
+    const ordered = getOrderedFields(tab, defaults);
+    return {
+      visible: new Set(ordered),
+      idx: (key: string) => {
+        const i = ordered.indexOf(key);
+        return i >= 0 ? i : 999;
+      },
+    };
+  };
+  // ==========================================
 
   const [formData, setFormData] = useState<CreateAccountData>({
     name: '',
@@ -908,10 +924,13 @@ export function AccountEditPage() {
           {/* Tab Content */}
           <div className="p-6">
             {/* Basic Info Tab */}
-            {activeTab === 'basic' && (
+            {activeTab === 'basic' && (() => {
+              const bo = fieldOrder('basic', ['accountClassification', 'logo', 'accountType', 'industry', 'companySize', 'annualRevenue', 'dateOfBirth', 'gender', 'nationalId', 'parentAccount', 'description']);
+              return (
               <div className="space-y-6">
                 {/* Account Classification Toggle */}
-                <div className="mb-6">
+                {bo.visible.has('accountClassification') && (
+                <div className="mb-6" style={{ order: bo.idx('accountClassification') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                     Account Classification
                   </label>
@@ -938,8 +957,10 @@ export function AccountEditPage() {
                       : 'Individual person account with personal information fields'}
                   </p>
                 </div>
+                )}
                 {/* Logo & Name */}
-                <div className="flex items-start gap-6">
+                {bo.visible.has('logo') && (
+                <div className="flex items-start gap-6" style={{ order: bo.idx('logo') }}>
                   <AvatarUpload
                     currentUrl={logoUrl}
                     onUpload={handleLogoUpload}
@@ -1010,10 +1031,12 @@ export function AccountEditPage() {
                     </div>
                   )}
                 </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Account Type — always shown, options change by classification */}
-                  <div>
+                  {bo.visible.has('accountType') && (
+                  <div style={{ order: bo.idx('accountType') }}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Account Type {requiredFields.has('accountType') && <span className="text-red-500">*</span>}</label>
                     <select
                       value={formData.accountType}
@@ -1025,11 +1048,13 @@ export function AccountEditPage() {
                       ))}
                     </select>
                   </div>
+                  )}
 
                   {/* B2B-only fields */}
                   {formData.accountClassification !== 'individual' && (
                     <>
-                      <div>
+                      {bo.visible.has('industry') && (
+                      <div style={{ order: bo.idx('industry') }}>
                         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Industry {requiredFields.has('industry') && <span className="text-red-500">*</span>}</label>
                         <select
                           value={formData.industry}
@@ -1042,7 +1067,9 @@ export function AccountEditPage() {
                           ))}
                         </select>
                       </div>
-                      <div>
+                      )}
+                      {bo.visible.has('companySize') && (
+                      <div style={{ order: bo.idx('companySize') }}>
                         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Company Size {requiredFields.has('companySize') && <span className="text-red-500">*</span>}</label>
                         <select
                           value={formData.companySize}
@@ -1055,7 +1082,9 @@ export function AccountEditPage() {
                           ))}
                         </select>
                       </div>
-                      <div>
+                      )}
+                      {bo.visible.has('annualRevenue') && (
+                      <div style={{ order: bo.idx('annualRevenue') }}>
                         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Annual Revenue {requiredFields.has('annualRevenue') && <span className="text-red-500">*</span>}</label>
                         <input
                           type="number"
@@ -1065,13 +1094,15 @@ export function AccountEditPage() {
                           placeholder="Annual revenue"
                         />
                       </div>
+                      )}
                     </>
                   )}
 
                   {/* B2C-only fields */}
                   {formData.accountClassification === 'individual' && (
                     <>
-                      <div>
+                      {bo.visible.has('dateOfBirth') && (
+                      <div style={{ order: bo.idx('dateOfBirth') }}>
                         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Date of Birth {requiredFields.has('dateOfBirth') && <span className="text-red-500">*</span>}</label>
                         <input
                           type="date"
@@ -1080,7 +1111,9 @@ export function AccountEditPage() {
                           className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                         />
                       </div>
-                      <div>
+                      )}
+                      {bo.visible.has('gender') && (
+                      <div style={{ order: bo.idx('gender') }}>
                         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Gender {requiredFields.has('gender') && <span className="text-red-500">*</span>}</label>
                         <select
                           value={formData.gender || ''}
@@ -1093,7 +1126,9 @@ export function AccountEditPage() {
                           ))}
                         </select>
                       </div>
-                      <div>
+                      )}
+                      {bo.visible.has('nationalId') && (
+                      <div style={{ order: bo.idx('nationalId') }}>
                         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">National ID / Personal ID {requiredFields.has('nationalId') && <span className="text-red-500">*</span>}</label>
                         <input
                           type="text"
@@ -1103,6 +1138,7 @@ export function AccountEditPage() {
                           placeholder="e.g., 42101-1234567-1"
                         />
                       </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -1118,7 +1154,8 @@ export function AccountEditPage() {
                 )}
 
                 {/* Parent Account */}
-                <div>
+                {bo.visible.has('parentAccount') && (
+                <div style={{ order: bo.idx('parentAccount') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Parent Account</label>
                   {selectedParentAccount && (
                     <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl">
@@ -1135,8 +1172,10 @@ export function AccountEditPage() {
                     placeholder="Search parent account..."
                   />
                 </div>
+                )}
 
-                <div>
+                {bo.visible.has('description') && (
+                <div style={{ order: bo.idx('description') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Description {requiredFields.has('description') && <span className="text-red-500">*</span>}</label>
                   <textarea
                     value={formData.description}
@@ -1146,11 +1185,13 @@ export function AccountEditPage() {
                     placeholder="Brief description of the account..."
                   />
                 </div>
+                )}
 
                 {/* Custom fields for basic section */}
                 {renderCustomFieldsForSection('basic')}
               </div>
-            )}
+              );
+            })()}
 
             {/* Contact Details Tab */}
             {activeTab === 'contact' && (
@@ -1329,35 +1370,49 @@ export function AccountEditPage() {
             )}
 
             {/* Social Tab */}
-            {activeTab === 'social' && (
+            {activeTab === 'social' && (() => {
+              const so = fieldOrder('social', ['linkedin', 'twitter', 'facebook', 'instagram']);
+              return (
               <div className="space-y-4">
-                <div>
+                {so.visible.has('linkedin') && (
+                <div style={{ order: so.idx('linkedin') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">LinkedIn</label>
                   <input type="url" value={formData.socialProfiles?.linkedin || ''} onChange={e => handleSocialChange('linkedin', e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl" placeholder="https://linkedin.com/company/acme" />
                 </div>
-                <div>
+                )}
+                {so.visible.has('twitter') && (
+                <div style={{ order: so.idx('twitter') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Twitter</label>
                   <input type="url" value={formData.socialProfiles?.twitter || ''} onChange={e => handleSocialChange('twitter', e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl" placeholder="https://twitter.com/acme" />
                 </div>
-                <div>
+                )}
+                {so.visible.has('facebook') && (
+                <div style={{ order: so.idx('facebook') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Facebook</label>
                   <input type="url" value={formData.socialProfiles?.facebook || ''} onChange={e => handleSocialChange('facebook', e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl" placeholder="https://facebook.com/acme" />
                 </div>
-                <div>
+                )}
+                {so.visible.has('instagram') && (
+                <div style={{ order: so.idx('instagram') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Instagram</label>
                   <input type="url" value={formData.socialProfiles?.instagram || ''} onChange={e => handleSocialChange('instagram', e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl" placeholder="https://instagram.com/acme" />
                 </div>
+                )}
 
                 {/* Custom fields for social section */}
                 {renderCustomFieldsForSection('social')}
               </div>
-            )}
+              );
+            })()}
 
             {/* Other Tab */}
-            {activeTab === 'other' && (
+            {activeTab === 'other' && (() => {
+              const oo = fieldOrder('other', ['tags', 'source']);
+              return (
               <div className="space-y-6">
                 {/* Tags */}
-                <div>
+                {oo.visible.has('tags') && (
+                <div style={{ order: oo.idx('tags') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Tags</label>
                   <div className="flex gap-2 mb-2 flex-wrap">
                     {formData.tags?.map(tag => (
@@ -1392,9 +1447,11 @@ export function AccountEditPage() {
                     </button>
                   </div>
                 </div>
+                )}
 
                 {/* Source */}
-                <div>
+                {oo.visible.has('source') && (
+                <div style={{ order: oo.idx('source') }}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Source</label>
                   <select
                     value={formData.source || ''}
@@ -1411,11 +1468,13 @@ export function AccountEditPage() {
                     <option value="other">Other</option>
                   </select>
                 </div>
+                )}
 
                 {/* Custom fields for other section */}
                 {renderCustomFieldsForSection('other')}
               </div>
-            )}
+              );
+            })()}
 
             {/* Custom Fields Tab (for 'custom' section) */}
             {activeTab === 'custom' && hasCustomSectionFields && (

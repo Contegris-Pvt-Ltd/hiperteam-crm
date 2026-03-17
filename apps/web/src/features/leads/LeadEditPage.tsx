@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Save, Loader2, AlertTriangle,
-  ChevronDown, ChevronRight, Plus, X,
+  ChevronDown, ChevronRight, Plus, X, Search,
 } from 'lucide-react';
 import { leadsApi, leadSettingsApi } from '../../api/leads.api';
 import type { CreateLeadData, LeadStage, LeadPriority, QualificationField, DuplicateMatch, Pipeline } from '../../api/leads.api';
@@ -28,6 +28,7 @@ import { validateFields } from '../../utils/field-validation';
 import { LeadProductsTab } from './components/LeadProductsTab';
 import { PhoneInput } from '../../components/shared/PhoneInput';
 import { CountrySelect } from '../../components/shared/CountrySelect';
+import { useFormFieldOrder } from '../../hooks/useFormFieldOrder';
 import { CitySelect } from '../../components/shared/CitySelect';
 import { useGeneralSettings } from '../../hooks/useGeneralSettings';
 import { COUNTRIES, getCountryCodeByName } from '../../data/countries';
@@ -88,12 +89,35 @@ export function LeadEditPage() {
   const [stageFieldErrors, setStageFieldErrors] = useState<Record<string, string>>({});
   const [stageChangeLoading, setStageChangeLoading] = useState(false);
 
+  // Account & Contact search
+  const [accountSearch, setAccountSearch] = useState('');
+  const [accountResults, setAccountResults] = useState<any[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<{ id: string; name: string } | null>(null);
+  const [contactSearch, setContactSearch] = useState('');
+  const [contactResults, setContactResults] = useState<any[]>([]);
+  const [selectedContact, setSelectedContact] = useState<{ id: string; name: string } | null>(null);
+
   // Page Designer hook
   const { useCustomLayout: _useCustomLayout, loading: _layoutLoading } = useModuleLayout('leads', 'edit');
 
   // General settings (base country for phone input)
   const { settings: tenantSettings } = useGeneralSettings();
   const baseCountry = tenantSettings.baseCountry ?? 'US';
+
+  // Field ordering
+  const { getOrderedFields } = useFormFieldOrder('leads');
+
+  // Helper: returns { visible: Set<string>, idx: (key) => number } for a tab
+  const fieldOrder = (tab: string, defaults: string[]) => {
+    const ordered = getOrderedFields(tab, defaults);
+    return {
+      visible: new Set(ordered),
+      idx: (key: string) => {
+        const i = ordered.indexOf(key);
+        return i >= 0 ? i : 999;
+      },
+    };
+  };
 
   // Form data
   const [formData, setFormData] = useState<CreateLeadData>({
@@ -238,10 +262,16 @@ export function LeadEditPage() {
         doNotContact: data.doNotContact || false,
         doNotEmail: data.doNotEmail || false,
         doNotCall: data.doNotCall || false,
+        contactId: data.contactId || '',
+        accountId: data.accountId || '',
         ownerId: data.ownerId || '',
         teamId: data.teamId || '',
         socialProfiles: data.socialProfiles || {},
       } as any);
+
+      // Set linked account/contact for display
+      if (data.account) setSelectedAccount({ id: data.account.id, name: data.account.name });
+      if (data.contact) setSelectedContact({ id: data.contact.id, name: `${data.contact.firstName} ${data.contact.lastName}` });
 
       // Set custom field values from lead data
       setCustomFieldValues(data.customFields || {});
@@ -274,6 +304,38 @@ export function LeadEditPage() {
     }, 500);
     return () => clearTimeout(timer);
   }, [formData.email, formData.phone, checkDuplicates]);
+
+  // ── Account search ──
+  useEffect(() => {
+    if (!accountSearch || accountSearch.length < 2) { setAccountResults([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/accounts?search=${encodeURIComponent(accountSearch)}&limit=5`,
+          { headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` } },
+        );
+        const data = await response.json();
+        setAccountResults(data.data || []);
+      } catch { /* ignore */ }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [accountSearch]);
+
+  // ── Contact search ──
+  useEffect(() => {
+    if (!contactSearch || contactSearch.length < 2) { setContactResults([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/contacts?search=${encodeURIComponent(contactSearch)}&limit=5`,
+          { headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` } },
+        );
+        const data = await response.json();
+        setContactResults(data.data || []);
+      } catch { /* ignore */ }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [contactSearch]);
 
   // ── Field change ──
   const handleChange = (field: string, value: any) => {
@@ -676,25 +738,34 @@ export function LeadEditPage() {
 
       <div className="space-y-6">
         {/* ── BASIC INFO TAB ── */}
-        {activeTab === 'basic' && (
+        {activeTab === 'basic' && (() => {
+          const bo = fieldOrder('basic', ['firstName', 'lastName', 'email', 'phone', 'company', 'jobTitle', 'website', 'accountId', 'contactId', 'mobile']);
+          return (
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4">Basic Information</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
+              {bo.visible.has('firstName') && (
+              <div style={{ order: bo.idx('firstName') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">First Name</label>
                 <input type="text" value={formData.firstName || ''} onChange={(e) => handleChange('firstName', e.target.value)} className={inputClass} />
               </div>
-              <div>
+              )}
+              {bo.visible.has('lastName') && (
+              <div style={{ order: bo.idx('lastName') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">
                   Last Name <span className="text-red-500">*</span>
                 </label>
                 <input type="text" value={formData.lastName || ''} onChange={(e) => handleChange('lastName', e.target.value)} className={inputClass} />
               </div>
-              <div>
+              )}
+              {bo.visible.has('email') && (
+              <div style={{ order: bo.idx('email') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Email</label>
                 <input type="email" value={formData.email || ''} onChange={(e) => handleChange('email', e.target.value)} className={inputClass} />
               </div>
-              <div>
+              )}
+              {bo.visible.has('phone') && (
+              <div style={{ order: bo.idx('phone') }}>
                 <PhoneInput
                   label="Phone"
                   value={formData.phone || ''}
@@ -705,19 +776,118 @@ export function LeadEditPage() {
                   onValidityChange={(valid) => setPhoneValid(prev => ({ ...prev, phone: valid }))}
                 />
               </div>
-              <div>
+              )}
+              {bo.visible.has('company') && (
+              <div style={{ order: bo.idx('company') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Company</label>
                 <input type="text" value={formData.company || ''} onChange={(e) => handleChange('company', e.target.value)} className={inputClass} />
               </div>
-              <div>
+              )}
+              {bo.visible.has('jobTitle') && (
+              <div style={{ order: bo.idx('jobTitle') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Job Title</label>
                 <input type="text" value={formData.jobTitle || ''} onChange={(e) => handleChange('jobTitle', e.target.value)} className={inputClass} />
               </div>
-              <div>
+              )}
+              {bo.visible.has('website') && (
+              <div style={{ order: bo.idx('website') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Website</label>
                 <input type="text" value={formData.website || ''} onChange={(e) => handleChange('website', e.target.value)} className={inputClass} />
               </div>
-              <div>
+              )}
+
+              {/* Account (search) */}
+              {bo.visible.has('accountId') && (
+              <div style={{ order: bo.idx('accountId') }}>
+                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Account</label>
+                {selectedAccount ? (
+                  <div className="flex items-center gap-2 border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800">
+                    <span className="text-sm text-gray-900 dark:text-white flex-1">{selectedAccount.name}</span>
+                    <button type="button" onClick={() => { setSelectedAccount(null); handleChange('accountId', ''); }} className="text-gray-400 hover:text-red-500">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                    <input
+                      type="text"
+                      value={accountSearch}
+                      onChange={(e) => setAccountSearch(e.target.value)}
+                      placeholder="Search accounts..."
+                      className="w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    />
+                    {accountResults.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                        {accountResults.map((a: any) => (
+                          <button
+                            type="button"
+                            key={a.id}
+                            onClick={() => {
+                              setSelectedAccount({ id: a.id, name: a.name });
+                              handleChange('accountId', a.id);
+                              setAccountSearch('');
+                              setAccountResults([]);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-900 dark:text-white"
+                          >
+                            {a.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              )}
+
+              {/* Contact (search) */}
+              {bo.visible.has('contactId') && (
+              <div style={{ order: bo.idx('contactId') }}>
+                <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Contact</label>
+                {selectedContact ? (
+                  <div className="flex items-center gap-2 border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800">
+                    <span className="text-sm text-gray-900 dark:text-white flex-1">{selectedContact.name}</span>
+                    <button type="button" onClick={() => { setSelectedContact(null); handleChange('contactId', ''); }} className="text-gray-400 hover:text-red-500">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                    <input
+                      type="text"
+                      value={contactSearch}
+                      onChange={(e) => setContactSearch(e.target.value)}
+                      placeholder="Search contacts..."
+                      className="w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    />
+                    {contactResults.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                        {contactResults.map((c: any) => (
+                          <button
+                            type="button"
+                            key={c.id}
+                            onClick={() => {
+                              setSelectedContact({ id: c.id, name: `${c.firstName} ${c.lastName}` });
+                              handleChange('contactId', c.id);
+                              setContactSearch('');
+                              setContactResults([]);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-900 dark:text-white"
+                          >
+                            {c.firstName} {c.lastName} {c.email ? `(${c.email})` : ''}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              )}
+
+              {bo.visible.has('mobile') && (
+              <div style={{ order: bo.idx('mobile') }}>
                 <PhoneInput
                   label="Mobile"
                   value={formData.mobile || ''}
@@ -728,21 +898,25 @@ export function LeadEditPage() {
                   onValidityChange={(valid) => setPhoneValid(prev => ({ ...prev, mobile: valid }))}
                 />
               </div>
+              )}
             </div>
 
             {/* Custom fields for basic section */}
             {renderCustomFieldsForSection('basic')}
           </div>
-        )}
+          );
+        })()}
 
         {/* ── LEAD DETAILS TAB ── */}
-        {activeTab === 'lead-details' && (
+        {activeTab === 'lead-details' && (() => {
+          const lo = fieldOrder('lead-details', ['pipelineId', 'stageId', 'priorityId', 'source', 'industry', 'ownerId', 'teamId']);
+          return (
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4">Lead Details</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Pipeline */}
-              {pipelines.length > 0 && (
-                <div>
+              {pipelines.length > 0 && lo.visible.has('pipelineId') && (
+                <div style={{ order: lo.idx('pipelineId') }}>
                   <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Pipeline <span className="text-red-500">*</span></label>
                   <select
                     value={formData.pipelineId || ''}
@@ -756,7 +930,8 @@ export function LeadEditPage() {
                   </select>
                 </div>
               )}
-              <div>
+              {lo.visible.has('stageId') && (
+              <div style={{ order: lo.idx('stageId') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Stage <span className="text-red-500">*</span></label>
                 <div className="relative">
                   <select
@@ -777,7 +952,9 @@ export function LeadEditPage() {
                   )}
                 </div>
               </div>
-              <div>
+              )}
+              {lo.visible.has('priorityId') && (
+              <div style={{ order: lo.idx('priorityId') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Priority</label>
                 <select value={formData.priorityId || ''} onChange={(e) => handleChange('priorityId', e.target.value)} className={inputClass}>
                   <option value="">Select priority...</option>
@@ -786,7 +963,9 @@ export function LeadEditPage() {
                   ))}
                 </select>
               </div>
-              <div>
+              )}
+              {lo.visible.has('source') && (
+              <div style={{ order: lo.idx('source') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Source</label>
                 <select value={formData.source || ''} onChange={(e) => handleChange('source', e.target.value)} className={inputClass}>
                   <option value="">Select source...</option>
@@ -795,7 +974,9 @@ export function LeadEditPage() {
                   ))}
                 </select>
               </div>
-              <div>
+              )}
+              {lo.visible.has('industry') && (
+              <div style={{ order: lo.idx('industry') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Industry</label>
                 <select value={formData.industry || ''} onChange={(e) => handleChange('industry', e.target.value)} className={inputClass}>
                   <option value="">Select industry...</option>
@@ -804,7 +985,9 @@ export function LeadEditPage() {
                   ))}
                 </select>
               </div>
-              <div>
+              )}
+              {lo.visible.has('ownerId') && (
+              <div style={{ order: lo.idx('ownerId') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Owner</label>
                 <select value={formData.ownerId || ''} onChange={(e) => handleChange('ownerId', e.target.value)} className={inputClass}>
                   <option value="">Assign to me</option>
@@ -814,7 +997,9 @@ export function LeadEditPage() {
                   ))}
                 </select>
               </div>
-              <div>
+              )}
+              {lo.visible.has('teamId') && (
+              <div style={{ order: lo.idx('teamId') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Team</label>
                 <select value={formData.teamId || ''} onChange={(e) => handleChange('teamId', e.target.value)} className={inputClass}>
                   <option value="">No team</option>
@@ -823,6 +1008,7 @@ export function LeadEditPage() {
                   ))}
                 </select>
               </div>
+              )}
             </div>
 
             {/* Tags */}
@@ -856,7 +1042,8 @@ export function LeadEditPage() {
             {/* Custom fields for 'other' section shown under lead details */}
             {renderCustomFieldsForSection('other')}
           </div>
-        )}
+          );
+        })()}
 
         {/* ── PRODUCTS TAB ── */}
         {activeTab === 'products' && (
@@ -914,20 +1101,27 @@ export function LeadEditPage() {
         )}
 
         {/* ── ADDRESS TAB ── */}
-        {activeTab === 'address' && (
+        {activeTab === 'address' && (() => {
+          const ao = fieldOrder('address', ['addressLine1', 'addressLine2', 'country', 'city', 'state', 'postalCode']);
+          return (
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-4">Address</h3>
             <div className="space-y-4">
-              <div>
+              {ao.visible.has('addressLine1') && (
+              <div style={{ order: ao.idx('addressLine1') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Address Line 1</label>
                 <input type="text" value={formData.addressLine1 || ''} onChange={(e) => handleChange('addressLine1', e.target.value)} className={inputClass} />
               </div>
-              <div>
+              )}
+              {ao.visible.has('addressLine2') && (
+              <div style={{ order: ao.idx('addressLine2') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Address Line 2</label>
                 <input type="text" value={formData.addressLine2 || ''} onChange={(e) => handleChange('addressLine2', e.target.value)} className={inputClass} />
               </div>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div>
+                {ao.visible.has('country') && (
+                <div style={{ order: ao.idx('country') }}>
                   <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Country</label>
                   <CountrySelect
                     value={(formData as any).countryCode ?? ''}
@@ -939,7 +1133,9 @@ export function LeadEditPage() {
                     } as any))}
                   />
                 </div>
-                <div>
+                )}
+                {ao.visible.has('city') && (
+                <div style={{ order: ao.idx('city') }}>
                   <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">City</label>
                   <CitySelect
                     countryCode={(formData as any).countryCode ?? ''}
@@ -947,22 +1143,28 @@ export function LeadEditPage() {
                     onChange={city => setFormData(prev => ({ ...prev, city }))}
                   />
                 </div>
-                <div>
+                )}
+                {ao.visible.has('state') && (
+                <div style={{ order: ao.idx('state') }}>
                   <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">State / Province</label>
                   <input type="text" value={formData.state || ''} onChange={(e) => handleChange('state', e.target.value)}
                     className="w-full px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-gray-900 dark:text-white" />
                 </div>
-                <div>
+                )}
+                {ao.visible.has('postalCode') && (
+                <div style={{ order: ao.idx('postalCode') }}>
                   <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Postal Code</label>
                   <input type="text" value={formData.postalCode || ''} onChange={(e) => handleChange('postalCode', e.target.value)}
                     className="w-full px-3 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-sm text-gray-900 dark:text-white" />
                 </div>
+                )}
               </div>
             </div>
 
             {renderCustomFieldsForSection('address')}
           </div>
-        )}
+          );
+        })()}
 
         {/* ── COMMUNICATION TAB ── */}
         {activeTab === 'communication' && (

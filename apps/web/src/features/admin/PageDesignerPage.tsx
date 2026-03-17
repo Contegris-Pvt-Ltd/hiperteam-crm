@@ -729,6 +729,10 @@ export function PageDesignerPage() {
   const [viewMode, setViewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [activeCategory, setActiveCategory] = useState<string>('fields');
 
+  // Module layout activation
+  const [layoutEnabled, setLayoutEnabled] = useState(false);
+  const [layoutToggling, setLayoutToggling] = useState(false);
+
   // Modals
   const [configModal, setConfigModal] = useState<{ open: boolean; widgetId: string | null }>({ open: false, widgetId: null });
   const [saveModal, setSaveModal] = useState(false);
@@ -749,7 +753,7 @@ export function PageDesignerPage() {
 
   useEffect(() => {
     loadModuleData();
-  }, [selectedModule]);
+  }, [selectedModule, selectedLayoutType]);
 
   useEffect(() => {
     setSearchParams({ module: selectedModule, layoutType: selectedLayoutType });
@@ -773,14 +777,21 @@ export function PageDesignerPage() {
 
   const loadModuleData = async () => {
     try {
-      const [layoutsData, tabsData, groupsData] = await Promise.all([
+      const [layoutsData, tabsData, groupsData, allSettings] = await Promise.all([
         pageLayoutApi.getLayouts(selectedModule, selectedLayoutType),
         adminApi.getTabs(selectedModule),
         adminApi.getGroups({ module: selectedModule }),
+        adminApi.getModuleLayoutSettings(),
       ]);
       setSavedLayouts(layoutsData);
       setTabs(tabsData);
       setGroups(groupsData);
+
+      // Check if custom layout is enabled for this module + layout type
+      const setting = allSettings.find(
+        (s: any) => s.module === selectedModule && s.layoutType === selectedLayoutType
+      );
+      setLayoutEnabled(setting?.useCustomLayout || false);
 
       // Load default layout or create new
       if (layoutsData.length > 0 && layoutsData[0].isDefault) {
@@ -790,6 +801,20 @@ export function PageDesignerPage() {
       }
     } catch (err) {
       console.error('Failed to load module data:', err);
+    }
+  };
+
+  const handleToggleLayoutEnabled = async () => {
+    setLayoutToggling(true);
+    try {
+      const newEnabled = !layoutEnabled;
+      const layoutId = newEnabled && savedLayouts.length > 0 ? savedLayouts[0].id : undefined;
+      await adminApi.updateModuleLayoutSetting(selectedModule, selectedLayoutType, newEnabled, layoutId);
+      setLayoutEnabled(newEnabled);
+    } catch (err) {
+      console.error('Failed to toggle layout:', err);
+    } finally {
+      setLayoutToggling(false);
     }
   };
 
@@ -1060,7 +1085,7 @@ export function PageDesignerPage() {
             </button>
             <div className="flex items-center gap-2">
               <LayoutTemplate className="w-5 h-5 text-indigo-600" />
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Page Designer</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Layout Designer</h2>
             </div>
 
             <select
@@ -1078,6 +1103,22 @@ export function PageDesignerPage() {
             >
               {LAYOUT_TYPE_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
+
+            <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-300 dark:border-slate-600">
+              <span className="text-xs text-gray-500 dark:text-slate-400">Active</span>
+              <button
+                onClick={handleToggleLayoutEnabled}
+                disabled={layoutToggling}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                  layoutEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'
+                }`}
+                title={layoutEnabled ? 'Custom layout is active for this module/view' : 'Using default layout — toggle to activate'}
+              >
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  layoutEnabled ? 'translate-x-4' : 'translate-x-0.5'
+                }`} />
+              </button>
+            </div>
 
             {hasUnsavedChanges && (
               <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">Unsaved</span>
