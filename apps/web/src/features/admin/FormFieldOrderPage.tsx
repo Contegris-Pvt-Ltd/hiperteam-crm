@@ -295,7 +295,7 @@ export function FormFieldOrderPage() {
       setConfig(data);
 
       // Restore tab state from config
-      const savedMeta = (data as Record<string, unknown>)._tabMeta as { hidden?: string[]; order?: string[]; renames?: Record<string, string> } | undefined;
+      const savedMeta = (data as unknown as Record<string, unknown>)._tabMeta as { hidden?: string[]; order?: string[]; renames?: Record<string, string> } | undefined;
       if (savedMeta) {
         setHiddenTabs(new Set(savedMeta.hidden || []));
         setTabOrder(savedMeta.order || []);
