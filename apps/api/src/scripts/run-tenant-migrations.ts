@@ -3627,6 +3627,20 @@ async function runTenantMigrations() {
               WHERE d.name = 'Projections';
             `,
           },
+          // ── 055: Lead → Contact / Account association ──────────
+          {
+            name: '055_lead_contact_account_association',
+            sql: `
+              ALTER TABLE "${schema}".leads
+                ADD COLUMN IF NOT EXISTS contact_id UUID,
+                ADD COLUMN IF NOT EXISTS account_id UUID;
+
+              CREATE INDEX IF NOT EXISTS idx_leads_contact_id
+                ON "${schema}".leads(contact_id) WHERE deleted_at IS NULL AND contact_id IS NOT NULL;
+              CREATE INDEX IF NOT EXISTS idx_leads_account_id
+                ON "${schema}".leads(account_id) WHERE deleted_at IS NULL AND account_id IS NOT NULL;
+            `,
+          },
         ];
 
         // ── Execute pending migrations ────────────────────────────

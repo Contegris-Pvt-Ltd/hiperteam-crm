@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Trash2, MoreHorizontal,
-  Mail, Phone, Globe, MapPin, Building2,
+  Mail, Phone, Globe, MapPin, Building2, User,
   Tag, Activity, History,
   MessageSquare, FileText,
   ExternalLink, Flame, Thermometer, Snowflake, Sun, Minus,
@@ -393,6 +393,22 @@ export function LeadDetailPage() {
                 <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                   <Building2 size={14} className="text-gray-400 flex-shrink-0" />
                   {lead.company}
+                </div>
+              )}
+              {lead.account && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Building2 size={14} className="text-gray-400 flex-shrink-0" />
+                  <Link to={`/accounts/${lead.account.id}`} className="text-blue-600 hover:underline truncate">
+                    {lead.account.name}
+                  </Link>
+                </div>
+              )}
+              {lead.contact && (
+                <div className="flex items-center gap-2 text-sm">
+                  <User size={14} className="text-gray-400 flex-shrink-0" />
+                  <Link to={`/contacts/${lead.contact.id}`} className="text-blue-600 hover:underline truncate">
+                    {lead.contact.firstName} {lead.contact.lastName}
+                  </Link>
                 </div>
               )}
               {(lead.city || lead.state || lead.country) && (

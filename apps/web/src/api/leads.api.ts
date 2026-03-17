@@ -167,6 +167,10 @@ export interface Lead {
   doNotCall: boolean;
   tags: string[];
   customFields: Record<string, any>;
+  contactId: string | null;
+  contact: { id: string; firstName: string; lastName: string; email?: string | null } | null;
+  accountId: string | null;
+  account: { id: string; name: string; email?: string | null } | null;
   ownerId: string | null;
   owner: LeadOwner | null;
   teamId: string | null;
@@ -265,6 +269,8 @@ export interface CreateLeadData {
   doNotCall?: boolean;
   tags?: string[];
   customFields?: Record<string, any>;
+  contactId?: string;
+  accountId?: string;
   ownerId?: string;
   teamId?: string;
   productIds?: string[];

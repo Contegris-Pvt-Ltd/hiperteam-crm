@@ -19,6 +19,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { teamsApi } from '../../api/teams.api';
 import type { TeamLookupItem } from '../../api/teams.api';
 import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
+import { StageFieldInput } from '../../components/shared/StageFieldInput';
 
 // Priority icon map
 const PRIORITY_ICONS: Record<string, any> = {
@@ -665,31 +666,15 @@ export function OpportunitiesPage() {
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
                     {f.fieldLabel} <span className="text-red-500">*</span>
                   </label>
-                  {f.fieldType === 'date' ? (
-                    <input
-                      type="date"
-                      value={kanbanFieldValues[f.fieldKey] || ''}
-                      onChange={(e) => setKanbanFieldValues(prev => ({ ...prev, [f.fieldKey]: e.target.value }))}
-                      className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800"
-                    />
-                  ) : f.fieldType === 'number' ? (
-                    <input
-                      type="number"
-                      value={kanbanFieldValues[f.fieldKey] || ''}
-                      onChange={(e) => setKanbanFieldValues(prev => ({ ...prev, [f.fieldKey]: e.target.value ? Number(e.target.value) : '' }))}
-                      className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800"
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      value={kanbanFieldValues[f.fieldKey] || ''}
-                      onChange={(e) => setKanbanFieldValues(prev => ({ ...prev, [f.fieldKey]: e.target.value }))}
-                      className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800"
-                    />
-                  )}
-                  {kanbanFieldErrors[f.fieldKey] && (
-                    <p className="text-xs text-red-500 mt-1">{kanbanFieldErrors[f.fieldKey]}</p>
-                  )}
+                  <StageFieldInput
+                    fieldKey={f.fieldKey}
+                    fieldLabel={f.fieldLabel}
+                    fieldType={f.fieldType}
+                    value={kanbanFieldValues[f.fieldKey]}
+                    error={kanbanFieldErrors[f.fieldKey]}
+                    onChange={(val) => setKanbanFieldValues(prev => ({ ...prev, [f.fieldKey]: val }))}
+                    onClearError={() => setKanbanFieldErrors(prev => { const n = { ...prev }; delete n[f.fieldKey]; return n; })}
+                  />
                 </div>
               ))}
             </div>

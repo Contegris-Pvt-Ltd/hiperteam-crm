@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { LeadStage, Lead } from '../../../api/leads.api';
 import { leadSettingsApi } from '../../../api/leads.api';
+import { StageFieldInput } from '../../../components/shared/StageFieldInput';
 
 interface StageField {
   fieldKey: string;
@@ -333,51 +334,15 @@ export function StageJourneyBar({
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       {field.fieldLabel} <span className="text-red-500">*</span>
                     </label>
-                    {field.fieldType === 'textarea' ? (
-                      <textarea
-                        value={fieldValues[field.fieldKey] || ''}
-                        onChange={(e) => {
-                          setFieldValues(prev => ({ ...prev, [field.fieldKey]: e.target.value }));
-                          setFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; });
-                        }}
-                        rows={2}
-                        className={`${inputClass} ${fieldErrors[field.fieldKey] ? 'border-red-500 focus:ring-red-500' : ''}`}
-                        placeholder={`Enter ${field.fieldLabel.toLowerCase()}`}
-                      />
-                    ) : field.fieldType === 'checkbox' ? (
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={fieldValues[field.fieldKey] || false}
-                          onChange={(e) => {
-                            setFieldValues(prev => ({ ...prev, [field.fieldKey]: e.target.checked }));
-                            setFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; });
-                          }}
-                          className="rounded text-blue-600"
-                        />
-                        <span className="text-sm text-gray-700 dark:text-slate-300">{field.fieldLabel}</span>
-                      </label>
-                    ) : (
-                      <input
-                        type={
-                          field.fieldType === 'email' ? 'email' :
-                          field.fieldType === 'number' ? 'number' :
-                          field.fieldType === 'date' ? 'date' :
-                          field.fieldType === 'phone' ? 'tel' :
-                          field.fieldType === 'url' ? 'url' : 'text'
-                        }
-                        value={fieldValues[field.fieldKey] || ''}
-                        onChange={(e) => {
-                          setFieldValues(prev => ({ ...prev, [field.fieldKey]: e.target.value }));
-                          setFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; });
-                        }}
-                        className={`${inputClass} ${fieldErrors[field.fieldKey] ? 'border-red-500 focus:ring-red-500' : ''}`}
-                        placeholder={`Enter ${field.fieldLabel.toLowerCase()}`}
-                      />
-                    )}
-                    {fieldErrors[field.fieldKey] && (
-                      <p className="text-xs text-red-500 mt-1">{fieldErrors[field.fieldKey]}</p>
-                    )}
+                    <StageFieldInput
+                      fieldKey={field.fieldKey}
+                      fieldLabel={field.fieldLabel}
+                      fieldType={field.fieldType}
+                      value={fieldValues[field.fieldKey]}
+                      error={fieldErrors[field.fieldKey]}
+                      onChange={(val) => setFieldValues(prev => ({ ...prev, [field.fieldKey]: val }))}
+                      onClearError={() => setFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; })}
+                    />
                   </div>
                 ))}
             </div>

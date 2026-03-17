@@ -137,7 +137,8 @@ export class LeadsService {
         tags, custom_fields,
         owner_id, team_id, created_by, updated_by,
         stage_entered_at, stage_history,
-        industry
+        industry,
+        contact_id, account_id
       ) VALUES (
         $1, $2, $3, $4, $5,
         $6, $7, $8,
@@ -151,7 +152,8 @@ export class LeadsService {
         $32, $33,
         $34, $35, $36, $36,
         NOW(), $37,
-        $38
+        $38,
+        $39, $40
       ) RETURNING *`,
       [
         dto.firstName || null,
@@ -192,6 +194,8 @@ export class LeadsService {
         userId,
         JSON.stringify([{ stageId, enteredAt: new Date().toISOString(), enteredBy: userId }]),
         (dto as any).industry || null,
+        (dto as any).contactId || null,
+        (dto as any).accountId || null,
       ],
     );
 
@@ -463,13 +467,17 @@ export class LeadsService {
         ls.sort_order as stage_sort_order, ls.is_won as stage_is_won, ls.is_lost as stage_is_lost,
         lp.name as priority_name, lp.color as priority_color, lp.icon as priority_icon,
         cu.first_name as created_by_first_name, cu.last_name as created_by_last_name,
-        (SELECT COUNT(*) FROM "${schemaName}".lead_products lprod WHERE lprod.lead_id = l.id) as products_count
+        (SELECT COUNT(*) FROM "${schemaName}".lead_products lprod WHERE lprod.lead_id = l.id) as products_count,
+        lc.first_name as linked_contact_first_name, lc.last_name as linked_contact_last_name, lc.email as linked_contact_email,
+        la.name as linked_account_name, la.email as linked_account_email
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
        LEFT JOIN "${schemaName}".teams t ON l.team_id = t.id
        LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
        LEFT JOIN "${schemaName}".lead_priorities lp ON l.priority_id = lp.id
        LEFT JOIN "${schemaName}".users cu ON l.created_by = cu.id
+       LEFT JOIN "${schemaName}".contacts lc ON l.contact_id = lc.id
+       LEFT JOIN "${schemaName}".accounts la ON l.account_id = la.id
        WHERE ${whereClause}
        ORDER BY ${orderColumn} ${order}
        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
@@ -701,7 +709,9 @@ export class LeadsService {
               pl.name as pipeline_name,
               cu.first_name as created_by_first_name, cu.last_name as created_by_last_name,
               lqf.name as framework_name, lqf.slug as framework_slug,
-              dr.name as disqualification_reason_name
+              dr.name as disqualification_reason_name,
+              lc.first_name as linked_contact_first_name, lc.last_name as linked_contact_last_name, lc.email as linked_contact_email,
+              la.name as linked_account_name, la.email as linked_account_email
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
        LEFT JOIN "${schemaName}".teams t ON l.team_id = t.id
@@ -711,6 +721,8 @@ export class LeadsService {
        LEFT JOIN "${schemaName}".users cu ON l.created_by = cu.id
        LEFT JOIN "${schemaName}".lead_qualification_frameworks lqf ON l.qualification_framework_id = lqf.id
        LEFT JOIN "${schemaName}".lead_disqualification_reasons dr ON l.disqualification_reason_id = dr.id
+       LEFT JOIN "${schemaName}".contacts lc ON l.contact_id = lc.id
+       LEFT JOIN "${schemaName}".accounts la ON l.account_id = la.id
        WHERE l.id = $1 AND l.deleted_at IS NULL`,
       [id],
     );
@@ -783,10 +795,12 @@ export class LeadsService {
       doNotCall: 'do_not_call',
       ownerId: 'owner_id',
       teamId: 'team_id',
+      contactId: 'contact_id',
+      accountId: 'account_id',
     };
 
     // Fields that accept null when empty string is sent (to allow clearing)
-    const nullableFields = ['ownerId', 'teamId'];
+    const nullableFields = ['ownerId', 'teamId', 'contactId', 'accountId'];
 
     for (const [key, value] of Object.entries(dto)) {
       if (value !== undefined && fieldMap[key]) {
@@ -2140,6 +2154,19 @@ export class LeadsService {
         id: lead.created_by,
         firstName: lead.created_by_first_name,
         lastName: lead.created_by_last_name,
+      } : null,
+      contactId: lead.contact_id || null,
+      contact: lead.linked_contact_first_name ? {
+        id: lead.contact_id,
+        firstName: lead.linked_contact_first_name,
+        lastName: lead.linked_contact_last_name,
+        email: lead.linked_contact_email || null,
+      } : null,
+      accountId: lead.account_id || null,
+      account: lead.linked_account_name ? {
+        id: lead.account_id,
+        name: lead.linked_account_name,
+        email: lead.linked_account_email || null,
       } : null,
       lastActivityAt: lead.last_activity_at,
       createdAt: lead.created_at,
