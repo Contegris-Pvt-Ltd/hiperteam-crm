@@ -13,7 +13,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
+
     steps:
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
@@ -54,22 +54,22 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd /home/deploy/hiperteam
-            
+
             echo "📥 Pulling latest changes..."
             git pull origin main
-            
+
             echo "🔨 Building and restarting API container..."
             docker compose -f docker-compose.prod.yml up -d --build api
-            
+
             echo "⏳ Waiting for API to start..."
             sleep 10
-            
+
             echo "🗄️ Running master schema migrations..."
             docker compose -f docker-compose.prod.yml exec -T api npm run migrate:run:prod
-            
+
             echo "🗄️ Running tenant schema migrations..."
             docker compose -f docker-compose.prod.yml exec -T api npm run migrate:tenants:prod
-            
+
             echo "🎨 Building frontend..."
             docker run --rm \
               -v /home/deploy/hiperteam:/app \
@@ -77,8 +77,15 @@ jobs:
               -e VITE_API_URL=https://hiperteam.intellicon.io \
               node:20-alpine \
               sh -c "npm ci && cd apps/web && npm run build && rm -rf /app/frontend-build/* && cp -r dist/* /app/frontend-build/"
-            
+
+            echo "📚 Building documentation site..."
+            docker run --rm \
+              -v /home/deploy/hiperteam:/app \
+              -w /app/docs-site \
+              node:20-alpine \
+              sh -c "npm ci --legacy-peer-deps && npm run build && rm -rf /app/docs-build/* && cp -r build/* /app/docs-build/"
+
             echo "🔄 Restarting nginx..."
             docker compose -f docker-compose.prod.yml restart nginx
-            
+
             echo "✅ Deployment complete!"

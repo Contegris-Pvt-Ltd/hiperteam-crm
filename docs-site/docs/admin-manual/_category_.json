@@ -1,0 +1,8 @@
+{
+  "label": "Admin Manual",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "description": "Comprehensive administration guide for Intellicon CRM — manage users, roles, permissions, custom fields, pipelines, workflows, integrations, and more."
+  }
+}
