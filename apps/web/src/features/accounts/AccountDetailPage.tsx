@@ -1848,7 +1848,7 @@ export function AccountDetailPage() {
   const [showQuickCreateContact, setShowQuickCreateContact] = useState(false);
 
   // Tab data (from original AccountDetailPage)
-  const [activities, setActivities] = useState<ActivityType[]>([]);
+  const [activities] = useState<ActivityType[]>([]);
   const [history, setHistory] = useState<AuditLog[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -1867,7 +1867,7 @@ export function AccountDetailPage() {
   const [summary, setSummary] = useState<SubscriptionSummary | null>(null);
   const [scores, setScores] = useState<CustomerScores | null>(null);
   const [recalculating, setRecalculating] = useState(false);
-  const [c360Error, setC360Error] = useState<string | null>(null);
+  const [, setC360Error] = useState<string | null>(null);
 
   // ============ ADMIN-CONTROLLED LAYOUT ============
   const {
