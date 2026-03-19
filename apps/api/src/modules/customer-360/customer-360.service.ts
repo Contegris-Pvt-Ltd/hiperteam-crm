@@ -730,7 +730,7 @@ export class Customer360Service {
               (SELECT COUNT(*) FROM "${schemaName}".project_tasks pt
                WHERE pt.project_id = p.id AND pt.deleted_at IS NULL) as task_count,
               (SELECT COUNT(*) FROM "${schemaName}".project_tasks pt
-               WHERE pt.project_id = p.id AND pt.deleted_at IS NULL AND pt.is_done = true) as completed_task_count
+               WHERE pt.project_id = p.id AND pt.deleted_at IS NULL AND pt.completed_at IS NOT NULL) as completed_task_count
        FROM "${schemaName}".projects p
        LEFT JOIN "${schemaName}".project_statuses ps ON p.status_id = ps.id
        LEFT JOIN "${schemaName}".users u ON p.owner_id = u.id
