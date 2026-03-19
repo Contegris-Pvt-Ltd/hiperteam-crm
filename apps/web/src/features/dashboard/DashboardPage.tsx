@@ -435,35 +435,66 @@ function DashboardInner({
 
   // Fix oklch() colors that html2canvas cannot parse
   const fixOklchColors = (clonedDoc: Document) => {
-    // html2canvas can't parse oklch() CSS color functions.
-    // Inject a stylesheet that overrides all oklch-using properties with safe fallbacks.
-    // Then walk all elements and force computed RGB values as inline styles.
-    const style = clonedDoc.createElement('style');
-    style.textContent = `
-      *, *::before, *::after {
-        --tw-ring-color: rgba(59,130,246,0.5) !important;
-        --tw-ring-offset-color: #fff !important;
+    // html2canvas crashes when it encounters oklch() in CSS.
+    // Fix: rewrite all stylesheets in the cloned doc, replacing oklch() with transparent.
+    const sheets = clonedDoc.querySelectorAll('style');
+    sheets.forEach((sheet) => {
+      if (sheet.textContent && sheet.textContent.includes('oklch')) {
+        sheet.textContent = sheet.textContent.replace(
+          /oklch\([^)]*\)/g,
+          'transparent',
+        );
       }
-    `;
-    clonedDoc.head.appendChild(style);
+    });
 
-    // Walk all elements in the cloned doc and replace any oklch values with computed rgb
+    // Also fix <link> stylesheets by disabling them and inlining computed styles
+    const links = clonedDoc.querySelectorAll('link[rel="stylesheet"]');
+    links.forEach((link) => {
+      try {
+        const styleSheet = Array.from(clonedDoc.styleSheets).find(
+          (s) => s.href === (link as HTMLLinkElement).href,
+        );
+        if (styleSheet) {
+          let hasOklch = false;
+          try {
+            const rules = styleSheet.cssRules;
+            for (let i = 0; i < rules.length; i++) {
+              if (rules[i].cssText.includes('oklch')) {
+                hasOklch = true;
+                break;
+              }
+            }
+          } catch { /* cross-origin */ }
+          if (hasOklch) {
+            const newStyle = clonedDoc.createElement('style');
+            let css = '';
+            try {
+              for (let i = 0; i < styleSheet.cssRules.length; i++) {
+                css += styleSheet.cssRules[i].cssText.replace(
+                  /oklch\([^)]*\)/g,
+                  'transparent',
+                ) + '\n';
+              }
+            } catch { /* cross-origin */ }
+            newStyle.textContent = css;
+            link.parentNode?.insertBefore(newStyle, link);
+            link.parentNode?.removeChild(link);
+          }
+        }
+      } catch { /* ignore */ }
+    });
+
+    // Force inline computed styles on all elements as final safety net
     const all = clonedDoc.body.getElementsByTagName('*');
     for (let i = 0; i < all.length; i++) {
       const el = all[i] as HTMLElement;
       try {
         const computed = clonedDoc.defaultView?.getComputedStyle(el);
         if (!computed) continue;
-        // Force inline styles from computed values to bypass oklch in stylesheets
-        const bg = computed.backgroundColor;
-        const fg = computed.color;
-        const bc = computed.borderColor;
-        if (bg) el.style.backgroundColor = bg;
-        if (fg) el.style.color = fg;
-        if (bc) el.style.borderColor = bc;
-      } catch {
-        // ignore
-      }
+        el.style.backgroundColor = computed.backgroundColor;
+        el.style.color = computed.color;
+        el.style.borderColor = computed.borderColor;
+      } catch { /* ignore */ }
     }
   };
 
