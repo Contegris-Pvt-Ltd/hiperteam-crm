@@ -3,14 +3,14 @@ import { useParams, Link } from 'react-router-dom';
 import { accountsApi } from '../../api/accounts.api';
 import { customer360Api } from '../../api/customer-360.api';
 import { productsApi } from '../../api/products.api';
-import type { Subscription, CustomerScores, SubscriptionSummary, UsageSummaryEntry, UsageSource } from '../../api/customer-360.api';
-import { usePermissions } from '../../hooks/usePermissions';
+import type { Subscription, CustomerScores, SubscriptionSummary, UsageSummaryEntry } from '../../api/customer-360.api';
+
 import {
-  ArrowLeft, RefreshCw, Heart, TrendingUp, TrendingDown, AlertTriangle,
-  Shield, DollarSign, Package, Calendar, Clock, CheckCircle, XCircle,
-  ChevronDown, ChevronUp, Plus, ExternalLink, Zap, Target, Users,
-  BarChart3, Activity, Mail, FileText, Loader2, AlertCircle, Minus,
-  Briefcase, FolderKanban, Receipt, GitBranch, Filter, Copy, Settings2,
+  ArrowLeft, RefreshCw, Heart, AlertTriangle,
+  Shield, DollarSign, Package, CheckCircle, XCircle,
+  Plus, Zap, Target, Users,
+  BarChart3, Activity, Mail, FileText, Loader2, AlertCircle,
+  Briefcase, FolderKanban, Receipt, GitBranch, Copy, Settings2,
   ChevronLeft, ChevronRight, X,
 } from 'lucide-react';
 
@@ -73,11 +73,6 @@ function RenewalBadge({ days }: { days: number | null }) {
   return <span className="text-xs text-green-600 dark:text-green-400">{days}d</span>;
 }
 
-function TrendIcon({ trend, change }: { trend: string; change: number }) {
-  if (trend === 'up') return <span className="flex items-center gap-0.5 text-green-600 dark:text-green-400 text-xs font-medium"><TrendingUp className="w-3 h-3" /> +{change}%</span>;
-  if (trend === 'down') return <span className="flex items-center gap-0.5 text-red-600 dark:text-red-400 text-xs font-medium"><TrendingDown className="w-3 h-3" /> {change}%</span>;
-  return <span className="flex items-center gap-0.5 text-gray-400 text-xs"><Minus className="w-3 h-3" /> 0%</span>;
-}
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
@@ -145,7 +140,7 @@ type TabKey = 'overview' | 'subscriptions' | 'leads' | 'opportunities' | 'projec
 
 export function Customer360Page() {
   const { id } = useParams<{ id: string }>();
-  const { isAdmin } = usePermissions();
+
   const [account, setAccount] = useState<any>(null);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [summary, setSummary] = useState<SubscriptionSummary | null>(null);
@@ -331,8 +326,6 @@ export function Customer360Page() {
         <OverviewTab
           scores={scores}
           subscriptions={subscriptions}
-          summary={summary}
-          usageSummaries={usageSummaries}
           accountId={id!}
         />
       )}
@@ -538,12 +531,10 @@ function CustomerJourneyMap({ accountId }: { accountId: string }) {
 // ════════════════════════════════════════════════════════════
 
 function OverviewTab({
-  scores, subscriptions, summary, usageSummaries, accountId,
+  scores, subscriptions, accountId,
 }: {
   scores: CustomerScores | null;
   subscriptions: Subscription[];
-  summary: SubscriptionSummary | null;
-  usageSummaries: Record<string, UsageSummaryEntry[]>;
   accountId: string;
 }) {
   return (

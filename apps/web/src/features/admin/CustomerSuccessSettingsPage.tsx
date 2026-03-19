@@ -12,7 +12,8 @@ import {
   Activity, ShoppingBag, Calendar,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { customer360Api, ProductRecommendation, RenewalItem } from '../../api/customer-360.api';
+import { customer360Api } from '../../api/customer-360.api';
+import type { ProductRecommendation, RenewalItem } from '../../api/customer-360.api';
 import { productsApi } from '../../api/products.api';
 
 // ════════════════════════════════════════════════════════════
