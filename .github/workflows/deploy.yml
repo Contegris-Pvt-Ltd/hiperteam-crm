@@ -10,10 +10,40 @@ env:
   NODE_VERSION: '20'
 
 jobs:
-  test:
-    name: Test
+  # ── Detect what changed ─────────────────────────
+  changes:
+    name: Detect Changes
     runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
+      - name: Check changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'apps/api/**'
+              - 'package.json'
+              - 'package-lock.json'
+            web:
+              - 'apps/web/**'
+              - 'package.json'
+              - 'package-lock.json'
+            docs:
+              - 'docs-site/**'
+
+  # ── Test API ────────────────────────────────────
+  test-api:
+    name: Test API
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,19 +64,38 @@ jobs:
       - name: Build API
         run: npm run build --workspace=apps/api
 
+  # ── Test Web ────────────────────────────────────
+  test-web:
+    name: Test Web
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Build Web
         run: npm run build --workspace=apps/web
         env:
           VITE_API_URL: https://hiperteam.intellicon.io
 
-  deploy:
-    name: Deploy
-    needs: test
+  # ── Deploy API ──────────────────────────────────
+  deploy-api:
+    name: Deploy API
+    needs: [changes, test-api]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
     steps:
-      - name: Deploy to server
+      - name: Deploy API to server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -70,6 +119,27 @@ jobs:
             echo "🗄️ Running tenant schema migrations..."
             docker compose -f docker-compose.prod.yml exec -T api npm run migrate:tenants:prod
 
+            echo "✅ API deployment complete!"
+
+  # ── Deploy Web ──────────────────────────────────
+  deploy-web:
+    name: Deploy Web
+    needs: [changes, test-web]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy Web to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /home/deploy/hiperteam
+
+            echo "📥 Pulling latest changes..."
+            git pull origin main
+
             echo "🎨 Building frontend..."
             docker run --rm \
               -v /home/deploy/hiperteam:/app \
@@ -77,6 +147,30 @@ jobs:
               -e VITE_API_URL=https://hiperteam.intellicon.io \
               node:20-alpine \
               sh -c "npm ci && cd apps/web && npm run build && rm -rf /app/frontend-build/* && cp -r dist/* /app/frontend-build/"
+
+            echo "🔄 Restarting nginx..."
+            docker compose -f docker-compose.prod.yml restart nginx
+
+            echo "✅ Web deployment complete!"
+
+  # ── Deploy Docs ─────────────────────────────────
+  deploy-docs:
+    name: Deploy Docs
+    needs: changes
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy Docs to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /home/deploy/hiperteam
+
+            echo "📥 Pulling latest changes..."
+            git pull origin main
 
             echo "📚 Building documentation site..."
             docker run --rm \
@@ -88,4 +182,4 @@ jobs:
             echo "🔄 Restarting nginx..."
             docker compose -f docker-compose.prod.yml restart nginx
 
-            echo "✅ Deployment complete!"
+            echo "✅ Docs deployment complete!"
