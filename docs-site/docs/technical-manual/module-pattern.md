@@ -6,7 +6,7 @@ description: "Standard NestJS module structure, controller and service patterns,
 
 # Module Pattern
 
-Every backend feature in Intellicon CRM follows a consistent module structure. This guide covers the standard patterns and provides a complete example of creating a new module from scratch.
+Every backend feature in HiperTeam CRM follows a consistent module structure. This guide covers the standard patterns and provides a complete example of creating a new module from scratch.
 
 ## Standard Module Structure
 

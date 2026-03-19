@@ -1,7 +1,7 @@
 ---
 sidebar_position: 9
 title: "Managing Contacts"
-description: "Create, search, filter, edit, and delete contacts in Intellicon CRM."
+description: "Create, search, filter, edit, and delete contacts in HiperTeam CRM."
 ---
 
 # Managing Contacts

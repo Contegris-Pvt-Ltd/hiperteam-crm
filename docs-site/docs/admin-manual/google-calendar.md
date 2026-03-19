@@ -1,12 +1,12 @@
 ---
 sidebar_position: 30
 title: "Google Calendar Integration"
-description: "Set up Google Calendar two-way sync in Intellicon CRM — OAuth configuration, sync settings, conflict resolution, and troubleshooting."
+description: "Set up Google Calendar two-way sync in HiperTeam CRM — OAuth configuration, sync settings, conflict resolution, and troubleshooting."
 ---
 
 # Google Calendar Integration
 
-The Google Calendar integration provides two-way synchronization between Intellicon CRM tasks/meetings and Google Calendar events. Users can see their CRM schedule in Google Calendar and vice versa.
+The Google Calendar integration provides two-way synchronization between HiperTeam CRM tasks/meetings and Google Calendar events. Users can see their CRM schedule in Google Calendar and vice versa.
 
 Navigate to **Admin > Integrations > Google Calendar**.
 
@@ -41,7 +41,7 @@ The admin connects the integration at the organization level. Individual users t
 1. In the Google Cloud Console, create an OAuth 2.0 Client ID.
 2. Set the authorized redirect URI to `https://your-crm-domain.com/api/calendar-sync/callback`.
 3. Copy the **Client ID** and **Client Secret**.
-4. Paste them into the Intellicon CRM Google Calendar configuration.
+4. Paste them into the HiperTeam CRM Google Calendar configuration.
 5. Save.
 
 ## Sync Configuration

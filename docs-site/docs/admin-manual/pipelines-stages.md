@@ -1,12 +1,12 @@
 ---
 sidebar_position: 15
 title: "Pipelines & Stages"
-description: "Create and manage sales pipelines and stages in Intellicon CRM — configure stage ordering, required fields, stage ownership, and shared pipeline architecture."
+description: "Create and manage sales pipelines and stages in HiperTeam CRM — configure stage ordering, required fields, stage ownership, and shared pipeline architecture."
 ---
 
 # Pipelines & Stages
 
-Pipelines are the backbone of your sales process in Intellicon CRM. They define the journey a record takes from initial contact to close. The pipeline system is **shared** between Leads, Opportunities, and other pipeline-enabled modules.
+Pipelines are the backbone of your sales process in HiperTeam CRM. They define the journey a record takes from initial contact to close. The pipeline system is **shared** between Leads, Opportunities, and other pipeline-enabled modules.
 
 ## Pipeline System Overview
 

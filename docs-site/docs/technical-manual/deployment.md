@@ -6,7 +6,7 @@ description: "Production deployment guide covering build, database, Redis, Nginx
 
 # Deployment
 
-This guide covers deploying Intellicon CRM to a production environment.
+This guide covers deploying HiperTeam CRM to a production environment.
 
 ## Architecture Overview
 

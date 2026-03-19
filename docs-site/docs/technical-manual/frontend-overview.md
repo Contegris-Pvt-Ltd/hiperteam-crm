@@ -6,7 +6,7 @@ description: "React frontend architecture, design system, component conventions,
 
 # Frontend Overview
 
-The Intellicon CRM frontend is a React single-page application (SPA) built with TypeScript, Vite, and Tailwind CSS.
+The HiperTeam CRM frontend is a React single-page application (SPA) built with TypeScript, Vite, and Tailwind CSS.
 
 ## Technology Stack
 

@@ -6,7 +6,7 @@ description: "Add notes and upload documents on any CRM record — contacts, lea
 
 # Notes & Documents
 
-**Notes** and **Documents** are available on virtually every record type in Intellicon CRM. They provide a place to capture free-text observations and attach files directly to the records they relate to.
+**Notes** and **Documents** are available on virtually every record type in HiperTeam CRM. They provide a place to capture free-text observations and attach files directly to the records they relate to.
 
 ## Notes Panel
 
@@ -77,7 +77,7 @@ Each document entry shows:
 
 ## Supported File Types
 
-Intellicon CRM supports a wide range of file types:
+HiperTeam CRM supports a wide range of file types:
 
 | Category | Formats |
 |---|---|

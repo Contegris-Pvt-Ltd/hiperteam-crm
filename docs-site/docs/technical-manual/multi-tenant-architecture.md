@@ -6,7 +6,7 @@ description: "Schema-per-tenant isolation model, query patterns, and tenant life
 
 # Multi-Tenant Architecture
 
-Intellicon CRM uses a **schema-per-tenant** isolation model. Every tenant gets a dedicated PostgreSQL schema containing all their tables, data, and configurations.
+HiperTeam CRM uses a **schema-per-tenant** isolation model. Every tenant gets a dedicated PostgreSQL schema containing all their tables, data, and configurations.
 
 ## Schema-Per-Tenant Model
 

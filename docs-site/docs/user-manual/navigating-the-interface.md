@@ -1,12 +1,12 @@
 ---
 sidebar_position: 3
 title: "Navigating the Interface"
-description: "Understand the Intellicon CRM layout including the sidebar, header bar, dark mode, and navigation patterns."
+description: "Understand the HiperTeam CRM layout including the sidebar, header bar, dark mode, and navigation patterns."
 ---
 
 # Navigating the Interface
 
-Intellicon CRM uses a clean, consistent layout across all modules. Once you understand the main navigation elements, you can move efficiently through the entire platform.
+HiperTeam CRM uses a clean, consistent layout across all modules. Once you understand the main navigation elements, you can move efficiently through the entire platform.
 
 ## Main Layout
 
@@ -79,7 +79,7 @@ Your avatar or initials displayed on the right side of the header. Click to open
 
 ## Dark Mode Toggle
 
-Intellicon CRM supports both light and dark themes.
+HiperTeam CRM supports both light and dark themes.
 
 To switch between themes:
 

@@ -1,7 +1,7 @@
 ---
 sidebar_position: 51
 title: "Bulk Operations"
-description: "Learn how to perform bulk updates, bulk deletes, and bulk exports on multiple records at once in Intellicon CRM."
+description: "Learn how to perform bulk updates, bulk deletes, and bulk exports on multiple records at once in HiperTeam CRM."
 ---
 
 # Bulk Operations

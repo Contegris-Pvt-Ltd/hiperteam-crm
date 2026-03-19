@@ -1,12 +1,12 @@
 ---
 sidebar_position: 50
 title: "Data Tables"
-description: "Learn how to use data tables across Intellicon CRM — sorting, filtering, column customization, pagination, and more."
+description: "Learn how to use data tables across HiperTeam CRM — sorting, filtering, column customization, pagination, and more."
 ---
 
 # Data Tables
 
-Data tables are the primary way you interact with lists of records across Intellicon CRM. Whether you're viewing contacts, leads, opportunities, or tasks, the table experience is consistent and powerful.
+Data tables are the primary way you interact with lists of records across HiperTeam CRM. Whether you're viewing contacts, leads, opportunities, or tasks, the table experience is consistent and powerful.
 
 ![Screenshot: Data table showing leads with column headers, sorting, and pagination](../../static/img/screenshots/shared/data-table-overview.png)
 

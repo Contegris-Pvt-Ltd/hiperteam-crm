@@ -1,12 +1,12 @@
 ---
 sidebar_position: 37
 title: "Composing Emails"
-description: "Compose, reply, and forward emails from within Intellicon CRM with rich text editing, attachments, signatures, and entity linking."
+description: "Compose, reply, and forward emails from within HiperTeam CRM with rich text editing, attachments, signatures, and entity linking."
 ---
 
 # Composing Emails
 
-The integrated inbox lets you compose, reply to, and forward emails without leaving Intellicon CRM. All sent emails are automatically tracked and can be linked to CRM records.
+The integrated inbox lets you compose, reply to, and forward emails without leaving HiperTeam CRM. All sent emails are automatically tracked and can be linked to CRM records.
 
 ## Composing New Emails
 

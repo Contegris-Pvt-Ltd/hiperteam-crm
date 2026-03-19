@@ -6,11 +6,11 @@ description: "Use the integrated email inbox to read, filter, search, and manage
 
 # Email Inbox
 
-The **Inbox** module provides a Gmail-like integrated email experience within Intellicon CRM. Read and manage emails without leaving the platform, and keep your communications linked to the right CRM records.
+The **Inbox** module provides a Gmail-like integrated email experience within HiperTeam CRM. Read and manage emails without leaving the platform, and keep your communications linked to the right CRM records.
 
 ## Email Inbox Overview
 
-The inbox connects to your existing email accounts and displays your messages directly within Intellicon CRM. This integration ensures that all email communication is captured in context alongside your leads, contacts, and opportunities.
+The inbox connects to your existing email accounts and displays your messages directly within HiperTeam CRM. This integration ensures that all email communication is captured in context alongside your leads, contacts, and opportunities.
 
 ![Screenshot: Email inbox showing list of emails with sender, subject, and date](../../static/img/screenshots/email/inbox-overview.png)
 
@@ -29,14 +29,14 @@ The inbox supports connections to three providers:
 1. Navigate to **Inbox** or email settings.
 2. Click **Connect Account**.
 3. Select **Gmail**.
-4. Sign in with your Google account and authorize Intellicon CRM.
+4. Sign in with your Google account and authorize HiperTeam CRM.
 5. Your inbox populates with recent messages.
 
 ### Connecting a Microsoft 365 Account
 
 1. Click **Connect Account**.
 2. Select **Microsoft 365**.
-3. Sign in with your Microsoft account and authorize Intellicon CRM.
+3. Sign in with your Microsoft account and authorize HiperTeam CRM.
 4. Your inbox populates with recent messages.
 
 ### Connecting via IMAP/SMTP

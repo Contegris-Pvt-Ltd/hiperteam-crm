@@ -10,7 +10,7 @@ Widgets are the building blocks of your dashboard. Each widget visualizes a spec
 
 ## Widget Types
 
-Intellicon CRM offers four categories of widgets:
+HiperTeam CRM offers four categories of widgets:
 
 | Category | Description |
 |---|---|

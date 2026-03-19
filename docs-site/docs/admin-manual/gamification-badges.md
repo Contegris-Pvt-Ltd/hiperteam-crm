@@ -1,12 +1,12 @@
 ---
 sidebar_position: 23
 title: "Gamification & Badges"
-description: "Configure gamification in Intellicon CRM — create badges, achievements, leaderboards, and incentive programs to motivate your team."
+description: "Configure gamification in HiperTeam CRM — create badges, achievements, leaderboards, and incentive programs to motivate your team."
 ---
 
 # Gamification & Badges
 
-Gamification adds a motivational layer to Intellicon CRM by rewarding users with badges and achievements for hitting milestones, and ranking performance on leaderboards.
+Gamification adds a motivational layer to HiperTeam CRM by rewarding users with badges and achievements for hitting milestones, and ranking performance on leaderboards.
 
 Navigate to **Admin > Gamification**.
 

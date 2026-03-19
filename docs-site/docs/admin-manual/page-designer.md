@@ -1,7 +1,7 @@
 ---
 sidebar_position: 13
 title: "Layout Designer"
-description: "Use the Layout Designer in Intellicon CRM to control field layout, section grouping, and form structure on record detail pages with drag-and-drop."
+description: "Use the Layout Designer in HiperTeam CRM to control field layout, section grouping, and form structure on record detail pages with drag-and-drop."
 ---
 
 # Layout Designer

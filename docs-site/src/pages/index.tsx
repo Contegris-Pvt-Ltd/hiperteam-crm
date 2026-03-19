@@ -1,82 +1,143 @@
 import type {ReactNode} from 'react';
-import clsx from 'clsx';
 import Link from '@docusaurus/Link';
-import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
-import Heading from '@theme/Heading';
 
-import styles from './index.module.css';
-
-function HomepageHeader() {
-  const {siteConfig} = useDocusaurusContext();
-  return (
-    <header className={clsx('hero hero--primary', styles.heroBanner)}>
-      <div className="container">
-        <Heading as="h1" className="hero__title">
-          {siteConfig.title}
-        </Heading>
-        <p className="hero__subtitle">{siteConfig.tagline}</p>
-        <div className={styles.buttons}>
-          <Link
-            className="button button--secondary button--lg"
-            to="/user-manual/getting-started"
-            style={{marginRight: '1rem'}}>
-            User Manual
-          </Link>
-          <Link
-            className="button button--secondary button--lg"
-            to="/admin-manual/getting-started"
-            style={{marginRight: '1rem'}}>
-            Admin Manual
-          </Link>
-          <Link
-            className="button button--secondary button--lg"
-            to="/technical-manual/architecture-overview">
-            Technical Manual
-          </Link>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-const features = [
+const manuals = [
   {
     title: 'User Manual',
-    description: 'Complete guide for everyday CRM users — managing contacts, leads, opportunities, tasks, reports, and more.',
+    icon: '📘',
+    iconClass: 'manual-card-icon-user',
+    description: 'Everything you need to manage contacts, leads, opportunities, tasks, reports, and your day-to-day CRM workflow.',
     link: '/user-manual/getting-started',
+    topics: ['Contacts', 'Leads', 'Opportunities', 'Tasks', 'Reports', 'Invoices', 'Projects', 'Email', 'Forms'],
   },
   {
     title: 'Admin Manual',
-    description: 'Configure roles, permissions, pipelines, custom fields, workflows, integrations, and system settings.',
+    icon: '⚙️',
+    iconClass: 'manual-card-icon-admin',
+    description: 'Configure roles, permissions, pipelines, custom fields, workflows, integrations, and every system setting.',
     link: '/admin-manual/getting-started',
+    topics: ['RBAC', 'Pipelines', 'Custom Fields', 'Workflows', 'Approvals', 'Integrations', 'Templates'],
   },
   {
     title: 'Technical Manual',
-    description: 'Architecture deep-dive, API reference, deployment guide, and development best practices.',
+    icon: '🛠️',
+    iconClass: 'manual-card-icon-tech',
+    description: 'Architecture deep-dive, API reference for every endpoint, deployment guide, and development best practices.',
     link: '/technical-manual/architecture-overview',
+    topics: ['Architecture', 'API Reference', 'Multi-Tenant', 'RBAC', 'Deployment', 'Migrations'],
   },
 ];
 
+const features = [
+  { icon: '👥', title: 'Contact Management', desc: 'Full lifecycle from lead to customer' },
+  { icon: '📊', title: 'Pipeline & Stages', desc: 'Visual Kanban boards with drag-and-drop' },
+  { icon: '🔐', title: '3-Level RBAC', desc: 'Module, record, and field-level permissions' },
+  { icon: '📧', title: 'Email Integration', desc: 'Gmail, Microsoft 365, and IMAP/SMTP' },
+  { icon: '📝', title: 'Form Builder', desc: 'Drag-and-drop forms with CRM actions' },
+  { icon: '📅', title: 'Scheduling', desc: 'Booking pages with Google Calendar sync' },
+  { icon: '⚡', title: 'Workflow Automation', desc: '13 action types with conditional logic' },
+  { icon: '📈', title: 'Reports & Dashboards', desc: 'Visual report builder with 11 chart types' },
+  { icon: '🏢', title: 'Multi-Tenant', desc: 'Schema-per-tenant PostgreSQL isolation' },
+  { icon: '💰', title: 'Invoicing', desc: 'Line items, payments, recurrence, Xero sync' },
+  { icon: '📋', title: 'Project Management', desc: 'Phases, Gantt, Kanban, time tracking' },
+  { icon: '✅', title: 'Approval Engine', desc: 'Multi-step chains with escalation' },
+];
+
 export default function Home(): ReactNode {
-  const {siteConfig} = useDocusaurusContext();
   return (
     <Layout
       title="Documentation"
-      description="Intellicon CRM Documentation — User Manual, Admin Manual, and Technical Manual">
-      <HomepageHeader />
+      description="HiperTeam CRM Documentation — User Manual, Admin Manual, and Technical Manual">
+
+      {/* Hero */}
+      <header className="hero-banner">
+        <div className="container">
+          <img src="/img/logo-transparent.png" alt="HiperTeam CRM" className="hero-logo" />
+          <div className="hero-version">Documentation Portal</div>
+          <h1 className="hero-title">HiperTeam CRM</h1>
+          <p className="hero-subtitle">
+            Complete Business &amp; People Operating System — from Lead to Customer Success
+          </p>
+          <div className="hero-buttons">
+            <Link className="hero-btn hero-btn-primary" to="/user-manual/getting-started">
+              Get Started
+            </Link>
+            <Link className="hero-btn hero-btn-secondary" to="/admin-manual/getting-started">
+              Admin Guide
+            </Link>
+            <Link className="hero-btn hero-btn-secondary" to="/technical-manual/architecture-overview">
+              API &amp; Architecture
+            </Link>
+          </div>
+
+          <div className="stats-bar">
+            <div className="stat-item">
+              <span className="stat-number">120+</span>
+              <span className="stat-label">Doc Pages</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-number">15+</span>
+              <span className="stat-label">Modules</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-number">100+</span>
+              <span className="stat-label">API Endpoints</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-number">11</span>
+              <span className="stat-label">Chart Types</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
       <main>
-        <section style={{padding: '4rem 0'}}>
+        {/* Manual Cards */}
+        <section className="manuals-section">
           <div className="container">
+            <div className="section-header">
+              <h2 className="section-title">Choose Your Manual</h2>
+              <p className="section-subtitle">Three comprehensive guides for every role in your organization</p>
+            </div>
             <div className="row">
-              {features.map((feature, idx) => (
-                <div key={idx} className={clsx('col col--4')} style={{marginBottom: '2rem'}}>
-                  <div className="card" style={{height: '100%', padding: '2rem'}}>
-                    <Heading as="h3">{feature.title}</Heading>
-                    <p>{feature.description}</p>
-                    <Link className="button button--primary" to={feature.link}>
-                      Read More
+              {manuals.map((manual, idx) => (
+                <div key={idx} className="col col--4" style={{marginBottom: '1.5rem'}}>
+                  <div className="manual-card">
+                    <div className={`manual-card-icon ${manual.iconClass}`}>
+                      {manual.icon}
+                    </div>
+                    <h3>{manual.title}</h3>
+                    <p>{manual.description}</p>
+                    <div className="manual-card-topics">
+                      {manual.topics.map((topic) => (
+                        <span key={topic} className="manual-card-topic">{topic}</span>
+                      ))}
+                    </div>
+                    <Link className="manual-card-link" to={manual.link}>
+                      Read the {manual.title} →
                     </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Features Grid */}
+        <section className="features-section">
+          <div className="container">
+            <div className="section-header">
+              <h2 className="section-title">What's Covered</h2>
+              <p className="section-subtitle">Every feature documented with step-by-step guides and API references</p>
+            </div>
+            <div className="feature-grid">
+              {features.map((f, idx) => (
+                <div key={idx} className="feature-item">
+                  <div className="feature-icon">{f.icon}</div>
+                  <div>
+                    <h4>{f.title}</h4>
+                    <p>{f.desc}</p>
                   </div>
                 </div>
               ))}

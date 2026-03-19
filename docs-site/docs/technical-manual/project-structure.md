@@ -6,7 +6,7 @@ description: "Complete directory layout, file naming conventions, and module org
 
 # Project Structure
 
-The Intellicon CRM monorepo contains two applications: a NestJS API backend and a React frontend.
+The HiperTeam CRM monorepo contains two applications: a NestJS API backend and a React frontend.
 
 ## Root Directory
 

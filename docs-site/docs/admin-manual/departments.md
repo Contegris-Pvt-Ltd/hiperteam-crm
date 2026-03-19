@@ -1,7 +1,7 @@
 ---
 sidebar_position: 6
 title: "Departments"
-description: "Create and manage departments in Intellicon CRM — build hierarchical structures, assign managers, and understand how departments affect record access."
+description: "Create and manage departments in HiperTeam CRM — build hierarchical structures, assign managers, and understand how departments affect record access."
 ---
 
 # Department Management

@@ -1,7 +1,7 @@
 ---
 sidebar_position: 5
 title: "Organization Chart"
-description: "View and understand the organization chart in Intellicon CRM — built from manager relationships and department assignments."
+description: "View and understand the organization chart in HiperTeam CRM — built from manager relationships and department assignments."
 ---
 
 # Organization Chart

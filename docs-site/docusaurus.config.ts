@@ -3,7 +3,7 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'Intellicon CRM',
+  title: 'HiperTeam CRM',
   tagline: 'Complete Business & People Operating System',
   favicon: 'img/favicon.ico',
 
@@ -14,8 +14,8 @@ const config: Config = {
   url: 'https://docs-hiperteam.intellicon.io',
   baseUrl: '/',
 
-  organizationName: 'intellicon',
-  projectName: 'intellicon-crm',
+  organizationName: 'hiperteam',
+  projectName: 'hiperteam-crm',
 
   onBrokenLinks: 'warn',
   onBrokenAnchors: 'warn',
@@ -73,9 +73,9 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Intellicon CRM',
+      title: 'HiperTeam CRM',
       logo: {
-        alt: 'Intellicon CRM Logo',
+        alt: 'HiperTeam CRM Logo',
         src: 'img/logo.png',
         srcDark: 'img/logo-transparent.png',
       },
@@ -103,7 +103,7 @@ const config: Config = {
     footer: {
       style: 'dark',
       logo: {
-        alt: 'Intellicon CRM',
+        alt: 'HiperTeam CRM',
         src: 'img/logo-transparent.png',
         width: 60,
         height: 60,
@@ -126,7 +126,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Intellicon CRM. All rights reserved.`,
+      copyright: `Copyright © ${new Date().getFullYear()} HiperTeam CRM. All rights reserved.`,
     },
     prism: {
       theme: prismThemes.github,

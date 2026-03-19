@@ -6,7 +6,7 @@ description: "Three-level permission system: module permissions, record access s
 
 # RBAC Deep Dive
 
-Intellicon CRM implements a **3-level Role-Based Access Control** system that controls what users can do (module permissions), which records they can see (record access), and which fields are visible/editable (field permissions).
+HiperTeam CRM implements a **3-level Role-Based Access Control** system that controls what users can do (module permissions), which records they can see (record access), and which fields are visible/editable (field permissions).
 
 ## Architecture Overview
 

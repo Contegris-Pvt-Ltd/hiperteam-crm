@@ -1,16 +1,16 @@
 ---
 sidebar_position: 1
 title: "Getting Started"
-description: "Welcome to Intellicon CRM — your complete Business & People Operating System. Learn what the platform offers and how to get started."
+description: "Welcome to HiperTeam CRM — your complete Business & People Operating System. Learn what the platform offers and how to get started."
 ---
 
-# Getting Started with Intellicon CRM
+# Getting Started with HiperTeam CRM
 
-Welcome to **Intellicon CRM** — a complete Business & People Operating System designed to manage every stage of your customer lifecycle, from first contact to long-term success.
+Welcome to **HiperTeam CRM** — a complete Business & People Operating System designed to manage every stage of your customer lifecycle, from first contact to long-term success.
 
-## What is Intellicon CRM?
+## What is HiperTeam CRM?
 
-Intellicon CRM is a multi-tenant SaaS platform that unifies your entire business workflow into a single, integrated system. Rather than juggling separate tools for sales, project management, invoicing, and customer support, Intellicon CRM brings everything together under one roof.
+HiperTeam CRM is a multi-tenant SaaS platform that unifies your entire business workflow into a single, integrated system. Rather than juggling separate tools for sales, project management, invoicing, and customer support, HiperTeam CRM brings everything together under one roof.
 
 The platform follows a natural business lifecycle:
 
@@ -41,7 +41,7 @@ Every module is interconnected, so data flows seamlessly from one stage to the n
 
 ## System Requirements
 
-Intellicon CRM is a cloud-based application. You need:
+HiperTeam CRM is a cloud-based application. You need:
 
 - A **modern web browser** — Chrome, Firefox, Edge, or Safari (latest two major versions)
 - A **stable internet connection**
@@ -76,6 +76,6 @@ Your administrator controls which modules you can access and what actions you ca
 
 - Use the **global search bar** at the top of the page to quickly find any record across modules. See [Global Search](./global-search.md).
 - Check the **notification bell** for updates on records assigned to you.
-- Reach out to your organization's Intellicon CRM administrator for role or permission questions.
+- Reach out to your organization's HiperTeam CRM administrator for role or permission questions.
 
-![Screenshot: Intellicon CRM main dashboard after login](../../static/img/screenshots/getting-started/main-dashboard.png)
+![Screenshot: HiperTeam CRM main dashboard after login](../../static/img/screenshots/getting-started/main-dashboard.png)

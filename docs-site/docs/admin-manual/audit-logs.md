@@ -1,12 +1,12 @@
 ---
 sidebar_position: 34
 title: "Audit Logs"
-description: "Review audit logs in Intellicon CRM — track all create, update, and delete actions with old and new values, filter by entity, user, and date."
+description: "Review audit logs in HiperTeam CRM — track all create, update, and delete actions with old and new values, filter by entity, user, and date."
 ---
 
 # Audit Logs
 
-The audit log system records every significant action performed in Intellicon CRM — who did what, when, and what changed. This provides a complete change history for compliance, troubleshooting, and accountability.
+The audit log system records every significant action performed in HiperTeam CRM — who did what, when, and what changed. This provides a complete change history for compliance, troubleshooting, and accountability.
 
 Navigate to **Admin > Audit Logs**.
 

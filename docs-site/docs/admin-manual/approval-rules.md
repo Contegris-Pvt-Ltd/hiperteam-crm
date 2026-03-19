@@ -1,7 +1,7 @@
 ---
 sidebar_position: 27
 title: "Approval Rules"
-description: "Configure approval rules in Intellicon CRM — set up entity types, trigger events, multi-step approval chains, conditions, and priority ordering."
+description: "Configure approval rules in HiperTeam CRM — set up entity types, trigger events, multi-step approval chains, conditions, and priority ordering."
 ---
 
 # Approval Rules
@@ -199,4 +199,4 @@ Admins can see all approval requests. Regular users see only requests they submi
 
 ---
 
-Next: [Integrations Overview](./integrations-overview.md) — Connect Intellicon CRM to external systems.
+Next: [Integrations Overview](./integrations-overview.md) — Connect HiperTeam CRM to external systems.

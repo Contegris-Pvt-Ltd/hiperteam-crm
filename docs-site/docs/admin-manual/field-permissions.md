@@ -1,7 +1,7 @@
 ---
 sidebar_position: 10
 title: "Field Permissions"
-description: "Configure field-level permissions in Intellicon CRM — control which fields are hidden, read-only, or editable for each role and module."
+description: "Configure field-level permissions in HiperTeam CRM — control which fields are hidden, read-only, or editable for each role and module."
 ---
 
 # Field Permissions

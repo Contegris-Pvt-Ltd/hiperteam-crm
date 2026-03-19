@@ -10,7 +10,7 @@ The **Accounts** module manages organizations — the companies, businesses, and
 
 ## What are Accounts?
 
-An account is a record representing an **organization** in Intellicon CRM. Accounts can be your customers, prospects, partners, vendors, or any other type of organization relevant to your business.
+An account is a record representing an **organization** in HiperTeam CRM. Accounts can be your customers, prospects, partners, vendors, or any other type of organization relevant to your business.
 
 Accounts serve as a hub connecting contacts, leads, opportunities, invoices, and projects that relate to the same organization.
 
@@ -67,7 +67,7 @@ Your administrator may also configure **custom fields** specific to your busines
 
 ## Parent-Child Account Hierarchy
 
-Intellicon CRM supports **hierarchical account structures** through parent-child relationships. This is useful for:
+HiperTeam CRM supports **hierarchical account structures** through parent-child relationships. This is useful for:
 
 - **Corporate groups** — a parent company with multiple subsidiaries
 - **Divisions** — regional offices or business units under a main entity

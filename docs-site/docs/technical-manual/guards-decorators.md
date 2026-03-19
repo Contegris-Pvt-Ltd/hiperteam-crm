@@ -6,7 +6,7 @@ description: "JwtAuthGuard, PermissionGuard, custom decorators, and guard execut
 
 # Guards & Decorators
 
-Intellicon CRM uses NestJS guards and custom decorators to enforce authentication and authorization across all API endpoints.
+HiperTeam CRM uses NestJS guards and custom decorators to enforce authentication and authorization across all API endpoints.
 
 ## Guard Overview
 

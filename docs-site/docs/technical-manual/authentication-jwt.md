@@ -6,7 +6,7 @@ description: "JWT authentication flow, token management, registration, invitatio
 
 # Authentication & JWT
 
-Intellicon CRM uses stateless JWT authentication. The JWT token embeds the complete RBAC payload, eliminating per-request permission lookups.
+HiperTeam CRM uses stateless JWT authentication. The JWT token embeds the complete RBAC payload, eliminating per-request permission lookups.
 
 ## Authentication Flow Overview
 

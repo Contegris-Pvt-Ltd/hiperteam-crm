@@ -5,7 +5,7 @@ title: Email Setup & Integration
 
 # Email Setup & Integration
 
-Intellicon CRM supports three email providers for bidirectional email sync. Configure these from **Settings → Integrations** or from the **Email Settings** page within the Inbox.
+HiperTeam CRM supports three email providers for bidirectional email sync. Configure these from **Settings → Integrations** or from the **Email Settings** page within the Inbox.
 
 ## Supported Providers
 

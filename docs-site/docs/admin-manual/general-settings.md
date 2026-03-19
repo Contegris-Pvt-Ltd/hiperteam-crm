@@ -1,7 +1,7 @@
 ---
 sidebar_position: 35
 title: "General Settings"
-description: "Configure company-wide settings in Intellicon CRM — company info, timezone, date format, currency, language, session timeout, and industry management."
+description: "Configure company-wide settings in HiperTeam CRM — company info, timezone, date format, currency, language, session timeout, and industry management."
 ---
 
 # General Settings

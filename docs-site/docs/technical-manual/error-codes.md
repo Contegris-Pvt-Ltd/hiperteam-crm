@@ -6,7 +6,7 @@ description: "Complete reference of ICN error codes by category with description
 
 # Error Codes
 
-Intellicon CRM uses structured error codes in the format `ICN-XXXX`. Error codes are grouped by category using numeric ranges.
+HiperTeam CRM uses structured error codes in the format `ICN-XXXX`. Error codes are grouped by category using numeric ranges.
 
 ## Error Response Format
 

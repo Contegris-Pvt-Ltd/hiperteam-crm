@@ -1,7 +1,7 @@
 ---
 sidebar_position: 20
 title: "Task Settings"
-description: "Configure task types, statuses, and priorities in Intellicon CRM — customize icons, colors, ordering, and default values for the task management module."
+description: "Configure task types, statuses, and priorities in HiperTeam CRM — customize icons, colors, ordering, and default values for the task management module."
 ---
 
 # Task Settings

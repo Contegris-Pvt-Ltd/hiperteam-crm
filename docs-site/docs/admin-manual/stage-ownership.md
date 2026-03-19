@@ -1,7 +1,7 @@
 ---
 sidebar_position: 16
 title: "Stage Ownership"
-description: "Configure stage ownership and field visibility per stage in Intellicon CRM — assign users, teams, or roles as stage owners and control which fields appear at each stage."
+description: "Configure stage ownership and field visibility per stage in HiperTeam CRM — assign users, teams, or roles as stage owners and control which fields appear at each stage."
 ---
 
 # Stage Ownership

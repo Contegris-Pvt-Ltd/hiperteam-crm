@@ -1,7 +1,7 @@
 ---
 sidebar_position: 12
 title: "Field Validation"
-description: "Configure field validation rules in Intellicon CRM — enforce required fields, format constraints, value ranges, regex patterns, and conditional visibility."
+description: "Configure field validation rules in HiperTeam CRM — enforce required fields, format constraints, value ranges, regex patterns, and conditional visibility."
 ---
 
 # Field Validation

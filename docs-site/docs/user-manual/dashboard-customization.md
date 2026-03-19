@@ -6,7 +6,7 @@ description: "Learn how to add, configure, arrange, resize, and export dashboard
 
 # Dashboard Customization
 
-Intellicon CRM dashboards are fully customizable. You control which widgets appear, where they sit, and how large they are — creating a workspace that matches your workflow exactly.
+HiperTeam CRM dashboards are fully customizable. You control which widgets appear, where they sit, and how large they are — creating a workspace that matches your workflow exactly.
 
 ## Edit Mode
 

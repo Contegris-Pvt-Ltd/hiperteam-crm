@@ -10,7 +10,7 @@ The **Contacts** module is your directory of individuals — the people your org
 
 ## What are Contacts?
 
-Contacts represent **individual people** in Intellicon CRM. They are distinct from [Accounts](./accounts-overview.md), which represent organizations. A single account may have many associated contacts (e.g., multiple employees at a company).
+Contacts represent **individual people** in HiperTeam CRM. They are distinct from [Accounts](./accounts-overview.md), which represent organizations. A single account may have many associated contacts (e.g., multiple employees at a company).
 
 Contacts are linked across the platform — they can be associated with leads, opportunities, tasks, emails, and more. When you convert a lead, a contact is automatically created from the lead's information.
 

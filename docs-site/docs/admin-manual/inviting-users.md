@@ -1,7 +1,7 @@
 ---
 sidebar_position: 4
 title: "Inviting Users"
-description: "Send email invitations to onboard new users into Intellicon CRM — manage pending invitations, handle expiry, and troubleshoot delivery issues."
+description: "Send email invitations to onboard new users into HiperTeam CRM — manage pending invitations, handle expiry, and troubleshoot delivery issues."
 ---
 
 # Inviting Users

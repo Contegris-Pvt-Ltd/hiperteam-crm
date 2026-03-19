@@ -1,12 +1,12 @@
 ---
 sidebar_position: 28
 title: "Integrations Overview"
-description: "Overview of available integrations in Intellicon CRM — Xero, Google Calendar, email, Zapier, and more. Monitor integration health and manage connections."
+description: "Overview of available integrations in HiperTeam CRM — Xero, Google Calendar, email, Zapier, and more. Monitor integration health and manage connections."
 ---
 
 # Integrations Overview
 
-Intellicon CRM connects to external business tools to synchronize data, automate workflows, and eliminate manual data entry. This chapter provides an overview of all available integrations and how to manage them.
+HiperTeam CRM connects to external business tools to synchronize data, automate workflows, and eliminate manual data entry. This chapter provides an overview of all available integrations and how to manage them.
 
 Navigate to **Admin > Integrations**.
 
@@ -71,14 +71,14 @@ Zapier enables connections to 5,000+ applications without custom development.
 
 ### Outbound Triggers (CRM to Zapier)
 
-Intellicon CRM can send events to Zapier when:
+HiperTeam CRM can send events to Zapier when:
 - A record is created, updated, or deleted
 - A deal stage changes
 - A task is completed
 
 ### Inbound Actions (Zapier to CRM)
 
-Zapier can trigger actions in Intellicon CRM:
+Zapier can trigger actions in HiperTeam CRM:
 - Create a contact or lead
 - Update a record
 - Create a task
@@ -87,12 +87,12 @@ Zapier can trigger actions in Intellicon CRM:
 
 1. Click on the **Zapier** integration card.
 2. Copy your **API webhook URL** and **authentication token**.
-3. In Zapier, create a new Zap using "Webhooks by Zapier" or search for "Intellicon CRM".
+3. In Zapier, create a new Zap using "Webhooks by Zapier" or search for "HiperTeam CRM".
 4. Paste the webhook URL and token.
 5. Configure the trigger event and action.
 
 :::tip
-Start with simple Zaps (e.g., "When a form is submitted in Typeform, create a lead in Intellicon CRM"). Add complexity as you gain confidence with the integration.
+Start with simple Zaps (e.g., "When a form is submitted in Typeform, create a lead in HiperTeam CRM"). Add complexity as you gain confidence with the integration.
 :::
 
 ## Best Practices

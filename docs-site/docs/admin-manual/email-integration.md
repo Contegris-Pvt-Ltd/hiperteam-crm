@@ -1,12 +1,12 @@
 ---
 sidebar_position: 31
 title: "Email Integration"
-description: "Configure email integration in Intellicon CRM — connect Gmail and Outlook, set up SMTP for outbound, configure signatures, sync settings, and auto-link rules."
+description: "Configure email integration in HiperTeam CRM — connect Gmail and Outlook, set up SMTP for outbound, configure signatures, sync settings, and auto-link rules."
 ---
 
 # Email Integration
 
-Email integration connects your team's email accounts to Intellicon CRM, enabling email tracking, automatic association with CRM records, and centralized communication history.
+Email integration connects your team's email accounts to HiperTeam CRM, enabling email tracking, automatic association with CRM records, and centralized communication history.
 
 Navigate to **Admin > Integrations > Email**.
 

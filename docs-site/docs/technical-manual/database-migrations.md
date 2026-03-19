@@ -6,11 +6,11 @@ description: "Migration system architecture, writing idempotent migrations, and 
 
 # Database Migrations
 
-Intellicon CRM uses a custom migration system designed for schema-per-tenant architecture. All migrations are defined in a single file and applied to every tenant schema.
+HiperTeam CRM uses a custom migration system designed for schema-per-tenant architecture. All migrations are defined in a single file and applied to every tenant schema.
 
 ## Migration System Overview
 
-Unlike traditional ORM migrations that generate files per change, Intellicon uses a **single source of truth**: an array of named migrations in one TypeScript file.
+Unlike traditional ORM migrations that generate files per change, HiperTeam uses a **single source of truth**: an array of named migrations in one TypeScript file.
 
 ```
 Source:  apps/api/src/scripts/run-tenant-migrations.ts

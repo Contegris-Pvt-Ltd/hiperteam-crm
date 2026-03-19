@@ -1,12 +1,12 @@
 ---
 sidebar_position: 5
 title: "Dashboard Overview"
-description: "Understand the Intellicon CRM dashboard, manage tabs, apply filters, and share dashboards with your team."
+description: "Understand the HiperTeam CRM dashboard, manage tabs, apply filters, and share dashboards with your team."
 ---
 
 # Dashboard Overview
 
-The Dashboard is your home screen in Intellicon CRM. It provides a real-time, at-a-glance view of your key metrics, pipeline health, team performance, and upcoming activities — all in customizable, widget-based layouts.
+The Dashboard is your home screen in HiperTeam CRM. It provides a real-time, at-a-glance view of your key metrics, pipeline health, team performance, and upcoming activities — all in customizable, widget-based layouts.
 
 ## What is the Dashboard
 
@@ -16,7 +16,7 @@ The dashboard is a configurable workspace where you arrange **widgets** — scor
 
 ## Dashboard Tabs (Multi-Dashboard Support)
 
-Intellicon CRM supports **multiple dashboard tabs**, allowing you to create separate dashboards for different purposes.
+HiperTeam CRM supports **multiple dashboard tabs**, allowing you to create separate dashboards for different purposes.
 
 - Each tab is an independent dashboard with its own set of widgets.
 - Tabs appear as a horizontal tab bar at the top of the dashboard area.

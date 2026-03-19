@@ -1,7 +1,7 @@
 ---
 sidebar_position: 5
 title: "Environment Variables"
-description: "Complete reference of all environment variables used by the Intellicon CRM backend and frontend"
+description: "Complete reference of all environment variables used by the HiperTeam CRM backend and frontend"
 ---
 
 # Environment Variables
@@ -94,7 +94,7 @@ API_URL=http://localhost:3000
 | `SMTP_USER` | No | — | SMTP username |
 | `SMTP_PASS` | No | — | SMTP password |
 | `SMTP_FROM` | No | — | Default "From" email address |
-| `SMTP_FROM_NAME` | No | `Intellicon CRM` | Default "From" display name |
+| `SMTP_FROM_NAME` | No | `HiperTeam CRM` | Default "From" display name |
 | `SMTP_SECURE` | No | `false` | Use TLS for SMTP connection |
 
 ```env
@@ -103,7 +103,7 @@ SMTP_PORT=587
 SMTP_USER=notifications@example.com
 SMTP_PASS=smtp_password
 SMTP_FROM=notifications@example.com
-SMTP_FROM_NAME=Intellicon CRM
+SMTP_FROM_NAME=HiperTeam CRM
 SMTP_SECURE=false
 ```
 
@@ -183,12 +183,12 @@ Create `apps/web/.env`:
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `VITE_API_URL` | Yes | `http://localhost:3000` | Backend API base URL |
-| `VITE_APP_NAME` | No | `Intellicon CRM` | Application display name |
+| `VITE_APP_NAME` | No | `HiperTeam CRM` | Application display name |
 | `VITE_VAPID_PUBLIC_KEY` | No | — | VAPID public key for push subscriptions |
 
 ```env
 VITE_API_URL=http://localhost:3000
-VITE_APP_NAME=Intellicon CRM
+VITE_APP_NAME=HiperTeam CRM
 VITE_VAPID_PUBLIC_KEY=
 ```
 
