@@ -1,7 +1,7 @@
 ---
 sidebar_position: 15
 title: "Pipelines & Stages"
-description: "Create and manage sales pipelines and stages in Intellicon CRM — configure stage ordering, required fields, and shared pipeline architecture."
+description: "Create and manage sales pipelines and stages in Intellicon CRM — configure stage ordering, required fields, stage ownership, and shared pipeline architecture."
 ---
 
 # Pipelines & Stages
@@ -21,11 +21,34 @@ Key concepts:
 - **Pipelines** are containers for stages. You can have multiple pipelines (e.g., "Inbound Sales", "Enterprise Sales", "Partner Channel").
 - **Stages** are the individual steps within a pipeline.
 - **Stage fields** are fields that must be filled before a record can advance to the next stage.
+- **Stage ownership** controls who is responsible at each stage and which fields are visible.
 - The system is **shared** — the same pipeline tables support Leads, Opportunities, Deals, and Projects through a `module` column.
 
 :::info
-The pipeline system uses a `module` parameter to distinguish between pipeline types. When you configure pipelines for Leads, the API calls use `module=leads`. For Opportunities, it uses `module=opportunities`. The underlying architecture is the same.
+The pipeline system uses a `module` column to distinguish between pipeline types. When you configure pipelines for Leads, the API calls use `module=leads`. For Opportunities, it uses `module=opportunities`. Future modules like Deals (`module=deals`) and Projects (`module=projects`) use the same underlying architecture. This means pipeline management endpoints are reused across modules — there is no duplication.
 :::
+
+## Shared Pipeline Architecture
+
+All pipeline data lives in three shared tables:
+
+| Table | Purpose |
+|---|---|
+| **pipelines** | Pipeline definitions with a `module` column |
+| **pipeline_stages** | Stage definitions linked to a pipeline |
+| **pipeline_stage_fields** | Required fields per stage |
+
+The `module` column on each pipeline record determines which CRM module it belongs to. Currently supported modules:
+
+- **leads** — Lead qualification and nurturing pipelines
+- **opportunities** — Sales opportunity pipelines
+- **deals** (planned) — Deal execution pipelines
+- **projects** (planned) — Project lifecycle pipelines
+
+Because the architecture is shared, all pipeline management endpoints work for any module. For example:
+- `GET /lead-settings/pipelines?module=leads` returns lead pipelines
+- `GET /lead-settings/pipelines?module=opportunities` returns opportunity pipelines
+- `GET /lead-settings/stages?module=opportunities&pipelineId=xxx` returns stages for a specific opportunity pipeline
 
 ## Creating Pipelines
 
@@ -114,14 +137,58 @@ Stage fields enforce that specific information is collected before a record can 
 If a user tries to move a record to a stage with required fields that are not filled, the system will block the move and display a form to collect the missing information.
 :::
 
+## Stage Ownership
+
+Stage ownership lets you assign responsibility for each stage to a specific user, team, or role. When a record moves to a stage with an owner configured, the system can automatically assign or notify the appropriate person or group.
+
+### Configuring Stage Ownership
+
+1. Open a stage's settings.
+2. Switch to the **Ownership** tab (or navigate to **Admin > Stage Ownership**).
+3. Select the **owner type**:
+   - **User** — a specific user is responsible for records at this stage
+   - **Team** — a team is responsible (any team member can act)
+   - **Role** — any user with the specified role is responsible
+4. Select the specific user, team, or role.
+5. Save.
+
+### Stage Owner Types
+
+| Owner Type | Behavior |
+|---|---|
+| **User** | The specified user is assigned as the stage owner. They receive notifications when records enter this stage. |
+| **Team** | The specified team is notified. Any team member can take ownership of individual records. |
+| **Role** | Any user with the specified role can act as the stage owner. |
+
+### Field Visibility per Stage
+
+In addition to ownership, you can control which fields are **visible** at each stage. This keeps forms focused by showing only the fields relevant to the current stage.
+
+1. Open a stage's settings.
+2. Switch to the **Field Visibility** tab.
+3. Toggle visibility for each field.
+4. Save.
+
+Fields hidden at a stage are not shown on the record form when the record is at that stage. The data is preserved — it simply is not displayed.
+
+:::tip
+Use field visibility to simplify forms at early stages. For example, at the "New Lead" stage, you might only show basic contact fields. At "Negotiation", you show pricing and contract fields.
+:::
+
+### Record Stage Assignments
+
+When a record moves to a stage with ownership configured, an assignment record is created in the `record_stage_assignments` table. This provides a full history of who was responsible for a record at each stage and when.
+
 ## Pipeline Best Practices
 
 1. **Keep pipelines to 5-8 stages** — too many stages slow down the process; too few do not capture the nuance.
 2. **Define clear entry criteria** — use stage fields to enforce what information is needed at each step.
 3. **Use probability for forecasting** — set realistic probabilities (e.g., Discovery: 10%, Proposal: 40%, Negotiation: 70%, Closed Won: 100%).
 4. **Create separate pipelines for distinct processes** — do not force-fit different sales motions into one pipeline.
-5. **Review pipeline metrics monthly** — look for bottleneck stages where deals stall.
-6. **Train your team** — ensure everyone understands what each stage means and when to advance.
+5. **Configure stage ownership** — assign owners to stages where handoffs occur (e.g., from SDR to Account Executive at the Qualification stage).
+6. **Use field visibility** — keep early-stage forms simple and progressively reveal fields as the record advances.
+7. **Review pipeline metrics monthly** — look for bottleneck stages where deals stall.
+8. **Train your team** — ensure everyone understands what each stage means and when to advance.
 
 :::note
 Pipeline changes (adding/removing stages, changing order) affect all existing records in that pipeline. Communicate changes to your team before implementing them.

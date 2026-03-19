@@ -105,4 +105,4 @@ A contact can have one primary account and multiple secondary accounts.
 
 ## Admin-Controlled Layout
 
-The layout of the contact detail page — which fields appear, their order, and which groups they belong to — is managed by your administrator through the **Page Designer**. If you need fields rearranged or new sections added, contact your admin.
+The layout of the contact detail page — which fields appear, their order, and which groups they belong to — is managed by your administrator through the **Layout Designer**. If you need fields rearranged or new sections added, contact your admin.

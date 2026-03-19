@@ -31,7 +31,7 @@ The admin sidebar is organized into logical groups:
 |-----------|------|-------------|
 | Custom Fields | `/admin/custom-fields` | Add fields to any module |
 | Field Validation | `/admin/field-validation` | Validation rules per field |
-| Page Designer | `/admin/page-designer` | Layout and form builder |
+| Layout Designer | `/admin/layout-designer` | Layout and form builder |
 
 ### Module Settings
 | Menu Item | Path | Description |
@@ -75,7 +75,7 @@ Use this table when you know what you want to configure but are not sure where t
 | Change what a role can see/do | [Roles & Permissions](./roles-permissions.md) |
 | Add a dropdown field to Leads | [Custom Fields](./custom-fields.md) |
 | Make a field required | [Field Validation](./field-validation.md) |
-| Rearrange fields on a detail page | [Page Designer](./page-designer.md) |
+| Rearrange fields on a detail page | [Layout Designer](./page-designer.md) |
 | Create a new sales pipeline | [Pipelines & Stages](./pipelines-stages.md) |
 | Set up lead scoring | [Lead Settings](./lead-settings.md) |
 | Configure email notifications | [Notification Settings](./notification-settings.md) |
@@ -95,7 +95,7 @@ When setting up a new Intellicon CRM instance, follow this order to avoid depend
 4. Users & Invitations   ← Onboard people with correct roles
 5. Custom Fields         ← Extend the data model
 6. Field Validation      ← Enforce data quality
-7. Page Designer         ← Arrange layouts
+7. Layout Designer       ← Arrange layouts
 8. Pipelines & Stages    ← Define sales processes
 9. Lead/Opp Settings     ← Scoring, routing, qualification
 10. Notifications        ← Configure channels

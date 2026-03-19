@@ -16,7 +16,7 @@ Each module's detail page can have multiple tabs. By default, modules come with 
 
 ## Creating Custom Tabs
 
-1. Navigate to **Admin > Custom Fields** or **Admin > Page Designer** and select the module.
+1. Navigate to **Admin > Custom Fields** or **Admin > Layout Designer** and select the module.
 2. Click the **Tabs** management button.
 3. Click **Add Tab**.
 4. Configure the tab:
@@ -49,7 +49,7 @@ Within a tab or section, you can create **groups** to further organize fields wi
 
 ### Creating a Group
 
-1. In the tab or [Page Designer](./page-designer.md) view, click **Add Group**.
+1. In the tab or [Layout Designer](./page-designer.md) view, click **Add Group**.
 2. Enter the **group name** — e.g., "Billing Address", "Shipping Address", "Social Profiles".
 3. Drag fields into the group.
 4. Save.

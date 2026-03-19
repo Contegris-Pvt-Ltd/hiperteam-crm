@@ -334,6 +334,13 @@ const sidebars: SidebarsConfig = {
         'technical-manual/api-reference/dashboard',
         'technical-manual/api-reference/reports',
         'technical-manual/api-reference/notifications',
+        'technical-manual/api-reference/forms',
+        'technical-manual/api-reference/scheduling',
+        'technical-manual/api-reference/workflows',
+        'technical-manual/api-reference/approvals',
+        'technical-manual/api-reference/email',
+        'technical-manual/api-reference/invoices',
+        'technical-manual/api-reference/projects',
       ],
     },
     {

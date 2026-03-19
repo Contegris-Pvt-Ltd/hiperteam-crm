@@ -1,129 +1,190 @@
 ---
-sidebar_position: 44
-title: "Forms"
-description: "Build public-facing forms to capture leads and data, with a visual designer, conditional logic, and submission analytics."
+sidebar_position: 39
+title: Forms
 ---
 
 # Forms
 
-The **Forms** module lets you create public-facing forms that capture data from external visitors. Use forms on your website, landing pages, or shared links to collect leads, feedback, registrations, and more — all flowing directly into your CRM.
+Forms allow you to create custom web forms for lead capture, data collection, and meeting scheduling. Each form gets a unique public URL that can be shared or embedded on your website.
 
-## Forms Module Overview
+![Screenshot: Forms list page](../../static/img/screenshots/user/forms-list.png)
 
-Forms are built using a visual designer and published as standalone web pages or embedded on your website. When someone submits a form, the data is captured in Intellicon CRM for processing.
+## Form Types
 
-![Screenshot: Forms module showing a list of forms with submission counts and status](../../static/img/screenshots/forms/forms-list.png)
+| Type | Description | Use Case |
+|---|---|---|
+| **Standard Form** | Collects data and triggers CRM actions | Lead capture, surveys, contact forms |
+| **Meeting Booking** | Calendar-integrated booking page | Sales calls, demos, consultations |
 
-## Form Builder (Visual Designer)
+## Creating a Form
 
-To create a new form:
+1. Navigate to **Engagement → Forms**
+2. Click **New Form** (or **New Booking Page** for meetings)
+3. You'll be taken to the **Form Builder**
 
-1. Navigate to **Engagement > Forms** in the sidebar.
-2. Click **+ New Form**.
-3. The visual form builder opens.
+## Form Statuses
 
-The builder provides a **drag-and-drop interface**:
-- Available field types are listed on the left panel
-- The form canvas is in the center
-- Field properties are displayed on the right when a field is selected
+| Status | Description |
+|---|---|
+| **Draft** | Work in progress — not publicly accessible |
+| **Active** | Live and accepting submissions |
+| **Inactive** | Temporarily paused — public link shows unavailable |
+| **Archived** | Hidden from list but data retained |
+
+## Managing Forms
+
+From the forms list, you can:
+- **Search** forms by name
+- **Filter** by status (draft, active, inactive, archived)
+- **Duplicate** a form to create a copy
+- **Preview** the public form
+- **Copy Link** to share the public URL
+- **Embed** to get iframe/script/popup code
+- **Delete** forms you no longer need
+
+:::tip
+Each form shows its **submission count** so you can quickly see which forms are performing well.
+:::
+
+## Form Builder
+
+The form builder is a visual drag-and-drop editor with three panels:
 
 ![Screenshot: Form builder with drag-and-drop fields, canvas, and properties panel](../../static/img/screenshots/forms/form-builder.png)
 
-## Field Types
+### Left Panel — Field Palette
+
+Add fields by clicking or dragging:
 
 | Field Type | Description |
 |---|---|
 | **Text** | Single-line text input |
-| **Email** | Email address with validation |
-| **Phone** | Phone number with formatting |
-| **Textarea** | Multi-line text area |
-| **Select** | Dropdown menu with predefined options |
-| **Checkbox** | One or more checkboxes |
-| **Radio** | Radio buttons (single selection from options) |
-| **Date** | Date picker |
+| **Email** | Email with format validation |
+| **Phone** | Phone number input |
 | **Number** | Numeric input |
-| **File** | File upload field |
-| **Signature** | Digital signature capture pad |
-| **Rating** | Star rating input (1-5 stars) |
-| **Heading** | Display-only heading text |
-| **Paragraph** | Display-only descriptive text |
-| **Divider** | Visual separator line |
+| **Date** | Date picker |
+| **Textarea** | Multi-line text |
+| **Select** | Dropdown with options |
+| **Radio** | Single-choice radio buttons |
+| **Checkbox** | Multi-choice checkboxes |
+| **File** | File upload |
+| **Heading** | Section heading (non-input) |
+| **Paragraph** | Descriptive text (non-input) |
+| **Divider** | Visual separator (non-input) |
 
-## Field Properties
+### Center Panel — Canvas
 
-Select any field on the canvas to configure its properties:
+Preview your form as visitors will see it. Click any field to select it and configure its properties.
 
-| Property | Description |
+### Right Panel — Settings
+
+Five configuration tabs:
+
+#### Fields Tab
+Configure the selected field:
+- **Label** — Display name
+- **Field Name** — Submission key (auto-generated from label)
+- **Placeholder** — Hint text inside the field
+- **Required** — Make the field mandatory
+- **Width** — Full width or half width (side-by-side layout)
+- **Options** — For select/radio/checkbox: add, edit, remove choices
+
+#### Actions Tab
+Configure what happens after form submission:
+
+| Action | Description |
 |---|---|
-| **Label** | The field label shown to the user |
-| **Placeholder** | Ghost text inside the input |
-| **Required** | Whether the field must be filled |
-| **Validation** | Input validation rules (min/max length, pattern) |
-| **Help Text** | Instructional text below the field |
-| **Default Value** | Pre-filled value |
-| **Options** | For Select, Checkbox, Radio — the list of choices |
-| **Conditional** | Show/hide based on other field values |
+| **Create Lead** | Creates a new lead in your CRM |
+| **Create Contact** | Creates a new contact |
+| **Create Account** | Creates a new account |
+| **Webhook** | POST form data to an external URL |
+| **Send Email** | Send a confirmation email to the submitter |
 
-## Form Logic (Conditional Fields)
+Each CRM action includes **field mapping** — connect your form fields to CRM fields (first name, email, company, etc.).
 
-Make forms dynamic by showing or hiding fields based on user input:
-
-1. Select a field.
-2. In the properties panel, click **Add Condition**.
-3. Configure the condition:
-   - **When** — select the controlling field
-   - **Is** — select the trigger value (e.g., "equals 'Yes'")
-   - **Then** — show or hide this field
-4. The field only appears when the condition is met.
-
-:::tip
-Use conditional logic to keep forms short and relevant. Show additional fields only when they are needed based on the respondent's previous answers.
+:::note
+Actions execute in order. Later actions can reference entities created by earlier ones (e.g., link a contact to an account).
 :::
 
-## Form Design
+#### Settings Tab
+- **Success Message** — Shown after successful submission
+- **Redirect URL** — Redirect instead of showing success message
+- **Allow Multiple Submissions** — Let the same person submit again
+- **Require CAPTCHA** — Enable reCAPTCHA v3 protection
+- **Notification Emails** — Comma-separated emails to notify on new submissions
 
-Customize the form's visual appearance:
+**Landing Page Mode:**
+- Enable to wrap your form in a full landing page
+- **Hero Title & Subtitle** — Main headline
+- **Background Color** — Hero section color
+- **SEO Title & Description** — For search engines
+- **Content Sections** — Add text, images, or call-to-action blocks
 
-- **Brand Color** — set the primary color for buttons and accents
-- **Logo** — upload your company logo to display at the top
-- **Background** — choose a background color or image
-- **Thank You Message** — customize the message shown after submission
-- **Redirect URL** — optionally redirect to a page after submission
+#### Branding Tab
+- **Logo URL** — Your company logo
+- **Primary Color** — Button and accent color
+- **Background Color** — Form background
+- **Header Text** — Text above the form
+- **Footer Text** — Text below the form
 
-## Publishing Forms
-
-Once your form is ready:
-
-### Public URL
-1. Click **Publish**.
-2. A unique **public URL** is generated.
-3. Share this URL via email, social media, or any channel.
-4. Anyone with the link can access and submit the form.
-
-### Embed Code
-1. Click **Get Embed Code**.
-2. Copy the HTML embed snippet.
-3. Paste it into your website's HTML to embed the form inline.
-
-![Screenshot: Form publish dialog showing public URL and embed code snippet](../../static/img/screenshots/forms/form-publish.png)
+#### Meeting Tab (Booking Forms Only)
+See [Scheduling & Booking Pages](./scheduling-booking) for details.
 
 ## Form Submissions
 
-View and manage submission data:
+Click any form to view its submissions.
 
-1. Open a form.
-2. Click the **Submissions** tab.
-3. All submissions are displayed in a **data table** with columns matching form fields.
+### Summary View
 
-### Analytics Charts
-The Submissions tab may include:
-- **Submission count over time** — a chart showing daily/weekly submissions
-- **Completion rate** — percentage of visitors who completed the form
-- **Average time to complete** — how long submissions take
+![Screenshot: Form submission analytics](../../static/img/screenshots/user/form-submissions-summary.png)
 
-### Exporting Submissions
-- Click **Export CSV** or **Export Excel** to download all submission data as a spreadsheet.
+- **Stats Cards** — Total responses, last 7 days, last 30 days, action success rate
+- **30-Day Trend** — Bar chart showing daily submission volume
+- **Per-Field Breakdown:**
+  - Choice fields: donut charts with percentages
+  - Number fields: average, min, max values
+  - Text fields: sample of recent responses
 
-:::info
-Form submissions can be configured to automatically create leads or contacts in the CRM. This is set up in the form's mapping settings, where you match form fields to CRM fields.
+### Responses View
+
+- **Filter** by date range and action status (success/error)
+- **Expand** each response to see full form data
+- **Action Results** — See if CRM actions succeeded or failed
+- **Retry** failed webhook actions
+- **Export CSV** — Download all responses
+
+## Sharing & Embedding
+
+### Public Link
+Every active form has a public URL:
+```
+https://yourdomain.com/f/{tenant-slug}/{token}
+```
+
+### Embedding Options
+
+**iFrame:**
+```html
+<iframe src="https://yourdomain.com/f/tenant/token"
+        width="100%" height="600" frameborder="0"></iframe>
+```
+
+**JavaScript:**
+```html
+<div id="intellicon-form-{id}"></div>
+<script>
+  (function() {
+    var iframe = document.createElement('iframe');
+    iframe.src = 'https://yourdomain.com/f/tenant/token';
+    iframe.style = 'width:100%;height:600px;border:none;';
+    document.getElementById('intellicon-form-{id}').appendChild(iframe);
+  })();
+</script>
+```
+
+**Popup Modal:**
+A button that opens the form in an overlay modal.
+
+:::warning
+Forms must be in **Active** status to accept public submissions. Draft and inactive forms will show an error page.
 :::

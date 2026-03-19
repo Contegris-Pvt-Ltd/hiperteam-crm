@@ -1,20 +1,20 @@
 ---
 sidebar_position: 13
-title: "Page Designer"
-description: "Use the Page Designer in Intellicon CRM to control field layout, section grouping, and form structure on record detail pages with drag-and-drop."
+title: "Layout Designer"
+description: "Use the Layout Designer in Intellicon CRM to control field layout, section grouping, and form structure on record detail pages with drag-and-drop."
 ---
 
-# Page Designer
+# Layout Designer
 
-The Page Designer gives administrators full control over how record detail pages look for each module. You can rearrange fields, group them into sections, toggle visibility, and configure collapse states — all through a visual drag-and-drop interface.
+The Layout Designer gives administrators full control over how record detail pages look for each module. You can rearrange fields, group them into sections, toggle visibility, and configure collapse states — all through a visual drag-and-drop interface.
 
-## Page Designer Overview
+## Layout Designer Overview
 
-Navigate to **Admin > Page Designer**.
+Navigate to **Admin > Layout Designer**.
 
-![Screenshot: Page Designer interface](../../static/img/screenshots/admin/page-designer.png)
+![Screenshot: Layout Designer interface](../../static/img/screenshots/admin/page-designer.png)
 
-The Page Designer has three main areas:
+The Layout Designer has three main areas:
 
 1. **Module selector** — choose which module's layout to edit
 2. **Layout canvas** — the drag-and-drop area showing the current layout
@@ -24,7 +24,7 @@ The Page Designer has three main areas:
 
 Use the dropdown at the top to select the module you want to design. Each module has its own independent layout configuration.
 
-Available modules: Contacts, Accounts, Leads, Opportunities, Deals, Tasks, Projects.
+Available modules: Contacts, Accounts, Leads, Opportunities, Tasks, Projects.
 
 ## Drag-and-Drop Field Ordering
 
@@ -87,14 +87,14 @@ Each field on the layout canvas has a **visibility toggle** (eye icon):
 Hidden fields are moved to the field palette so they can be re-added later.
 
 :::warning
-Hiding a field in the Page Designer is different from [field permissions](./field-permissions.md). Page Designer hiding applies to **all users** regardless of role. Field permissions hide fields **per role**. Use Page Designer for fields you want to remove from the layout entirely.
+Hiding a field in the Layout Designer is different from [field permissions](./field-permissions.md). Layout Designer hiding applies to **all users** regardless of role. Field permissions hide fields **per role**. Use Layout Designer for fields you want to remove from the layout entirely.
 :::
 
 ## Required Field Marking
 
-Fields marked as required (via [Field Validation](./field-validation.md)) display a red asterisk (*) in the layout. The Page Designer shows this indicator so you can see at a glance which fields are mandatory.
+Fields marked as required (via [Field Validation](./field-validation.md)) display a red asterisk (*) in the layout. The Layout Designer shows this indicator so you can see at a glance which fields are mandatory.
 
-You cannot change the required status from the Page Designer — manage that in [Field Validation](./field-validation.md).
+You cannot change the required status from the Layout Designer — manage that in [Field Validation](./field-validation.md).
 
 ## Layout Preview
 
@@ -108,7 +108,7 @@ Click **Preview** to see how the layout will appear to end users:
 
 ## Impact on Detail Pages
 
-The Page Designer layout affects:
+The Layout Designer layout affects:
 
 - **Detail pages** — the main record view uses the designed layout
 - **Create forms** — new record forms follow the same section and field order

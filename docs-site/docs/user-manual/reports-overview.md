@@ -65,4 +65,19 @@ The system includes reports such as:
 Pre-built reports may be read-only. To customize them, duplicate a report and modify the copy. See [Reports Viewer](./reports-viewer.md).
 :::
 
+## Account Forecast
+
+In addition to the report builder, Intellicon CRM includes a dedicated **Account Forecast** report accessible from **Reports → Account Forecast** in the sidebar.
+
+The Account Forecast provides a comprehensive view of your sales pipeline grouped by account, with forecast category breakdowns (Commit, Best Case, Pipeline, Upside) for revenue planning. It includes:
+
+- **Time period toggle** — current quarter vs. next quarter
+- **Scope control** — my deals, my team, or all (for managers and admins)
+- **Summary KPIs** — total accounts, open deals, total pipeline, weighted value, average probability
+- **Three views** — by account, by forecast category, and flat table
+
+For full details, see [Account Forecast](./account-forecast.md).
+
+## Next Steps
+
 For building your own reports, see [Report Builder](./reports-builder.md). For viewing, exporting, and sharing reports, see [Reports Viewer](./reports-viewer.md).

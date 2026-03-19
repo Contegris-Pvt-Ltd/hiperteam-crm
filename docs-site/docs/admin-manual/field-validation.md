@@ -6,7 +6,7 @@ description: "Configure field validation rules in Intellicon CRM — enforce req
 
 # Field Validation
 
-Field validation ensures data quality by enforcing rules on what users can enter. Validation rules run on both the frontend (immediate feedback) and backend (API enforcement), so data integrity is maintained regardless of how records are created.
+Field validation ensures data quality by enforcing rules on what users can enter. Validation rules run on both the frontend (immediate feedback) and the backend (API enforcement), so data integrity is maintained regardless of how records are created — whether through the UI, API, or imports.
 
 ## Field Validation Overview
 
@@ -14,11 +14,87 @@ Navigate to **Admin > Field Validation** to manage validation rules.
 
 ![Screenshot: Field validation page](../../static/img/screenshots/admin/field-validation-page.png)
 
-## Selecting a Module
+## Supported Modules
 
 Use the **Module** dropdown at the top to choose which module's fields you want to configure. Validation rules are defined independently for each module.
 
-Available modules: Contacts, Accounts, Leads, Opportunities, Deals, Tasks, Projects.
+- **Leads**
+- **Contacts**
+- **Accounts**
+- **Opportunities**
+
+## How Validation Works
+
+Field validation is enforced in two places:
+
+1. **Form UI** — When a user fills out a create or edit form, validation runs on blur (when the user leaves a field) and on submit. Error messages appear directly below the invalid field in red text. The save button is disabled until all validation errors are resolved.
+2. **API** — When a record is created or updated via the backend API, the same validation rules are checked server-side. If validation fails, the API returns an error response with details about which fields failed and why.
+
+This dual enforcement ensures that data quality is maintained even if records are created through integrations, imports, or direct API calls.
+
+## Toggling Fields as Required
+
+The most common validation rule is marking a field as **required**:
+
+1. Select the module from the dropdown.
+2. Fields are displayed grouped by their standard sections (see below).
+3. Find the field you want to make required.
+4. Toggle the **Required** switch next to the field.
+5. The change is saved automatically.
+
+Required fields are marked with a red asterisk (*) on create and edit forms. If a user tries to save a record without filling in a required field, they will see an error message and the save will be blocked.
+
+![Screenshot: Required field toggles](../../static/img/screenshots/admin/field-validation-toggles.png)
+
+## Field Grouping by Section
+
+Fields are organized into standard sections that match the module's form layout. This makes it easy to find and configure fields:
+
+### Leads
+| Section | Fields |
+|---|---|
+| **Basic Info** | First Name, Last Name, Email, Phone, Company, Job Title, Website, Mobile |
+| **Lead Details** | Pipeline, Stage, Priority, Source, Industry, Owner, Team |
+| **Address** | Country, Address Line 1, Address Line 2, City, State, Postal Code |
+| **Communication** | Do Not Contact, Do Not Email, Do Not Call |
+| **Other** | Tags |
+
+### Contacts
+| Section | Fields |
+|---|---|
+| **Basic Info** | First Name, Last Name, Email, Phone, Mobile, Job Title, Department, Account |
+| **Contact Details** | Emails, Phones, Fax, Website |
+| **Address** | Street, City, State, Postal Code, Country |
+| **Social Profiles** | LinkedIn, Twitter, Facebook |
+| **Other** | Source, Description, Tags |
+
+### Accounts
+| Section | Fields |
+|---|---|
+| **Basic Info** | Name, Classification, Industry, Website, Account Type, Company Size, Annual Revenue |
+| **Contact Details** | Email, Phone, Fax |
+| **Addresses** | Billing Address, Shipping Address |
+| **Social** | LinkedIn, Twitter, Facebook |
+| **Other** | Description, Tags |
+
+### Opportunities
+| Section | Fields |
+|---|---|
+| **Basic Info** | Name, Account, Primary Contact, Pipeline, Stage, Priority, Source, Type |
+| **Deal Details** | Amount, Currency, Probability, Close Date, Forecast Category, Next Step, Competitor, Owner, Team |
+| **Other** | Description, Tags |
+
+## Validating Custom Fields
+
+Custom fields created in the [Custom Fields](./custom-fields.md) page also appear in the field validation settings. You can:
+
+- **Toggle required** on any custom field, just like standard fields
+- Custom fields are grouped under a **Custom Fields** section at the bottom of the field list
+- The field type is displayed for reference (Text, Number, Select, etc.)
+
+:::tip
+When you create a custom field and mark it as "Required" in the Custom Fields page, it automatically appears as required here. You can also manage the required state from either page — they stay in sync.
+:::
 
 ## Validation Types
 
@@ -31,7 +107,9 @@ Available modules: Contacts, Accounts, Leads, Opportunities, Deals, Tasks, Proje
 | **Number Range** | Number, Currency | Minimum and/or maximum numeric value |
 | **Custom Regex** | Text, Phone, Link | Must match a custom regular expression pattern |
 
-## Creating Validation Rules
+## Creating Advanced Validation Rules
+
+Beyond required/optional toggles, you can add more specific validation rules:
 
 1. Select the module.
 2. Find the field you want to validate in the field list.
@@ -148,7 +226,8 @@ Validation rules apply retroactively to **new saves only**. Existing records tha
 3. **Test regex patterns thoroughly** — a too-strict regex will frustrate users. Test with edge cases.
 4. **Use dependencies sparingly** — complex dependency chains make forms hard to understand. Limit to 1-2 levels of dependency.
 5. **Document your rules** — maintain a reference of what validation exists per module so new admins do not create conflicting rules.
+6. **Test API enforcement** — after configuring validation, verify that the API also rejects invalid data by testing with a tool like Postman or through import.
 
 ---
 
-Next: [Page Designer](./page-designer.md) — Control the layout of record detail pages.
+Next: [Layout Designer](./page-designer.md) — Control the layout of record detail pages.

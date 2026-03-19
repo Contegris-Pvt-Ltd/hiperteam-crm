@@ -24,12 +24,11 @@ Custom fields can be added to the following modules:
 - Accounts
 - Leads
 - Opportunities
-- Deals
 - Tasks
 - Projects
 
 :::info
-Standard (built-in) fields cannot be deleted through the Custom Fields page, but their visibility and validation can be controlled through [Page Designer](./page-designer.md) and [Field Validation](./field-validation.md).
+Standard (built-in) fields cannot be deleted through the Custom Fields page, but their visibility and validation can be controlled through [Layout Designer](./page-designer.md) and [Field Validation](./field-validation.md).
 :::
 
 ## Field Types

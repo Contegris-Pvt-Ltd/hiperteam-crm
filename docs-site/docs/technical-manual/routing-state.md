@@ -237,7 +237,7 @@ function useTablePreferences(module: string) {
 
 ### useModuleLayout
 
-Loads the page layout configuration for a module (used with the Page Designer).
+Loads the page layout configuration for a module (used with the Layout Designer).
 
 ```typescript
 function useModuleLayout(module: string, layoutType: string) {

@@ -67,7 +67,7 @@ If you are setting up Intellicon CRM for the first time, follow this order:
 3. **[Teams](./teams.md)** — Set up cross-functional teams.
 4. **[Users](./users-management.md)** — Create and invite users.
 5. **[Custom Fields](./custom-fields.md)** — Tailor the data model to your business.
-6. **[Page Designer](./page-designer.md)** — Arrange field layouts.
+6. **[Layout Designer](./page-designer.md)** — Arrange field layouts.
 7. **[Pipelines & Stages](./pipelines-stages.md)** — Configure your sales process.
 8. **[Notifications](./notification-settings.md)** — Set up communication channels.
 9. **[Integrations](./integrations-overview.md)** — Connect external tools.

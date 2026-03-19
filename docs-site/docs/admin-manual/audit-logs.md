@@ -48,7 +48,7 @@ Use the filter panel to narrow down log entries:
 ### Entity Type Filter
 
 Select one or more entity types:
-- Contacts, Accounts, Leads, Opportunities, Deals, Tasks, Projects
+- Contacts, Accounts, Leads, Opportunities, Tasks, Projects
 - Users, Roles, Departments, Teams
 - Pipelines, Stages, Settings
 - All other tracked entities
