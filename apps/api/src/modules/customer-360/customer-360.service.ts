@@ -772,11 +772,11 @@ export class Customer360Service {
         WHERE entity_type = 'accounts' AND entity_id = $1
         UNION ALL
         SELECT a.id FROM "${schemaName}".activities a
-        INNER JOIN "${schemaName}".leads l ON a.entity_type = 'leads' AND a.entity_id = l.id::text
+        INNER JOIN "${schemaName}".leads l ON a.entity_type = 'leads' AND a.entity_id::uuid = l.id
         WHERE l.account_id = $1 AND l.deleted_at IS NULL
         UNION ALL
         SELECT a.id FROM "${schemaName}".activities a
-        INNER JOIN "${schemaName}".opportunities o ON a.entity_type = 'opportunities' AND a.entity_id = o.id::text
+        INNER JOIN "${schemaName}".opportunities o ON a.entity_type = 'opportunities' AND a.entity_id::uuid = o.id
         WHERE o.account_id = $1 AND o.deleted_at IS NULL
       ) combined`,
       [accountId],
@@ -792,13 +792,13 @@ export class Customer360Service {
         SELECT a.id, a.entity_type, a.entity_id, a.activity_type, a.title, a.description,
                a.metadata, a.created_at, a.performed_by
         FROM "${schemaName}".activities a
-        INNER JOIN "${schemaName}".leads l ON a.entity_type = 'leads' AND a.entity_id = l.id::text
+        INNER JOIN "${schemaName}".leads l ON a.entity_type = 'leads' AND a.entity_id::uuid = l.id
         WHERE l.account_id = $1 AND l.deleted_at IS NULL
         UNION ALL
         SELECT a.id, a.entity_type, a.entity_id, a.activity_type, a.title, a.description,
                a.metadata, a.created_at, a.performed_by
         FROM "${schemaName}".activities a
-        INNER JOIN "${schemaName}".opportunities o ON a.entity_type = 'opportunities' AND a.entity_id = o.id::text
+        INNER JOIN "${schemaName}".opportunities o ON a.entity_type = 'opportunities' AND a.entity_id::uuid = o.id
         WHERE o.account_id = $1 AND o.deleted_at IS NULL
       ) combined
       ORDER BY created_at DESC
