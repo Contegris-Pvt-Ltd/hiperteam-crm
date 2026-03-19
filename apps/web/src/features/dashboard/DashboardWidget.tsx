@@ -231,7 +231,7 @@ export function DashboardWidgetCard({
       </div>
 
       {/* Content */}
-      <div className={`flex-1 min-h-0 overflow-hidden ${isCompactHeader ? 'p-1' : 'p-2'}`} style={{ height: widgetHeight }}>
+      <div className={`flex-1 min-h-0 overflow-hidden ${isCompactHeader ? 'p-1' : 'p-2'}`} style={{ height: widgetHeight, minHeight: widget.widgetType === 'scorecard' ? undefined : 200 }}>
         {renderContent()}
       </div>
     </div>

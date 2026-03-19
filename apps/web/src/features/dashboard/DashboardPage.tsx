@@ -433,6 +433,24 @@ function DashboardInner({
     }
   };
 
+  // Fix oklch() colors that html2canvas cannot parse
+  const fixOklchColors = (_clonedDoc: Document, element: HTMLElement) => {
+    const all = element.getElementsByTagName('*');
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i] as HTMLElement;
+      const computed = window.getComputedStyle(el);
+      if (computed.backgroundColor && computed.backgroundColor.includes('oklch')) {
+        el.style.backgroundColor = 'transparent';
+      }
+      if (computed.color && computed.color.includes('oklch')) {
+        el.style.color = '#000000';
+      }
+      if (computed.borderColor && computed.borderColor.includes('oklch')) {
+        el.style.borderColor = '#e5e7eb';
+      }
+    }
+  };
+
   const handleExportImage = async () => {
     if (!containerRef.current) return;
     setExporting('image');
@@ -443,6 +461,7 @@ function DashboardInner({
         scale: 2,
         useCORS: true,
         logging: false,
+        onclone: fixOklchColors,
       });
       const url = canvas.toDataURL('image/png');
       const a = document.createElement('a');
@@ -466,6 +485,7 @@ function DashboardInner({
         scale: 2,
         useCORS: true,
         logging: false,
+        onclone: fixOklchColors,
       });
       const imgData = canvas.toDataURL('image/png');
       const imgWidth = canvas.width;
