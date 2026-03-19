@@ -24,6 +24,45 @@ export class Customer360Controller {
   ) {}
 
   // ════════════════════════════════════════════════════════════
+  // HEALTH SCORE CONFIGURATION (admin)
+  // ════════════════════════════════════════════════════════════
+
+  @Get('health-config')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Get health score configuration' })
+  async getHealthConfig(@Request() req: { user: JwtPayload }) {
+    const [row] = await this.service['dataSource'].query(
+      `SELECT setting_value FROM "${req.user.tenantSchema}".module_settings
+       WHERE module = 'customer_360' AND setting_key = 'health_score_config'`,
+    );
+    return row?.setting_value || {
+      factors: [
+        { key: 'payment_health', label: 'Payment Health', weight: 20, description: 'Invoice payment timeliness and history' },
+        { key: 'engagement', label: 'Engagement', weight: 15, description: 'Activity frequency and recency' },
+        { key: 'product_usage', label: 'Product Usage', weight: 25, description: 'Usage metrics relative to thresholds' },
+        { key: 'support_health', label: 'Support Health', weight: 15, description: 'Ticket volume, resolution time, satisfaction' },
+        { key: 'relationship', label: 'Relationship', weight: 10, description: 'Stakeholder engagement and NPS' },
+        { key: 'contract_status', label: 'Contract Status', weight: 15, description: 'Contract/subscription renewal proximity' },
+      ],
+      thresholds: { healthy: 70, atRisk: 40 },
+    };
+  }
+
+  @Put('health-config')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Update health score configuration' })
+  async saveHealthConfig(@Request() req: { user: JwtPayload }, @Body() body: any) {
+    await this.service['dataSource'].query(
+      `INSERT INTO "${req.user.tenantSchema}".module_settings (module, setting_key, setting_value, updated_at)
+       VALUES ('customer_360', 'health_score_config', $1::jsonb, NOW())
+       ON CONFLICT (module, setting_key)
+       DO UPDATE SET setting_value = $1::jsonb, updated_at = NOW()`,
+      [JSON.stringify(body)],
+    );
+    return body;
+  }
+
+  // ════════════════════════════════════════════════════════════
   // SUBSCRIPTIONS
   // ════════════════════════════════════════════════════════════
 
@@ -249,6 +288,108 @@ export class Customer360Controller {
   async recalculateAll(@Request() req: { user: JwtPayload }) {
     const count = await this.scoringService.recalculateAll(req.user.tenantSchema);
     return { recalculated: count, message: `${count} account(s) scored` };
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // ACCOUNT ASSOCIATIONS — leads, opportunities, invoices, projects
+  // ════════════════════════════════════════════════════════════
+
+  @Get('accounts/:accountId/leads')
+  @RequirePermission('accounts', 'view')
+  @ApiOperation({ summary: 'Get leads associated with an account' })
+  async getAccountLeads(
+    @Request() req: { user: JwtPayload },
+    @Param('accountId') accountId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.getAccountLeads(
+      req.user.tenantSchema, accountId,
+      parseInt(page || '1'), parseInt(limit || '10'),
+    );
+  }
+
+  @Get('accounts/:accountId/opportunities')
+  @RequirePermission('accounts', 'view')
+  @ApiOperation({ summary: 'Get opportunities associated with an account' })
+  async getAccountOpportunities(
+    @Request() req: { user: JwtPayload },
+    @Param('accountId') accountId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.getAccountOpportunities(
+      req.user.tenantSchema, accountId,
+      parseInt(page || '1'), parseInt(limit || '10'),
+    );
+  }
+
+  @Get('accounts/:accountId/invoices')
+  @RequirePermission('accounts', 'view')
+  @ApiOperation({ summary: 'Get invoices associated with an account' })
+  async getAccountInvoices(
+    @Request() req: { user: JwtPayload },
+    @Param('accountId') accountId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.getAccountInvoices(
+      req.user.tenantSchema, accountId,
+      parseInt(page || '1'), parseInt(limit || '10'),
+    );
+  }
+
+  @Get('accounts/:accountId/projects')
+  @RequirePermission('accounts', 'view')
+  @ApiOperation({ summary: 'Get projects associated with an account' })
+  async getAccountProjects(
+    @Request() req: { user: JwtPayload },
+    @Param('accountId') accountId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.getAccountProjects(
+      req.user.tenantSchema, accountId,
+      parseInt(page || '1'), parseInt(limit || '10'),
+    );
+  }
+
+  @Get('accounts/:accountId/timeline')
+  @RequirePermission('accounts', 'view')
+  @ApiOperation({ summary: 'Get combined activity timeline for an account' })
+  async getAccountTimeline(
+    @Request() req: { user: JwtPayload },
+    @Param('accountId') accountId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.getAccountTimeline(
+      req.user.tenantSchema, accountId,
+      parseInt(page || '1'), parseInt(limit || '20'),
+    );
+  }
+
+  @Get('accounts/:accountId/journey')
+  @RequirePermission('accounts', 'view')
+  @ApiOperation({ summary: 'Get customer journey milestones for an account' })
+  async getCustomerJourney(
+    @Request() req: { user: JwtPayload },
+    @Param('accountId') accountId: string,
+  ) {
+    return this.service.getCustomerJourney(req.user.tenantSchema, accountId);
+  }
+
+  @Get('accounts/:accountId/revenue-trend')
+  @RequirePermission('accounts', 'view')
+  @ApiOperation({ summary: 'Get monthly revenue trend for an account' })
+  async getRevenueTrend(
+    @Request() req: { user: JwtPayload },
+    @Param('accountId') accountId: string,
+    @Query('months') months?: string,
+  ) {
+    return this.service.getRevenueTrend(
+      req.user.tenantSchema, accountId, parseInt(months || '12'),
+    );
   }
 
   // ════════════════════════════════════════════════════════════

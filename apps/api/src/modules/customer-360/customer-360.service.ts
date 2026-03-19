@@ -11,6 +11,7 @@ import {
 import { DataSource } from 'typeorm';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
+import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
 
 @Injectable()
 export class Customer360Service {
@@ -20,6 +21,7 @@ export class Customer360Service {
     private readonly dataSource: DataSource,
     private readonly auditService: AuditService,
     private readonly activityService: ActivityService,
+    private readonly workflowRunner: WorkflowRunnerService,
   ) {}
 
   // ════════════════════════════════════════════════════════════
@@ -94,6 +96,16 @@ export class Customer360Service {
       performedBy: userId,
     });
 
+    // Trigger subscription_created workflow
+    try {
+      await this.workflowRunner.trigger(
+        schemaName, 'accounts', 'subscription_created',
+        row.id, row, undefined, { accountId: data.accountId },
+      );
+    } catch (err) {
+      this.logger.warn(`Workflow trigger failed for subscription_created: ${err.message}`);
+    }
+
     return this.getSubscriptionById(schemaName, row.id);
   }
 
@@ -143,6 +155,26 @@ export class Customer360Service {
       entityType: 'account_subscriptions', entityId: id,
       action: 'update', changes: {}, newValues: data, performedBy: userId,
     });
+
+    // Trigger workflow on status change to expired or cancelled
+    if (data.status && data.status !== existing.status) {
+      const triggerType = data.status === 'expired'
+        ? 'subscription_expired'
+        : data.status === 'cancelled'
+          ? 'subscription_cancelled'
+          : null;
+      if (triggerType) {
+        try {
+          await this.workflowRunner.trigger(
+            schemaName, 'accounts', triggerType,
+            id, { ...existing, ...data }, { status: existing.status },
+            { accountId: existing.accountId },
+          );
+        } catch (err) {
+          this.logger.warn(`Workflow trigger failed for ${triggerType}: ${err.message}`);
+        }
+      }
+    }
 
     return this.getSubscriptionById(schemaName, id);
   }
@@ -548,6 +580,405 @@ export class Customer360Service {
     }
 
     return this.ingestUsageData(schemaName, source.account_id, source.product_id, metrics, 'webhook');
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // ACCOUNT ASSOCIATIONS — leads, opportunities, invoices, projects
+  // ════════════════════════════════════════════════════════════
+
+  async getAccountLeads(schemaName: string, accountId: string, page = 1, limit = 10) {
+    const offset = (page - 1) * limit;
+
+    const [{ count }] = await this.dataSource.query(
+      `SELECT COUNT(*) FROM "${schemaName}".leads
+       WHERE account_id = $1 AND deleted_at IS NULL`,
+      [accountId],
+    );
+
+    const rows = await this.dataSource.query(
+      `SELECT l.id, l.first_name, l.last_name, l.email, l.company,
+              l.created_at, l.owner_id,
+              ps.name as stage_name, ps.color as stage_color,
+              u.first_name as owner_first_name, u.last_name as owner_last_name
+       FROM "${schemaName}".leads l
+       LEFT JOIN "${schemaName}".pipeline_stages ps ON l.stage_id = ps.id
+       LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
+       WHERE l.account_id = $1 AND l.deleted_at IS NULL
+       ORDER BY l.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [accountId, limit, offset],
+    );
+
+    const total = parseInt(count);
+    return {
+      data: rows.map((r: any) => ({
+        id: r.id,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        email: r.email,
+        company: r.company,
+        stageName: r.stage_name,
+        stageColor: r.stage_color,
+        ownerName: r.owner_first_name
+          ? `${r.owner_first_name} ${r.owner_last_name}`.trim()
+          : null,
+        createdAt: r.created_at,
+      })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async getAccountOpportunities(schemaName: string, accountId: string, page = 1, limit = 10) {
+    const offset = (page - 1) * limit;
+
+    const [{ count }] = await this.dataSource.query(
+      `SELECT COUNT(*) FROM "${schemaName}".opportunities
+       WHERE account_id = $1 AND deleted_at IS NULL`,
+      [accountId],
+    );
+
+    const rows = await this.dataSource.query(
+      `SELECT o.id, o.name, o.amount, o.currency, o.probability,
+              o.close_date, o.created_at, o.owner_id,
+              ps.name as stage_name, ps.color as stage_color,
+              ps.is_won, ps.is_lost,
+              u.first_name as owner_first_name, u.last_name as owner_last_name
+       FROM "${schemaName}".opportunities o
+       LEFT JOIN "${schemaName}".pipeline_stages ps ON o.stage_id = ps.id
+       LEFT JOIN "${schemaName}".users u ON o.owner_id = u.id
+       WHERE o.account_id = $1 AND o.deleted_at IS NULL
+       ORDER BY o.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [accountId, limit, offset],
+    );
+
+    const total = parseInt(count);
+    return {
+      data: rows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        amount: parseFloat(r.amount) || 0,
+        currency: r.currency,
+        probability: parseInt(r.probability) || 0,
+        stageName: r.stage_name,
+        stageColor: r.stage_color,
+        isWon: r.is_won || false,
+        isLost: r.is_lost || false,
+        closeDate: r.close_date,
+        ownerName: r.owner_first_name
+          ? `${r.owner_first_name} ${r.owner_last_name}`.trim()
+          : null,
+        createdAt: r.created_at,
+      })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async getAccountInvoices(schemaName: string, accountId: string, page = 1, limit = 10) {
+    const offset = (page - 1) * limit;
+
+    const [{ count }] = await this.dataSource.query(
+      `SELECT COUNT(*) FROM "${schemaName}".invoices
+       WHERE account_id = $1 AND deleted_at IS NULL`,
+      [accountId],
+    );
+
+    const rows = await this.dataSource.query(
+      `SELECT id, invoice_number, title, status, total_amount, amount_paid,
+              amount_due, currency, issue_date, due_date, paid_at, created_at
+       FROM "${schemaName}".invoices
+       WHERE account_id = $1 AND deleted_at IS NULL
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [accountId, limit, offset],
+    );
+
+    const total = parseInt(count);
+    return {
+      data: rows.map((r: any) => ({
+        id: r.id,
+        invoiceNumber: r.invoice_number,
+        title: r.title,
+        status: r.status,
+        totalAmount: parseFloat(r.total_amount) || 0,
+        amountPaid: parseFloat(r.amount_paid) || 0,
+        amountDue: parseFloat(r.amount_due) || 0,
+        currency: r.currency,
+        issueDate: r.issue_date,
+        dueDate: r.due_date,
+        paidAt: r.paid_at,
+        createdAt: r.created_at,
+      })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async getAccountProjects(schemaName: string, accountId: string, page = 1, limit = 10) {
+    const offset = (page - 1) * limit;
+
+    const [{ count }] = await this.dataSource.query(
+      `SELECT COUNT(*) FROM "${schemaName}".projects
+       WHERE account_id = $1 AND deleted_at IS NULL`,
+      [accountId],
+    );
+
+    const rows = await this.dataSource.query(
+      `SELECT p.id, p.name, p.health_status, p.start_date, p.end_date,
+              p.budget, p.created_at, p.owner_id,
+              ps.name as status_name, ps.color as status_color,
+              u.first_name as owner_first_name, u.last_name as owner_last_name,
+              (SELECT COUNT(*) FROM "${schemaName}".project_tasks pt
+               WHERE pt.project_id = p.id AND pt.deleted_at IS NULL) as task_count,
+              (SELECT COUNT(*) FROM "${schemaName}".project_tasks pt
+               WHERE pt.project_id = p.id AND pt.deleted_at IS NULL AND pt.status = 'completed') as completed_task_count
+       FROM "${schemaName}".projects p
+       LEFT JOIN "${schemaName}".project_statuses ps ON p.status_id = ps.id
+       LEFT JOIN "${schemaName}".users u ON p.owner_id = u.id
+       WHERE p.account_id = $1 AND p.deleted_at IS NULL
+       ORDER BY p.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [accountId, limit, offset],
+    );
+
+    const total = parseInt(count);
+    return {
+      data: rows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        statusName: r.status_name,
+        statusColor: r.status_color,
+        healthStatus: r.health_status,
+        startDate: r.start_date,
+        endDate: r.end_date,
+        budget: parseFloat(r.budget) || 0,
+        ownerName: r.owner_first_name
+          ? `${r.owner_first_name} ${r.owner_last_name}`.trim()
+          : null,
+        taskCount: parseInt(r.task_count) || 0,
+        completedTaskCount: parseInt(r.completed_task_count) || 0,
+        createdAt: r.created_at,
+      })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async getAccountTimeline(schemaName: string, accountId: string, page = 1, limit = 20) {
+    const offset = (page - 1) * limit;
+
+    // Get activities directly on the account + activities on related entities
+    const [{ count }] = await this.dataSource.query(
+      `SELECT COUNT(*) FROM (
+        SELECT id FROM "${schemaName}".activities
+        WHERE entity_type = 'accounts' AND entity_id = $1
+        UNION ALL
+        SELECT a.id FROM "${schemaName}".activities a
+        INNER JOIN "${schemaName}".leads l ON a.entity_type = 'leads' AND a.entity_id = l.id::text
+        WHERE l.account_id = $1 AND l.deleted_at IS NULL
+        UNION ALL
+        SELECT a.id FROM "${schemaName}".activities a
+        INNER JOIN "${schemaName}".opportunities o ON a.entity_type = 'opportunities' AND a.entity_id = o.id::text
+        WHERE o.account_id = $1 AND o.deleted_at IS NULL
+      ) combined`,
+      [accountId],
+    );
+
+    const rows = await this.dataSource.query(
+      `SELECT * FROM (
+        SELECT id, entity_type, entity_id, activity_type, title, description,
+               metadata, created_at, performed_by
+        FROM "${schemaName}".activities
+        WHERE entity_type = 'accounts' AND entity_id = $1
+        UNION ALL
+        SELECT a.id, a.entity_type, a.entity_id, a.activity_type, a.title, a.description,
+               a.metadata, a.created_at, a.performed_by
+        FROM "${schemaName}".activities a
+        INNER JOIN "${schemaName}".leads l ON a.entity_type = 'leads' AND a.entity_id = l.id::text
+        WHERE l.account_id = $1 AND l.deleted_at IS NULL
+        UNION ALL
+        SELECT a.id, a.entity_type, a.entity_id, a.activity_type, a.title, a.description,
+               a.metadata, a.created_at, a.performed_by
+        FROM "${schemaName}".activities a
+        INNER JOIN "${schemaName}".opportunities o ON a.entity_type = 'opportunities' AND a.entity_id = o.id::text
+        WHERE o.account_id = $1 AND o.deleted_at IS NULL
+      ) combined
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3`,
+      [accountId, limit, offset],
+    );
+
+    const total = parseInt(count);
+    return {
+      data: rows.map((r: any) => ({
+        id: r.id,
+        entityType: r.entity_type,
+        entityId: r.entity_id,
+        activityType: r.activity_type,
+        title: r.title,
+        description: r.description,
+        metadata: r.metadata,
+        date: r.created_at,
+        performedBy: r.performed_by,
+      })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async getCustomerJourney(schemaName: string, accountId: string) {
+    const milestones: any[] = [];
+
+    // 1. First lead
+    const [firstLead] = await this.dataSource.query(
+      `SELECT id, first_name, last_name, created_at
+       FROM "${schemaName}".leads
+       WHERE account_id = $1 AND deleted_at IS NULL
+       ORDER BY created_at ASC LIMIT 1`,
+      [accountId],
+    );
+    if (firstLead) {
+      milestones.push({
+        stage: 'Lead',
+        date: firstLead.created_at,
+        name: `${firstLead.first_name} ${firstLead.last_name}`.trim(),
+        entityId: firstLead.id,
+      });
+    }
+
+    // 2. First opportunity
+    const [firstOpp] = await this.dataSource.query(
+      `SELECT id, name, amount, created_at
+       FROM "${schemaName}".opportunities
+       WHERE account_id = $1 AND deleted_at IS NULL
+       ORDER BY created_at ASC LIMIT 1`,
+      [accountId],
+    );
+    if (firstOpp) {
+      milestones.push({
+        stage: 'Opportunity',
+        date: firstOpp.created_at,
+        name: firstOpp.name,
+        amount: parseFloat(firstOpp.amount) || 0,
+        entityId: firstOpp.id,
+      });
+    }
+
+    // 3. First won opportunity
+    const [firstWon] = await this.dataSource.query(
+      `SELECT o.id, o.name, o.amount, o.updated_at
+       FROM "${schemaName}".opportunities o
+       INNER JOIN "${schemaName}".pipeline_stages ps ON o.stage_id = ps.id
+       WHERE o.account_id = $1 AND o.deleted_at IS NULL AND ps.is_won = true
+       ORDER BY o.updated_at ASC LIMIT 1`,
+      [accountId],
+    );
+    if (firstWon) {
+      milestones.push({
+        stage: 'Deal Won',
+        date: firstWon.updated_at,
+        name: firstWon.name,
+        amount: parseFloat(firstWon.amount) || 0,
+        entityId: firstWon.id,
+      });
+    }
+
+    // 4. First project
+    const [firstProject] = await this.dataSource.query(
+      `SELECT id, name, created_at
+       FROM "${schemaName}".projects
+       WHERE account_id = $1 AND deleted_at IS NULL
+       ORDER BY created_at ASC LIMIT 1`,
+      [accountId],
+    );
+    if (firstProject) {
+      milestones.push({
+        stage: 'Project',
+        date: firstProject.created_at,
+        name: firstProject.name,
+        entityId: firstProject.id,
+      });
+    }
+
+    // 5. First invoice paid
+    const [firstPaid] = await this.dataSource.query(
+      `SELECT id, invoice_number, total_amount, paid_at
+       FROM "${schemaName}".invoices
+       WHERE account_id = $1 AND deleted_at IS NULL AND paid_at IS NOT NULL
+       ORDER BY paid_at ASC LIMIT 1`,
+      [accountId],
+    );
+    if (firstPaid) {
+      milestones.push({
+        stage: 'Revenue',
+        date: firstPaid.paid_at,
+        amount: parseFloat(firstPaid.total_amount) || 0,
+        entityId: firstPaid.id,
+      });
+    }
+
+    // 6. Next renewal from subscriptions
+    const [nextRenewal] = await this.dataSource.query(
+      `SELECT s.id, s.renewal_date, s.mrr, p.name as product_name
+       FROM "${schemaName}".account_subscriptions s
+       LEFT JOIN "${schemaName}".products p ON s.product_id = p.id
+       WHERE s.account_id = $1 AND s.deleted_at IS NULL
+         AND s.status = 'active' AND s.renewal_date IS NOT NULL
+         AND s.renewal_date >= CURRENT_DATE
+       ORDER BY s.renewal_date ASC LIMIT 1`,
+      [accountId],
+    );
+    if (nextRenewal) {
+      milestones.push({
+        stage: 'Renewal',
+        date: nextRenewal.renewal_date,
+        name: nextRenewal.product_name,
+        amount: (parseFloat(nextRenewal.mrr) || 0) * 12,
+        entityId: nextRenewal.id,
+        isFuture: true,
+      });
+    }
+
+    // Sort chronologically
+    milestones.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return milestones;
+  }
+
+  async getRevenueTrend(schemaName: string, accountId: string, months = 12) {
+    const rows = await this.dataSource.query(
+      `WITH months AS (
+        SELECT generate_series(
+          date_trunc('month', CURRENT_DATE) - ($2 - 1) * INTERVAL '1 month',
+          date_trunc('month', CURRENT_DATE),
+          '1 month'
+        )::date as month
+      ),
+      invoice_revenue AS (
+        SELECT date_trunc('month', paid_at)::date as month,
+               COALESCE(SUM(total_amount), 0) as revenue
+        FROM "${schemaName}".invoices
+        WHERE account_id = $1 AND deleted_at IS NULL AND paid_at IS NOT NULL
+          AND paid_at >= date_trunc('month', CURRENT_DATE) - ($2 - 1) * INTERVAL '1 month'
+        GROUP BY date_trunc('month', paid_at)
+      ),
+      subscription_mrr AS (
+        SELECT COALESCE(SUM(mrr), 0) as mrr
+        FROM "${schemaName}".account_subscriptions
+        WHERE account_id = $1 AND deleted_at IS NULL AND status = 'active'
+      )
+      SELECT to_char(m.month, 'YYYY-MM') as month,
+             COALESCE(ir.revenue, 0) as revenue,
+             smrr.mrr as mrr
+      FROM months m
+      LEFT JOIN invoice_revenue ir ON m.month = ir.month
+      CROSS JOIN subscription_mrr smrr
+      ORDER BY m.month ASC`,
+      [accountId, months],
+    );
+
+    return rows.map((r: any) => ({
+      month: r.month,
+      revenue: parseFloat(r.revenue) || 0,
+      mrr: parseFloat(r.mrr) || 0,
+    }));
   }
 
   // ════════════════════════════════════════════════════════════

@@ -62,6 +62,7 @@ import { WorkflowBuilderPage } from './features/workflows/WorkflowBuilderPage';
 import { WorkflowRunsPage } from './features/workflows/WorkflowRunsPage';
 import { ApiKeysPage } from './features/admin/ApiKeysPage';
 import { FormFieldOrderPage } from './features/admin/FormFieldOrderPage';
+import CustomerSuccessSettingsPage from './features/admin/CustomerSuccessSettingsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -220,6 +221,7 @@ function App() {
           <Route path="form-builder" element={<FormFieldOrderPage />} />
           <Route path="xero-matching" element={<XeroContactMatchingPage />} />
           <Route path="xero/callback" element={<XeroCallbackPage />} />
+          <Route path="cs-settings" element={<CustomerSuccessSettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

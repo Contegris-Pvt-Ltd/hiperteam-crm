@@ -143,6 +143,17 @@ export interface ProductRecommendation {
 // ════════════════════════════════════════════════════════════
 
 export const customer360Api = {
+  // ── Health Config (admin) ───────────────────────────────
+  getHealthConfig: async () => {
+    const { data } = await api.get('/customer-360/health-config');
+    return data;
+  },
+
+  saveHealthConfig: async (config: any) => {
+    const { data } = await api.put('/customer-360/health-config', config);
+    return data;
+  },
+
   // ── Subscriptions ───────────────────────────────────────
   getSubscriptions: async (accountId: string): Promise<Subscription[]> => {
     const { data } = await api.get(`/customer-360/accounts/${accountId}/subscriptions`);
@@ -246,5 +257,42 @@ export const customer360Api = {
 
   deleteRecommendation: async (id: string): Promise<void> => {
     await api.delete(`/customer-360/recommendations/${id}`);
+  },
+
+  // ── Account Associations ──────────────────────────────────
+  getAccountLeads: async (accountId: string, params?: { page?: number; limit?: number }) => {
+    const { data } = await api.get(`/customer-360/accounts/${accountId}/leads`, { params });
+    return data;
+  },
+
+  getAccountOpportunities: async (accountId: string, params?: { page?: number; limit?: number }) => {
+    const { data } = await api.get(`/customer-360/accounts/${accountId}/opportunities`, { params });
+    return data;
+  },
+
+  getAccountInvoices: async (accountId: string, params?: { page?: number; limit?: number }) => {
+    const { data } = await api.get(`/customer-360/accounts/${accountId}/invoices`, { params });
+    return data;
+  },
+
+  getAccountProjects: async (accountId: string, params?: { page?: number; limit?: number }) => {
+    const { data } = await api.get(`/customer-360/accounts/${accountId}/projects`, { params });
+    return data;
+  },
+
+  // ── Timeline & Journey ────────────────────────────────────
+  getTimeline: async (accountId: string, params?: { page?: number; limit?: number; filter?: string }) => {
+    const { data } = await api.get(`/customer-360/accounts/${accountId}/timeline`, { params });
+    return data;
+  },
+
+  getJourney: async (accountId: string) => {
+    const { data } = await api.get(`/customer-360/accounts/${accountId}/journey`);
+    return data;
+  },
+
+  getRevenueTrend: async (accountId: string, months?: number) => {
+    const { data } = await api.get(`/customer-360/accounts/${accountId}/revenue-trend`, { params: { months } });
+    return data;
   },
 };
