@@ -434,19 +434,35 @@ function DashboardInner({
   };
 
   // Fix oklch() colors that html2canvas cannot parse
-  const fixOklchColors = (_clonedDoc: Document, element: HTMLElement) => {
-    const all = element.getElementsByTagName('*');
+  const fixOklchColors = (clonedDoc: Document) => {
+    // html2canvas can't parse oklch() CSS color functions.
+    // Inject a stylesheet that overrides all oklch-using properties with safe fallbacks.
+    // Then walk all elements and force computed RGB values as inline styles.
+    const style = clonedDoc.createElement('style');
+    style.textContent = `
+      *, *::before, *::after {
+        --tw-ring-color: rgba(59,130,246,0.5) !important;
+        --tw-ring-offset-color: #fff !important;
+      }
+    `;
+    clonedDoc.head.appendChild(style);
+
+    // Walk all elements in the cloned doc and replace any oklch values with computed rgb
+    const all = clonedDoc.body.getElementsByTagName('*');
     for (let i = 0; i < all.length; i++) {
       const el = all[i] as HTMLElement;
-      const computed = window.getComputedStyle(el);
-      if (computed.backgroundColor && computed.backgroundColor.includes('oklch')) {
-        el.style.backgroundColor = 'transparent';
-      }
-      if (computed.color && computed.color.includes('oklch')) {
-        el.style.color = '#000000';
-      }
-      if (computed.borderColor && computed.borderColor.includes('oklch')) {
-        el.style.borderColor = '#e5e7eb';
+      try {
+        const computed = clonedDoc.defaultView?.getComputedStyle(el);
+        if (!computed) continue;
+        // Force inline styles from computed values to bypass oklch in stylesheets
+        const bg = computed.backgroundColor;
+        const fg = computed.color;
+        const bc = computed.borderColor;
+        if (bg) el.style.backgroundColor = bg;
+        if (fg) el.style.color = fg;
+        if (bc) el.style.borderColor = bc;
+      } catch {
+        // ignore
       }
     }
   };
