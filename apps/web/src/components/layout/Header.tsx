@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useThemeStore } from '../../stores/theme.store';
 import { useSidebarStore } from '../../stores/sidebar.store';
+import { usePermissions } from '../../hooks/usePermissions';
 import { GlobalSearchBar } from './GlobalSearchModal';
 import {
   Search,
@@ -16,11 +17,13 @@ import {
   HelpCircle,
   Keyboard,
   LogOut,
+  ExternalLink,
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 
 export function Header() {
-  const { user, logout } = useAuthStore();
+  const { user, appConfig, logout } = useAuthStore();
+  const { isAdmin } = usePermissions();
   const { theme, setTheme } = useThemeStore();
   const { setMobileOpen } = useSidebarStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -135,13 +138,21 @@ export function Header() {
                     <User className="w-4 h-4" />
                     My Profile
                   </a>
-                  <a href="/settings" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50">
-                    <Settings className="w-4 h-4" />
-                    Settings
-                  </a>
-                  <a href="/help" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                  {isAdmin && (
+                    <a href="/admin" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                      <Settings className="w-4 h-4" />
+                      Settings
+                    </a>
+                  )}
+                  <a
+                    href={appConfig?.helpSupportUrl || 'https://docs-hiperteam.intellicon.io'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50"
+                  >
                     <HelpCircle className="w-4 h-4" />
                     Help & Support
+                    <ExternalLink className="w-3 h-3 ml-auto text-gray-400" />
                   </a>
                   <button className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 w-full">
                     <Keyboard className="w-4 h-4" />

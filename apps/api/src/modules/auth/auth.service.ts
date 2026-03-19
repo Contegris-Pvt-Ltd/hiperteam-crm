@@ -102,6 +102,7 @@ export class AuthService {
         name: tenant.name,
         slug: tenant.slug,
       },
+      appConfig: this.getAppConfig(),
       ...tokens,
     };
   }
@@ -185,6 +186,7 @@ export class AuthService {
         name: tenant.name,
         slug: tenant.slug,
       },
+      appConfig: this.getAppConfig(),
       ...tokens,
     };
   }
@@ -704,6 +706,12 @@ export class AuthService {
     );
 
     return { message: 'Password changed successfully' };
+  }
+
+  private getAppConfig() {
+    return {
+      helpSupportUrl: this.configService.get('app.helpSupportUrl') || 'https://docs-hiperteam.intellicon.io',
+    };
   }
 
   private generateTokens(payload: JwtPayload) {

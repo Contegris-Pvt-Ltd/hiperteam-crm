@@ -29,9 +29,14 @@ interface Tenant {
   slug: string;
 }
 
+interface AppConfig {
+  helpSupportUrl: string;
+}
+
 interface AuthState {
   user: User | null;
   tenant: Tenant | null;
+  appConfig: AppConfig | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (tenantSlug: string, email: string, password: string) => Promise<void>;
@@ -53,31 +58,34 @@ interface RegisterData {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   tenant: null,
+  appConfig: null,
   isAuthenticated: false,
   isLoading: true,
 
   login: async (tenantSlug: string, email: string, password: string) => {
     const response = await api.post('/auth/login', { tenantSlug, email, password });
-    const { user, tenant, accessToken, refreshToken } = response.data;
-    
+    const { user, tenant, appConfig, accessToken, refreshToken } = response.data;
+
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('user', JSON.stringify(user));
     localStorage.setItem('tenant', JSON.stringify(tenant));
-    
-    set({ user, tenant, isAuthenticated: true });
+    if (appConfig) localStorage.setItem('appConfig', JSON.stringify(appConfig));
+
+    set({ user, tenant, appConfig: appConfig || null, isAuthenticated: true });
   },
 
   register: async (data: RegisterData) => {
     const response = await api.post('/auth/register', data);
-    const { user, tenant, accessToken, refreshToken } = response.data;
-    
+    const { user, tenant, appConfig, accessToken, refreshToken } = response.data;
+
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('user', JSON.stringify(user));
     localStorage.setItem('tenant', JSON.stringify(tenant));
-    
-    set({ user, tenant, isAuthenticated: true });
+    if (appConfig) localStorage.setItem('appConfig', JSON.stringify(appConfig));
+
+    set({ user, tenant, appConfig: appConfig || null, isAuthenticated: true });
   },
 
   logout: () => {
@@ -85,13 +93,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     localStorage.removeItem('tenant');
-    set({ user: null, tenant: null, isAuthenticated: false });
+    localStorage.removeItem('appConfig');
+    set({ user: null, tenant: null, appConfig: null, isAuthenticated: false });
   },
 
   checkAuth: async () => {
     const token = localStorage.getItem('accessToken');
     const storedUser = localStorage.getItem('user');
     const storedTenant = localStorage.getItem('tenant');
+    const storedAppConfig = localStorage.getItem('appConfig');
 
     if (!token) {
       set({ isLoading: false });
@@ -103,6 +113,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({
         user: JSON.parse(storedUser),
         tenant: JSON.parse(storedTenant),
+        appConfig: storedAppConfig ? JSON.parse(storedAppConfig) : null,
         isAuthenticated: true,
         isLoading: false,
       });
