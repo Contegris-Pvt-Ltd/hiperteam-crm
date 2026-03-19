@@ -140,7 +140,7 @@ function BarChartRenderer({ data, columns, height, stacked, compact }: Omit<Char
     : { top: 10, right: 30, left: 20, bottom: 40 };
 
   return (
-    <ResponsiveContainer width="100%" height={300} minWidth={0}>
+    <ResponsiveContainer width="100%" height={typeof height === 'number' ? height : '100%'} minWidth={0} minHeight={200}>
       <BarChart data={formatted} margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
         <XAxis
@@ -192,7 +192,7 @@ function LineChartRenderer({ data, columns, height, compact }: Omit<ChartProps, 
     : { top: 10, right: 30, left: 20, bottom: 40 };
 
   return (
-    <ResponsiveContainer width="100%" height={300} minWidth={0}>
+    <ResponsiveContainer width="100%" height={typeof height === 'number' ? height : '100%'} minWidth={0} minHeight={200}>
       <LineChart data={formatted} margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
         <XAxis
@@ -244,7 +244,7 @@ function PieChartRenderer({ data, columns, height, compact }: Omit<ChartProps, '
   }));
 
   return (
-    <ResponsiveContainer width="100%" height={300} minWidth={0}>
+    <ResponsiveContainer width="100%" height={typeof height === 'number' ? height : '100%'} minWidth={0} minHeight={200}>
       <PieChart>
         <Pie
           data={pieData}
@@ -456,7 +456,7 @@ function ScatterChartRenderer({ data, columns, height, compact }: Omit<ChartProp
     : { top: 10, right: 30, left: 20, bottom: 40 };
 
   return (
-    <ResponsiveContainer width="100%" height={300} minWidth={0}>
+    <ResponsiveContainer width="100%" height={typeof height === 'number' ? height : '100%'} minWidth={0} minHeight={200}>
       <ScatterChart margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
         <XAxis
@@ -539,7 +539,7 @@ function AreaChartRenderer({ data, columns, height, compact }: Omit<ChartProps, 
     : { top: 10, right: 30, left: 20, bottom: 40 };
 
   return (
-    <ResponsiveContainer width="100%" height={300} minWidth={0}>
+    <ResponsiveContainer width="100%" height={typeof height === 'number' ? height : '100%'} minWidth={0} minHeight={200}>
       <AreaChart data={formatted} margin={margin}>
         <defs>
           {measureCols.map((col, i) => (
@@ -605,7 +605,7 @@ function BubbleChartRenderer({ data, columns, height, compact }: Omit<ChartProps
     : { top: 10, right: 30, left: 20, bottom: 40 };
 
   return (
-    <ResponsiveContainer width="100%" height={300} minWidth={0}>
+    <ResponsiveContainer width="100%" height={typeof height === 'number' ? height : '100%'} minWidth={0} minHeight={200}>
       <ScatterChart margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
         <XAxis

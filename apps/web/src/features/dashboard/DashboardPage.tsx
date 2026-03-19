@@ -14,7 +14,7 @@ import {
   PlusCircle, AlertTriangle, Download, Upload, Share2,
   FileImage, FileText, Loader2,
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { dashboardLayoutApi } from '../../api/dashboard-layout.api';
 import type {
@@ -434,70 +434,6 @@ function DashboardInner({
   };
 
   // Fix oklch() colors that html2canvas cannot parse
-  const fixOklchColors = (clonedDoc: Document) => {
-    // html2canvas crashes when it encounters oklch() in CSS.
-    // Fix: rewrite all stylesheets in the cloned doc, replacing oklch() with transparent.
-    const sheets = clonedDoc.querySelectorAll('style');
-    sheets.forEach((sheet) => {
-      if (sheet.textContent && sheet.textContent.includes('oklch')) {
-        sheet.textContent = sheet.textContent.replace(
-          /oklch\([^)]*\)/g,
-          'transparent',
-        );
-      }
-    });
-
-    // Also fix <link> stylesheets by disabling them and inlining computed styles
-    const links = clonedDoc.querySelectorAll('link[rel="stylesheet"]');
-    links.forEach((link) => {
-      try {
-        const styleSheet = Array.from(clonedDoc.styleSheets).find(
-          (s) => s.href === (link as HTMLLinkElement).href,
-        );
-        if (styleSheet) {
-          let hasOklch = false;
-          try {
-            const rules = styleSheet.cssRules;
-            for (let i = 0; i < rules.length; i++) {
-              if (rules[i].cssText.includes('oklch')) {
-                hasOklch = true;
-                break;
-              }
-            }
-          } catch { /* cross-origin */ }
-          if (hasOklch) {
-            const newStyle = clonedDoc.createElement('style');
-            let css = '';
-            try {
-              for (let i = 0; i < styleSheet.cssRules.length; i++) {
-                css += styleSheet.cssRules[i].cssText.replace(
-                  /oklch\([^)]*\)/g,
-                  'transparent',
-                ) + '\n';
-              }
-            } catch { /* cross-origin */ }
-            newStyle.textContent = css;
-            link.parentNode?.insertBefore(newStyle, link);
-            link.parentNode?.removeChild(link);
-          }
-        }
-      } catch { /* ignore */ }
-    });
-
-    // Force inline computed styles on all elements as final safety net
-    const all = clonedDoc.body.getElementsByTagName('*');
-    for (let i = 0; i < all.length; i++) {
-      const el = all[i] as HTMLElement;
-      try {
-        const computed = clonedDoc.defaultView?.getComputedStyle(el);
-        if (!computed) continue;
-        el.style.backgroundColor = computed.backgroundColor;
-        el.style.color = computed.color;
-        el.style.borderColor = computed.borderColor;
-      } catch { /* ignore */ }
-    }
-  };
-
   const handleExportImage = async () => {
     if (!containerRef.current) return;
     setExporting('image');
@@ -505,10 +441,17 @@ function DashboardInner({
     try {
       const canvas = await html2canvas(containerRef.current, {
         backgroundColor: '#f9fafb',
-        scale: 2,
+        scale: 1.5,
         useCORS: true,
         logging: false,
-        onclone: fixOklchColors,
+        scrollY: -window.scrollY,
+        windowHeight: containerRef.current.scrollHeight,
+        height: containerRef.current.scrollHeight,
+        onclone: (_doc, clonedEl) => {
+          clonedEl.style.overflow = 'visible';
+          clonedEl.style.height = 'auto';
+          clonedEl.style.maxHeight = 'none';
+        },
       });
       const url = canvas.toDataURL('image/png');
       const a = document.createElement('a');
@@ -529,17 +472,24 @@ function DashboardInner({
     try {
       const canvas = await html2canvas(containerRef.current, {
         backgroundColor: '#f9fafb',
-        scale: 2,
+        scale: 1,
         useCORS: true,
         logging: false,
-        onclone: fixOklchColors,
+        scrollY: -window.scrollY,
+        windowHeight: containerRef.current.scrollHeight,
+        height: containerRef.current.scrollHeight,
+        onclone: (_doc, clonedEl) => {
+          clonedEl.style.overflow = 'visible';
+          clonedEl.style.height = 'auto';
+          clonedEl.style.maxHeight = 'none';
+        },
       });
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 0.75);
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
       const orientation = imgWidth > imgHeight ? 'landscape' : 'portrait';
-      const pdf = new jsPDF({ orientation, unit: 'px', format: [imgWidth / 2, imgHeight / 2] });
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth / 2, imgHeight / 2);
+      const pdf = new jsPDF({ orientation, unit: 'px', format: [imgWidth, imgHeight] });
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
       pdf.save(`${dashboard.name.replace(/[^a-z0-9]/gi, '_')}_dashboard.pdf`);
     } catch (err) {
       console.error('PDF export failed', err);
