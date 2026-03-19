@@ -8,7 +8,7 @@ import { RegisterPage } from './features/auth/RegisterPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { SharedDashboardPage } from './features/dashboard/SharedDashboardPage';
 import { ContactsPage, ContactDetailPage, ContactEditPage } from './features/contacts';
-import { AccountsPage, AccountDetailPage, AccountEditPage } from './features/accounts';
+import { AccountsPage, AccountDetailPage, AccountEditPage, Customer360Page } from './features/accounts';
 import { ProductsPage, ProductDetailPage, ProductEditPage, PriceBooksPage } from './features/products';
 import { AdminLayout } from './features/admin/AdminLayout';
 import { ProfileCompletionPage } from './features/admin/ProfileCompletionPage';
@@ -129,6 +129,7 @@ function App() {
           <Route path="accounts" element={<AccountsPage />} />
           <Route path="accounts/new" element={<AccountEditPage />} />
           <Route path="accounts/:id" element={<AccountDetailPage />} />
+          <Route path="accounts/:id/360" element={<Customer360Page />} />
           <Route path="accounts/:id/edit" element={<AccountEditPage />} />
           
           {/* Leads */}

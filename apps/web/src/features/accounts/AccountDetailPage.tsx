@@ -6,7 +6,7 @@ import {
   Calendar, User, Tag, Linkedin, Twitter, 
   Facebook, Instagram, Users, DollarSign, CheckSquare,
   History, MessageSquare, FileText, Activity, Network,
-  ChevronDown, ChevronRight, Cake, CreditCard, Building2
+  ChevronDown, ChevronRight, Cake, CreditCard, Building2, Target
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { accountsApi } from '../../api/accounts.api';
@@ -384,6 +384,9 @@ export function AccountDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button onClick={() => navigate(`/accounts/${id}/360`)} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm font-medium rounded-xl hover:from-purple-700 hover:to-indigo-700 transition-all">
+                <Target className="w-4 h-4" /> 360° View
+              </button>
               <button onClick={() => navigate(`/accounts/${id}/edit`)} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-medium rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all">
                 <Pencil className="w-4 h-4" /> Edit
               </button>
