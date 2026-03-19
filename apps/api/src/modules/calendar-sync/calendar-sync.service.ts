@@ -335,10 +335,15 @@ export class CalendarSyncService {
     const pushed = await this.pushPendingTasksToGoogle(schemaName, userId, conn);
     const pulled = await this.pullGoogleEvents(schemaName, userId, conn);
 
-    await this.dataSource.query(
-      `UPDATE "${schemaName}".calendar_connections SET last_synced_at = NOW(), updated_at = NOW() WHERE id = $1`,
-      [conn.id],
-    );
+    // Only update last_synced_at if something actually changed, or at least every hour
+    const lastSynced = conn.last_synced_at ? new Date(conn.last_synced_at).getTime() : 0;
+    const hourAgo = Date.now() - 60 * 60 * 1000;
+    if (pushed > 0 || pulled > 0 || lastSynced < hourAgo) {
+      await this.dataSource.query(
+        `UPDATE "${schemaName}".calendar_connections SET last_synced_at = NOW(), updated_at = NOW() WHERE id = $1`,
+        [conn.id],
+      );
+    }
 
     return { pushed, pulled };
   }
