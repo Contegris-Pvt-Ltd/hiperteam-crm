@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { accountsApi } from '../../api/accounts.api';
 import { customer360Api } from '../../api/customer-360.api';
 import { productsApi } from '../../api/products.api';
-import type { Subscription, CustomerScores, SubscriptionSummary, UsageSummaryEntry } from '../../api/customer-360.api';
+import type { Subscription, CustomerScores, SubscriptionSummary } from '../../api/customer-360.api';
 
 import {
   ArrowLeft, RefreshCw, Heart, AlertTriangle,
@@ -145,7 +145,7 @@ export function Customer360Page() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [summary, setSummary] = useState<SubscriptionSummary | null>(null);
   const [scores, setScores] = useState<CustomerScores | null>(null);
-  const [usageSummaries, setUsageSummaries] = useState<Record<string, UsageSummaryEntry[]>>({});
+
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
@@ -166,16 +166,6 @@ export function Customer360Page() {
       setSubscriptions(subs);
       setSummary(sum);
       setScores(sc);
-
-      // Load usage summaries for active subscriptions
-      const usageMap: Record<string, UsageSummaryEntry[]> = {};
-      for (const sub of subs.filter((s: Subscription) => s.status === 'active' && s.usageSourceType)) {
-        try {
-          const entries = await customer360Api.getUsageSummary(id, sub.productId);
-          if (entries.length > 0) usageMap[sub.productId] = entries;
-        } catch { /* ignore */ }
-      }
-      setUsageSummaries(usageMap);
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to load');
     } finally {
