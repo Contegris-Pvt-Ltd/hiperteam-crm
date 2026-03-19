@@ -469,7 +469,7 @@ export class LeadsService {
         cu.first_name as created_by_first_name, cu.last_name as created_by_last_name,
         (SELECT COUNT(*) FROM "${schemaName}".lead_products lprod WHERE lprod.lead_id = l.id) as products_count,
         lc.first_name as linked_contact_first_name, lc.last_name as linked_contact_last_name, lc.email as linked_contact_email,
-        la.name as linked_account_name, la.email as linked_account_email
+        la.name as linked_account_name, la.emails as linked_account_emails
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
        LEFT JOIN "${schemaName}".teams t ON l.team_id = t.id
@@ -711,7 +711,7 @@ export class LeadsService {
               lqf.name as framework_name, lqf.slug as framework_slug,
               dr.name as disqualification_reason_name,
               lc.first_name as linked_contact_first_name, lc.last_name as linked_contact_last_name, lc.email as linked_contact_email,
-              la.name as linked_account_name, la.email as linked_account_email
+              la.name as linked_account_name, la.emails as linked_account_emails
        FROM "${schemaName}".leads l
        LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
        LEFT JOIN "${schemaName}".teams t ON l.team_id = t.id
@@ -2166,7 +2166,9 @@ export class LeadsService {
       account: lead.linked_account_name ? {
         id: lead.account_id,
         name: lead.linked_account_name,
-        email: lead.linked_account_email || null,
+        email: Array.isArray(lead.linked_account_emails) && lead.linked_account_emails.length > 0
+          ? lead.linked_account_emails[0]
+          : null,
       } : null,
       lastActivityAt: lead.last_activity_at,
       createdAt: lead.created_at,

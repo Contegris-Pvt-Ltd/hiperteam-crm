@@ -17,6 +17,7 @@ import { ActivityService } from '../shared/activity.service';
 import { ApprovalService } from '../shared/approval.service';
 import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
 import { NotificationService } from '../notifications/notification.service';
+import { Customer360Service } from '../customer-360/customer-360.service';
 import {
   CreateOpportunityDto,
   UpdateOpportunityDto,
@@ -45,6 +46,7 @@ export class OpportunitiesService {
     private approvalService: ApprovalService,
     private workflowRunner: WorkflowRunnerService,
     private notificationService: NotificationService,
+    private customer360Service: Customer360Service,
   ) {}
 
   // ============================================================
@@ -845,6 +847,12 @@ export class OpportunitiesService {
 
     const won = await this.findOne(schemaName, id);
     this.workflowRunner.trigger(schemaName, 'opportunities', 'opportunity_won', id, won).catch(() => {});
+
+    // Auto-create subscriptions from line items
+    this.customer360Service.createSubscriptionsFromOpportunity(schemaName, id, userId).catch((err) =>
+      this.logger.warn(`Failed to auto-create subscriptions from opp ${id}: ${err.message}`),
+    );
+
     return won;
   }
 

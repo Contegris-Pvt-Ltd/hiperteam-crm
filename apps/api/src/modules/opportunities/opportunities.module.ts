@@ -22,9 +22,10 @@ import { XeroService } from './xero.service';
 import { EmailModule } from '../email/email.module';
 import { WorkflowsModule } from '../workflows/workflows.module';
 import { NotificationModule } from '../notifications/notification.module';
+import { Customer360Module } from '../customer-360/customer-360.module';
 
 @Module({
-  imports: [EmailModule, WorkflowsModule, NotificationModule],
+  imports: [EmailModule, WorkflowsModule, NotificationModule, Customer360Module],
   controllers: [OpportunitiesController, OpportunitySettingsController, ProposalsController, ProposalsPublicController, ContractsController, ContractsPublicController, InvoicesController, InvoicesPublicController],
   providers: [OpportunitiesService, OpportunitySettingsService, RecordTeamService, ProposalsService, ContractsService, DocuSignService, InvoicesService, XeroService],
   exports: [OpportunitiesService, OpportunitySettingsService, ProposalsService, ContractsService, DocuSignService, InvoicesService, XeroService],

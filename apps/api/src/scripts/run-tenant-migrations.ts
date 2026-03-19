@@ -3641,6 +3641,180 @@ async function runTenantMigrations() {
                 ON "${schema}".leads(account_id) WHERE deleted_at IS NULL AND account_id IS NOT NULL;
             `,
           },
+          // ════════════════════════════════════════════════════════
+          // 056 — Customer 360: Subscriptions, Usage, Scoring, Recommendations
+          // ════════════════════════════════════════════════════════
+          {
+            name: '056_customer_360',
+            sql: `
+              -- ─── Account Subscriptions ─────────────────────────
+              -- Links products to accounts as active subscriptions
+              CREATE TABLE IF NOT EXISTS "${schema}".account_subscriptions (
+                id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                account_id            UUID NOT NULL,
+                product_id            UUID NOT NULL,
+                status                VARCHAR(20) NOT NULL DEFAULT 'active',
+                billing_frequency     VARCHAR(20) DEFAULT 'monthly',
+                quantity              DECIMAL(15,2) DEFAULT 1,
+                unit_price            DECIMAL(15,2) DEFAULT 0,
+                discount_percent      DECIMAL(5,2) DEFAULT 0,
+                discount_amount       DECIMAL(15,2) DEFAULT 0,
+                mrr                   DECIMAL(15,2) DEFAULT 0,
+                currency              VARCHAR(3) DEFAULT 'USD',
+                start_date            DATE,
+                end_date              DATE,
+                renewal_date          DATE,
+                auto_renew            BOOLEAN DEFAULT false,
+                renewal_reminder_days INT DEFAULT 60,
+                source_opportunity_id UUID,
+                source_invoice_id     UUID,
+                source_contract_id    UUID,
+                notes                 TEXT,
+                custom_fields         JSONB DEFAULT '{}',
+                created_by            UUID,
+                created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                cancelled_at          TIMESTAMPTZ,
+                deleted_at            TIMESTAMPTZ
+              );
+              CREATE INDEX IF NOT EXISTS idx_accsub_account
+                ON "${schema}".account_subscriptions(account_id) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_accsub_product
+                ON "${schema}".account_subscriptions(product_id) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_accsub_status
+                ON "${schema}".account_subscriptions(status) WHERE deleted_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_accsub_renewal
+                ON "${schema}".account_subscriptions(renewal_date) WHERE deleted_at IS NULL AND status = 'active';
+              CREATE UNIQUE INDEX IF NOT EXISTS idx_accsub_account_product_active
+                ON "${schema}".account_subscriptions(account_id, product_id)
+                WHERE deleted_at IS NULL AND status IN ('active', 'trial');
+
+              -- ─── Product Usage Metrics (Admin defines per product) ──
+              CREATE TABLE IF NOT EXISTS "${schema}".product_usage_metrics (
+                id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                product_id        UUID NOT NULL,
+                metric_key        VARCHAR(100) NOT NULL,
+                metric_label      VARCHAR(255) NOT NULL,
+                metric_unit       VARCHAR(50) DEFAULT '',
+                format            VARCHAR(20) DEFAULT 'number',
+                sort_order        INT DEFAULT 0,
+                is_active         BOOLEAN DEFAULT true,
+                created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE(product_id, metric_key)
+              );
+              CREATE INDEX IF NOT EXISTS idx_pumetrics_product
+                ON "${schema}".product_usage_metrics(product_id);
+
+              -- ─── Account Usage Sources (per account + product) ──
+              CREATE TABLE IF NOT EXISTS "${schema}".account_usage_sources (
+                id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                account_id        UUID NOT NULL,
+                product_id        UUID NOT NULL,
+                source_type       VARCHAR(20) NOT NULL DEFAULT 'manual',
+                api_url           TEXT,
+                api_method        VARCHAR(10) DEFAULT 'GET',
+                api_headers       JSONB DEFAULT '{}',
+                api_query_params  JSONB DEFAULT '{}',
+                metric_mappings   JSONB DEFAULT '{}',
+                poll_interval     VARCHAR(20) DEFAULT 'daily',
+                is_active         BOOLEAN DEFAULT true,
+                last_synced_at    TIMESTAMPTZ,
+                last_sync_error   TEXT,
+                webhook_key       VARCHAR(255),
+                created_by        UUID,
+                created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE(account_id, product_id)
+              );
+              CREATE INDEX IF NOT EXISTS idx_ausrc_account
+                ON "${schema}".account_usage_sources(account_id);
+              CREATE INDEX IF NOT EXISTS idx_ausrc_poll
+                ON "${schema}".account_usage_sources(poll_interval, is_active)
+                WHERE is_active = true AND source_type = 'pull_api';
+
+              -- ─── Product Usage Logs (time-series data) ─────────
+              CREATE TABLE IF NOT EXISTS "${schema}".product_usage_logs (
+                id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                account_id        UUID NOT NULL,
+                product_id        UUID NOT NULL,
+                metric_key        VARCHAR(100) NOT NULL,
+                metric_value      DECIMAL(20,4) NOT NULL DEFAULT 0,
+                recorded_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                source            VARCHAR(20) DEFAULT 'api',
+                created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_pulog_account_product
+                ON "${schema}".product_usage_logs(account_id, product_id, metric_key, recorded_at DESC);
+              CREATE INDEX IF NOT EXISTS idx_pulog_recorded
+                ON "${schema}".product_usage_logs(recorded_at DESC);
+
+              -- ─── Customer Scores (materialized, recalculated) ──
+              CREATE TABLE IF NOT EXISTS "${schema}".customer_scores (
+                id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                account_id            UUID NOT NULL UNIQUE,
+                health_score          INT DEFAULT 0,
+                health_status         VARCHAR(20) DEFAULT 'unknown',
+                health_breakdown      JSONB DEFAULT '{}',
+                cltv                  DECIMAL(15,2) DEFAULT 0,
+                churn_risk            VARCHAR(20) DEFAULT 'unknown',
+                churn_signals         JSONB DEFAULT '[]',
+                upsell_score          INT DEFAULT 0,
+                upsell_suggestions    JSONB DEFAULT '[]',
+                engagement_score      INT DEFAULT 0,
+                total_mrr             DECIMAL(15,2) DEFAULT 0,
+                total_arr             DECIMAL(15,2) DEFAULT 0,
+                active_subscriptions  INT DEFAULT 0,
+                next_renewal_date     DATE,
+                last_activity_at      TIMESTAMPTZ,
+                last_email_at         TIMESTAMPTZ,
+                last_meeting_at       TIMESTAMPTZ,
+                last_calculated_at    TIMESTAMPTZ,
+                created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_cscore_health
+                ON "${schema}".customer_scores(health_status);
+              CREATE INDEX IF NOT EXISTS idx_cscore_churn
+                ON "${schema}".customer_scores(churn_risk);
+              CREATE INDEX IF NOT EXISTS idx_cscore_renewal
+                ON "${schema}".customer_scores(next_renewal_date)
+                WHERE next_renewal_date IS NOT NULL;
+
+              -- ─── Product Recommendations (admin config) ────────
+              CREATE TABLE IF NOT EXISTS "${schema}".product_recommendations (
+                id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                product_id          UUID NOT NULL,
+                prerequisites       UUID[] DEFAULT '{}',
+                exclusions          UUID[] DEFAULT '{}',
+                ideal_min_size      INT,
+                ideal_max_size      INT,
+                ideal_industries    TEXT[] DEFAULT '{}',
+                base_score          INT DEFAULT 50,
+                trigger_signals     JSONB DEFAULT '[]',
+                is_active           BOOLEAN DEFAULT true,
+                created_by          UUID,
+                created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE(product_id)
+              );
+
+              -- ─── Health Score Config (admin settings) ──────────
+              INSERT INTO "${schema}".module_settings (module, setting_key, setting_value)
+              VALUES ('customer_360', 'health_score_config', '${JSON.stringify({
+                factors: [
+                  { key: 'payment_health', label: 'Payment Health', weight: 25, description: 'Invoice payment speed and overdue count' },
+                  { key: 'engagement', label: 'Engagement', weight: 20, description: 'Email recency, meeting frequency, activity' },
+                  { key: 'product_usage', label: 'Product Usage', weight: 20, description: 'Active users trend, feature adoption' },
+                  { key: 'support_health', label: 'Support Health', weight: 15, description: 'Open tickets, resolution time, escalations' },
+                  { key: 'relationship', label: 'Relationship', weight: 10, description: 'Contact depth, champion identified' },
+                  { key: 'contract_status', label: 'Contract Status', weight: 10, description: 'Renewal proximity, expansion history' },
+                ],
+                thresholds: { healthy: 70, at_risk: 40 },
+              }).replace(/'/g, "''")}')
+              ON CONFLICT (module, setting_key) DO NOTHING;
+            `,
+          },
+
         ];
 
         // ── Execute pending migrations ────────────────────────────

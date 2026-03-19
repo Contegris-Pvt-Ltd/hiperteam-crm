@@ -36,6 +36,7 @@ import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { SearchModule } from './modules/search/search.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
+import { Customer360Module } from './modules/customer-360/customer-360.module';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { SchedulingModule } from './modules/scheduling/scheduling.module';
     SearchModule,
     ApiKeysModule,
     SchedulingModule,
+    Customer360Module,
   ],
   controllers: [AppController],
   providers: [AppService],
