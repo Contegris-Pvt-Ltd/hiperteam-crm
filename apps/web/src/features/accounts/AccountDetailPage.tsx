@@ -587,6 +587,13 @@ export function AccountDetailPage() {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => navigate(`/accounts/${id}/360`)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm font-medium rounded-xl hover:from-purple-700 hover:to-indigo-700 transition-all"
+            >
+              <Target className="w-4 h-4" />
+              360° View
+            </button>
+            <button
               onClick={() => navigate(`/accounts/${id}/edit`)}
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-medium rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all"
             >

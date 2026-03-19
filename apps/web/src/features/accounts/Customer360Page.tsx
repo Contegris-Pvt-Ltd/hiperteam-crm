@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { accountsApi } from '../../api/accounts.api';
-import { customer360Api, Subscription, CustomerScores, SubscriptionSummary, UsageSummaryEntry } from '../../api/customer-360.api';
+import { customer360Api } from '../../api/customer-360.api';
+import type { Subscription, CustomerScores, SubscriptionSummary, UsageSummaryEntry } from '../../api/customer-360.api';
 import { usePermissions } from '../../hooks/usePermissions';
 import {
   ArrowLeft, RefreshCw, Heart, TrendingUp, TrendingDown, AlertTriangle,
@@ -97,7 +98,7 @@ export function Customer360Page() {
     setError(null);
     try {
       const [acc, subs, sum, sc] = await Promise.all([
-        accountsApi.getById(id),
+        accountsApi.getOne(id),
         customer360Api.getSubscriptions(id),
         customer360Api.getSubscriptionSummary(id),
         customer360Api.getScores(id).catch(() => null),
