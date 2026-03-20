@@ -63,6 +63,11 @@ The admin sidebar is organized into logical groups:
 | Audit Logs | `/admin/audit-logs` | Change history and compliance |
 | Gamification | `/admin/gamification` | Badges, achievements, leaderboards |
 
+### Customer Success
+| Menu Item | Path | Description |
+|-----------|------|-------------|
+| Customer Success | `/admin/cs-settings` | Health score weights, product recommendations, upcoming renewals |
+
 ## Quick Reference: What Settings Are Where
 
 :::tip Finding a Setting
@@ -83,6 +88,9 @@ Use this table when you know what you want to configure but are not sure where t
 | Bulk import contacts | [Import/Export](./import-export.md) |
 | Review who changed a record | [Audit Logs](./audit-logs.md) |
 | Set company timezone | [General Settings](./general-settings.md) |
+| Configure health score weights | [Customer Success Settings](./customer-success-settings.md) |
+| Set up upsell recommendations | [Customer Success Settings](./customer-success-settings.md) |
+| View upcoming renewals | [Customer Success Settings](./customer-success-settings.md) |
 
 ## Best Practices for Admin Setup Sequence
 

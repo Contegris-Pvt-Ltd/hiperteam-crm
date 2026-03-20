@@ -33,11 +33,13 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Accounts',
+      label: 'Accounts & Customer 360',
       items: [
         'user-manual/accounts-overview',
         'user-manual/accounts-managing',
         'user-manual/accounts-detail-page',
+        'user-manual/customer-360-overview',
+        'user-manual/subscriptions-overview',
       ],
     },
     {
@@ -258,6 +260,13 @@ const sidebars: SidebarsConfig = {
         'admin-manual/import-export',
         'admin-manual/batch-jobs',
         'admin-manual/audit-logs',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Customer Success',
+      items: [
+        'admin-manual/customer-success-settings',
       ],
     },
     {

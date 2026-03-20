@@ -84,4 +84,23 @@ Use account hierarchies to understand the full scope of a corporate relationship
 
 ![Screenshot: Account hierarchy showing parent company with child division accounts](../../static/img/screenshots/accounts/account-hierarchy.png)
 
-For instructions on creating and managing accounts, see [Managing Accounts](./accounts-managing.md). For the detail page, see [Account Detail Page](./accounts-detail-page.md).
+## Customer 360 Capabilities
+
+Every account includes a built-in **Customer 360 view** with:
+
+- **Health Score** — a composite 0–100 score measuring payment health, engagement, product usage, support health, relationship depth, and contract status
+- **Churn Risk** — auto-calculated LOW / MEDIUM / HIGH indicator
+- **CLTV** — Customer Lifetime Value projection
+- **MRR / ARR** — recurring revenue from product subscriptions
+- **Upsell Suggestions** — AI-driven product recommendations with scores and explanations
+- **Customer Journey Map** — visual timeline from first lead through renewal
+- **Usage Tracking** — monitor product adoption via Pull API, Push Webhook, or manual entry
+
+See [Customer 360 View](./customer-360-overview.md) for a deep dive.
+
+## What's Next
+
+- [Managing Accounts](./accounts-managing.md) — creating, editing, and organizing accounts
+- [Account Detail Page](./accounts-detail-page.md) — the unified 360° view with all 14 tabs
+- [Customer 360 View](./customer-360-overview.md) — health scores, churn risk, and upsell logic
+- [Subscriptions & Renewals](./subscriptions-overview.md) — product subscriptions and renewal tracking
