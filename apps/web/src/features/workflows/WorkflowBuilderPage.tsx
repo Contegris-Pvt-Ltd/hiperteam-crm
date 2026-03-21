@@ -16,7 +16,7 @@ import {
   CheckSquare, FolderKanban, GitBranch, Bell, Mail, Webhook, Clock,
   Tag, PenLine, User, Loader2, Check, X, ToggleLeft, ToggleRight,
   Activity, MessageSquare, Smartphone, ZoomIn, ZoomOut, Maximize,
-  CheckCircle, XCircle, Paperclip,
+  CheckCircle, XCircle, Paperclip, ListPlus, ListMinus,
 } from 'lucide-react';
 import type {
   WorkflowAction, ActionType, TriggerModule,
@@ -28,6 +28,7 @@ import {
 } from '../../api/workflows.api';
 import { SYSTEM_FIELDS_BY_MODULE } from '../../config/field-registry';
 import { api } from '../../lib/api';
+import { emailMarketingApi } from '../../api/email-marketing.api';
 
 // ── Types ────────────────────────────────────────────────────
 interface DraftAction extends Omit<WorkflowAction, 'id' | 'workflowId'> {
@@ -54,6 +55,8 @@ function actionColor(type: ActionType): string {
     create_project:    'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800',
     send_whatsapp:     'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
     send_sms:          'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800',
+  add_to_email_list:     'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800',
+  remove_from_email_list:'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 border-rose-200 dark:border-rose-800',
   };
   return colors[type] ?? 'bg-gray-100 text-gray-600 border-gray-200';
 }
@@ -72,6 +75,8 @@ const ACTION_ICONS: Record<ActionType, React.ElementType> = {
   create_project:     FolderKanban,
   send_whatsapp:      MessageSquare,
   send_sms:           Smartphone,
+  add_to_email_list:      ListPlus,
+  remove_from_email_list: ListMinus,
 };
 
 const MODULE_ICONS: Record<TriggerModule, React.ElementType> = {
@@ -1216,6 +1221,127 @@ function SendMessagePanel({ config, onChange, label }: { config: any; onChange: 
   );
 }
 
+// ── Email List cache ──────────────────────────────────────────
+const emailListsCache: { lists: { id: string; name: string }[]; loaded: boolean } = { lists: [], loaded: false };
+
+function useEmailLists() {
+  const [lists, setLists] = useState<{ id: string; name: string }[]>(emailListsCache.lists);
+  const [loading, setLoading] = useState(!emailListsCache.loaded);
+
+  useEffect(() => {
+    if (emailListsCache.loaded) {
+      setLists(emailListsCache.lists);
+      setLoading(false);
+      return;
+    }
+    emailMarketingApi.getLists()
+      .then((data) => {
+        emailListsCache.lists = data;
+        emailListsCache.loaded = true;
+        setLists(data);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  return { lists, loading };
+}
+
+function EmailListPanel({ config, onChange, module }: { config: any; onChange: (c: any) => void; module: TriggerModule }) {
+  const { lists, loading } = useEmailLists();
+  const isAccountTrigger = module === 'accounts';
+
+  return (
+    <div className="space-y-4">
+      <PanelField label="Select List">
+        {loading ? (
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading lists...
+          </div>
+        ) : lists.length === 0 ? (
+          <p className="text-xs text-gray-500 dark:text-slate-400">No lists found. Configure MailerLite or Mailchimp in Integrations first.</p>
+        ) : (
+          <PanelSelect
+            value={config.listId ?? ''}
+            onChange={v => {
+              const list = lists.find(l => l.id === v);
+              onChange({ ...config, listId: v, listName: list?.name ?? '' });
+            }}
+            options={[{ value: '', label: 'Select a list...' }, ...lists.map(l => ({ value: l.id, label: l.name }))]}
+          />
+        )}
+      </PanelField>
+      {isAccountTrigger && (
+        <PanelField label="Contact Selection">
+          <PanelSelect
+            value={config.contactScope ?? 'all'}
+            onChange={v => onChange({ ...config, contactScope: v })}
+            options={[
+              { value: 'all', label: 'All contacts' },
+              { value: 'primary', label: 'Primary contact only' },
+              { value: 'role', label: 'Contacts with role...' },
+            ]}
+          />
+        </PanelField>
+      )}
+      {isAccountTrigger && config.contactScope === 'role' && (
+        <PanelField label="Contact Role">
+          <PanelInput value={config.contactRole ?? ''} onChange={v => onChange({ ...config, contactRole: v })} placeholder="e.g. Decision Maker" />
+        </PanelField>
+      )}
+      <PanelField label="Tags (optional)">
+        <PanelInput value={config.tags ?? ''} onChange={v => onChange({ ...config, tags: v })} placeholder="tag1, tag2, tag3" />
+      </PanelField>
+    </div>
+  );
+}
+
+function EmailListRemovePanel({ config, onChange, module }: { config: any; onChange: (c: any) => void; module: TriggerModule }) {
+  const { lists, loading } = useEmailLists();
+  const isAccountTrigger = module === 'accounts';
+
+  return (
+    <div className="space-y-4">
+      <PanelField label="Select List">
+        {loading ? (
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading lists...
+          </div>
+        ) : lists.length === 0 ? (
+          <p className="text-xs text-gray-500 dark:text-slate-400">No lists found. Configure MailerLite or Mailchimp in Integrations first.</p>
+        ) : (
+          <PanelSelect
+            value={config.listId ?? ''}
+            onChange={v => {
+              const list = lists.find(l => l.id === v);
+              onChange({ ...config, listId: v, listName: list?.name ?? '' });
+            }}
+            options={[{ value: '', label: 'Select a list...' }, ...lists.map(l => ({ value: l.id, label: l.name }))]}
+          />
+        )}
+      </PanelField>
+      {isAccountTrigger && (
+        <PanelField label="Contact Selection">
+          <PanelSelect
+            value={config.contactScope ?? 'all'}
+            onChange={v => onChange({ ...config, contactScope: v })}
+            options={[
+              { value: 'all', label: 'All contacts' },
+              { value: 'primary', label: 'Primary contact only' },
+              { value: 'role', label: 'Contacts with role...' },
+            ]}
+          />
+        </PanelField>
+      )}
+      {isAccountTrigger && config.contactScope === 'role' && (
+        <PanelField label="Contact Role">
+          <PanelInput value={config.contactRole ?? ''} onChange={v => onChange({ ...config, contactRole: v })} placeholder="e.g. Decision Maker" />
+        </PanelField>
+      )}
+    </div>
+  );
+}
+
 function ActionConfigPanel({
   action, module, onUpdate,
 }: {
@@ -1255,6 +1381,8 @@ function ActionConfigPanel({
         {action.actionType === 'send_email'         && <SendEmailPanel config={c} onChange={update} />}
         {action.actionType === 'send_whatsapp'      && <SendMessagePanel config={c} onChange={update} label="WhatsApp Message" />}
         {action.actionType === 'send_sms'            && <SendMessagePanel config={c} onChange={update} label="SMS Message" />}
+        {action.actionType === 'add_to_email_list'      && <EmailListPanel config={c} onChange={update} module={module} />}
+        {action.actionType === 'remove_from_email_list' && <EmailListRemovePanel config={c} onChange={update} module={module} />}
       </div>
     </div>
   );

@@ -12,7 +12,7 @@ import {
   Plus, Zap,
   BarChart3, Loader2, AlertCircle,
   Briefcase, FolderKanban, Receipt, GitBranch, Copy, Settings2,
-  ChevronLeft, X,
+  ChevronLeft, X, Send,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { accountsApi } from '../../api/accounts.api';
@@ -36,6 +36,7 @@ import { CustomFieldRenderer } from '../../components/shared/CustomFieldRenderer
 import { QuickCreateContactModal } from '../../components/shared/QuickCreateContactModal';
 import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 import { EntityEmailsTab } from '../email/EntityEmailsTab';
+import { AccountEmailMarketingPanel } from '../email-marketing/AccountEmailMarketingPanel';
 
 // ============ PAGE DESIGNER IMPORTS ============
 import { useModuleLayout } from '../../hooks/useModuleLayout';
@@ -1830,7 +1831,7 @@ function TimelineTabContent({ accountId }: { accountId: string }) {
 // Tab Type Definition
 // ════════════════════════════════════════════════════════════
 
-type TabType = 'overview' | 'subscriptions' | 'leads' | 'opportunities' | 'projects' | 'financials' | 'contacts' | 'emails' | 'tasks' | 'notes' | 'documents' | 'timeline' | 'history' | 'children';
+type TabType = 'overview' | 'subscriptions' | 'leads' | 'opportunities' | 'projects' | 'financials' | 'contacts' | 'emails' | 'tasks' | 'notes' | 'documents' | 'timeline' | 'history' | 'children' | 'email_marketing';
 
 // ════════════════════════════════════════════════════════════
 // Main Page Component
@@ -2330,6 +2331,7 @@ export function AccountDetailPage() {
     { id: 'timeline', label: 'Timeline', icon: <GitBranch className="w-4 h-4" /> },
     { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
     { id: 'children', label: 'Sub-accounts', icon: <Network className="w-4 h-4" /> },
+    { id: 'email_marketing', label: 'Email Marketing', icon: <Send className="w-4 h-4" /> },
   ];
 
   const primaryEmail = account.emails?.find(e => e.primary) || account.emails?.[0];
@@ -2953,6 +2955,10 @@ export function AccountDetailPage() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {activeTab === 'email_marketing' && (
+                <AccountEmailMarketingPanel accountId={id!} />
               )}
             </div>
           </div>

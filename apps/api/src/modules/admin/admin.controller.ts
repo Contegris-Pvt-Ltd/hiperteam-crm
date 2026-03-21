@@ -305,7 +305,7 @@ export class AdminController {
     @Param('provider') provider: string,
     @Body() body: { isEnabled: boolean; config: Record<string, string> },
   ) {
-    const allowedProviders = ['docusign', 'xero', 'twilio', 'sendgrid', 'stripe', 'slack'];
+    const allowedProviders = ['docusign', 'xero', 'twilio', 'sendgrid', 'stripe', 'slack', 'mailerlite', 'mailchimp'];
     if (!allowedProviders.includes(provider)) {
       throw new BadRequestException(`Invalid provider: ${provider}`);
     }

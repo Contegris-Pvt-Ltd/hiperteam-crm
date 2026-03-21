@@ -6,7 +6,7 @@ import {
   Calendar, Tag, Linkedin, Twitter, 
   Facebook, Instagram, PhoneOff, MailX, BellOff,
   History, MessageSquare, FileText, Activity,
-  ChevronDown, ChevronRight, CheckSquare
+  ChevronDown, ChevronRight, CheckSquare, Send
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { contactsApi } from '../../api/contacts.api';
@@ -28,8 +28,9 @@ import { DynamicPageRenderer } from '../../components/shared/DynamicPageRenderer
 // ===============================================
 import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 import { EntityEmailsTab } from '../email/EntityEmailsTab';
+import { ContactEmailMarketingPanel } from '../email-marketing/ContactEmailMarketingPanel';
 
-type TabType = 'activity' | 'emails' | 'notes' | 'accounts' | 'tasks' | 'documents' | 'history';
+type TabType = 'activity' | 'emails' | 'notes' | 'accounts' | 'tasks' | 'documents' | 'history' | 'email_marketing';
 
 export function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -496,6 +497,7 @@ export function ContactDetailPage() {
     { id: 'accounts', label: 'Accounts', icon: <Building2 className="w-4 h-4" /> },
     { id: 'tasks', label: 'Tasks', icon: <CheckSquare className="w-4 h-4" /> },
     { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
+    { id: 'email_marketing', label: 'Email Marketing', icon: <Send className="w-4 h-4" /> },
   ];
 
   const primaryEmail = contact.emails?.find(e => e.primary) || contact.emails?.[0];
@@ -898,6 +900,9 @@ export function ContactDetailPage() {
                       entityId={id!}
                       entityName={`${contact.firstName} ${contact.lastName}`}
                     />
+                  )}
+                  {activeTab === 'email_marketing' && (
+                    <ContactEmailMarketingPanel contactId={id!} />
                   )}
                 </div>
               </div>

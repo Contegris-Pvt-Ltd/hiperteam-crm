@@ -3815,6 +3815,43 @@ async function runTenantMigrations() {
             `,
           },
 
+          {
+            name: '057_email_marketing',
+            sql: `
+              ALTER TABLE "${schema}".contacts
+                ADD COLUMN IF NOT EXISTS email_marketing_status VARCHAR(20) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS email_marketing_provider VARCHAR(20) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS email_bounced_at TIMESTAMPTZ DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS unsubscribed_at TIMESTAMPTZ DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS last_email_opened_at TIMESTAMPTZ DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS last_email_clicked_at TIMESTAMPTZ DEFAULT NULL;
+
+              CREATE INDEX IF NOT EXISTS idx_contacts_email_marketing_status
+                ON "${schema}".contacts(email_marketing_status)
+                WHERE email_marketing_status IS NOT NULL;
+
+              CREATE TABLE IF NOT EXISTS "${schema}".contact_email_marketing (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                contact_id UUID NOT NULL,
+                provider VARCHAR(20) NOT NULL,
+                list_id VARCHAR(255) NOT NULL,
+                list_name VARCHAR(255),
+                status VARCHAR(20) NOT NULL DEFAULT 'subscribed',
+                subscribed_at TIMESTAMPTZ DEFAULT NOW(),
+                unsubscribed_at TIMESTAMPTZ,
+                tags JSONB DEFAULT '[]',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(contact_id, provider, list_id)
+              );
+
+              CREATE INDEX IF NOT EXISTS idx_cem_contact_id
+                ON "${schema}".contact_email_marketing(contact_id);
+              CREATE INDEX IF NOT EXISTS idx_cem_provider_list
+                ON "${schema}".contact_email_marketing(provider, list_id);
+            `,
+          },
+
         ];
 
         // ── Execute pending migrations ────────────────────────────

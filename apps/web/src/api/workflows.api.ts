@@ -23,7 +23,8 @@ export type ActionType =
   | 'assign_owner' | 'create_task' | 'update_field' | 'add_tag'
   | 'send_notification' | 'send_email' | 'webhook'
   | 'wait' | 'branch' | 'create_opportunity' | 'create_project'
-  | 'send_whatsapp' | 'send_sms';
+  | 'send_whatsapp' | 'send_sms'
+  | 'add_to_email_list' | 'remove_from_email_list';
 
 export type RunStatus = 'running' | 'completed' | 'failed' | 'skipped';
 
@@ -191,6 +192,8 @@ export const ACTION_TYPES: { value: ActionType; label: string; description: stri
   { value: 'create_project',     label: 'Create Project',      description: 'Auto-create project',         color: 'indigo' },
   { value: 'send_whatsapp',    label: 'Send WhatsApp',       description: 'Send a WhatsApp message via Twilio', color: 'emerald' },
   { value: 'send_sms',         label: 'Send SMS',            description: 'Send an SMS message via Twilio',     color: 'cyan' },
+  { value: 'add_to_email_list',     label: 'Add to Email List',     description: 'Subscribe contact to an email marketing list', color: 'green' },
+  { value: 'remove_from_email_list', label: 'Remove from Email List', description: 'Unsubscribe contact from an email marketing list', color: 'rose' },
 ];
 
 export const CONDITION_OPERATORS = [

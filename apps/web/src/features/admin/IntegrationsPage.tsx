@@ -3,16 +3,18 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Loader2, Save, Plug, Eye, EyeOff,
   ToggleLeft, ToggleRight, AlertTriangle, CheckCircle2,
-  ExternalLink, Link2,
+  ExternalLink, Link2, Copy, Check,
 } from 'lucide-react';
 import { adminApi } from '../../api/admin.api';
 import { api } from '../../api/contacts.api';
+import { emailMarketingApi } from '../../api/email-marketing.api';
+import { useAuthStore } from '../../stores/auth.store';
 
 // ============================================================
 // PROVIDER DEFINITIONS
 // ============================================================
 
-type Provider = 'docusign' | 'xero' | 'twilio' | 'sendgrid' | 'stripe' | 'slack';
+type Provider = 'docusign' | 'xero' | 'twilio' | 'sendgrid' | 'stripe' | 'slack' | 'mailerlite' | 'mailchimp';
 
 interface FieldDef {
   key: string;
@@ -108,6 +110,27 @@ const PROVIDERS: ProviderDef[] = [
       { key: 'webhookUrl', label: 'Incoming Webhook URL', type: 'text', placeholder: 'https://hooks.slack.com/services/...' },
     ],
   },
+  {
+    provider: 'mailerlite',
+    label: 'MailerLite',
+    description: 'Email marketing & automation',
+    color: 'from-green-500 to-emerald-600',
+    iconText: 'ML',
+    fields: [
+      { key: 'apiKey', label: 'API Key', type: 'secret', placeholder: 'Your MailerLite API key' },
+    ],
+  },
+  {
+    provider: 'mailchimp',
+    label: 'Mailchimp',
+    description: 'Email marketing & campaigns',
+    color: 'from-yellow-500 to-orange-600',
+    iconText: 'MC',
+    fields: [
+      { key: 'apiKey', label: 'API Key', type: 'secret', placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-us14' },
+      { key: 'dataCenter', label: 'Data Center', type: 'text', placeholder: 'us14', helpText: 'Found at the end of your API key (e.g. us14)' },
+    ],
+  },
 ];
 
 // ============================================================
@@ -134,6 +157,10 @@ export function IntegrationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [visibleSecrets, setVisibleSecrets] = useState<Set<string>>(new Set());
   const [connectingXero, setConnectingXero] = useState(false);
+  const [testingConnection, setTestingConnection] = useState<Provider | null>(null);
+  const [testResult, setTestResult] = useState<{ provider: Provider; listCount: number } | null>(null);
+  const [copiedWebhook, setCopiedWebhook] = useState<string | null>(null);
+  const tenant = useAuthStore((s) => s.tenant);
 
   // ── Load data ────────────────────────────────────────────────
   useEffect(() => {
@@ -223,6 +250,29 @@ export function IntegrationsPage() {
       setError(err?.response?.data?.message || 'Failed to get Xero authorization URL');
       setConnectingXero(false);
     }
+  };
+
+  const handleTestEmailConnection = async (provider: Provider) => {
+    setTestingConnection(provider);
+    setTestResult(null);
+    setError(null);
+    try {
+      const result = await emailMarketingApi.testConnection();
+      setTestResult({ provider, listCount: result.listCount ?? 0 });
+      setTimeout(() => setTestResult((prev) => (prev?.provider === provider ? null : prev)), 5000);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || `Failed to connect to ${provider}`);
+    } finally {
+      setTestingConnection(null);
+    }
+  };
+
+  const copyWebhookUrl = (provider: Provider) => {
+    const tenantId = tenant?.id || 'YOUR_TENANT_ID';
+    const url = `${window.location.origin}/api/webhooks/${provider}?tenant=${tenantId}`;
+    navigator.clipboard.writeText(url);
+    setCopiedWebhook(provider);
+    setTimeout(() => setCopiedWebhook((prev) => (prev === provider ? null : prev)), 2000);
   };
 
   // ── Render ───────────────────────────────────────────────────
@@ -399,6 +449,57 @@ export function IntegrationsPage() {
                             Match Contacts
                           </button>
                         )}
+                      </div>
+                    )}
+
+                    {/* Email marketing provider actions (MailerLite / Mailchimp) */}
+                    {(providerDef.provider === 'mailerlite' || providerDef.provider === 'mailchimp') && (
+                      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700 space-y-4">
+                        {/* Test Connection */}
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => handleTestEmailConnection(providerDef.provider)}
+                            disabled={testingConnection === providerDef.provider}
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-colors disabled:opacity-50"
+                          >
+                            {testingConnection === providerDef.provider
+                              ? <Loader2 className="w-4 h-4 animate-spin" />
+                              : <ExternalLink className="w-4 h-4" />}
+                            Test Connection
+                          </button>
+                          {testResult?.provider === providerDef.provider && (
+                            <span className="flex items-center gap-1 text-green-600 dark:text-green-400 text-sm">
+                              <CheckCircle2 className="w-4 h-4" />
+                              Connected — {testResult.listCount} list{testResult.listCount !== 1 ? 's' : ''} found
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Webhook URL */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                            Webhook URL
+                          </label>
+                          <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">
+                            Configure this URL in your {providerDef.label} webhook settings to receive subscription updates.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              readOnly
+                              value={`${window.location.origin}/api/webhooks/${providerDef.provider}?tenant=${tenant?.id || 'YOUR_TENANT_ID'}`}
+                              className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-700/50 text-gray-600 dark:text-slate-300 text-sm font-mono cursor-text"
+                            />
+                            <button
+                              onClick={() => copyWebhookUrl(providerDef.provider)}
+                              className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-300 rounded-lg transition-colors text-sm"
+                            >
+                              {copiedWebhook === providerDef.provider
+                                ? <><Check className="w-4 h-4 text-green-500" /> Copied</>
+                                : <><Copy className="w-4 h-4" /> Copy</>}
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

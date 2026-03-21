@@ -3,6 +3,7 @@ import { DataSource } from 'typeorm';
 import { RoutingAlgorithmsService } from './routing-algorithms.service';
 import { EmailChannel } from '../notifications/channels/email.channel';
 import { SmsWhatsAppChannel } from '../notifications/channels/sms-whatsapp.channel';
+import { EmailMarketingService } from '../email-marketing/email-marketing.service';
 
 // ── Condition group evaluator types ─────────────────────────
 interface Condition {
@@ -27,6 +28,7 @@ export class WorkflowRunnerService {
     private readonly routing: RoutingAlgorithmsService,
     private readonly emailChannel: EmailChannel,
     private readonly smsChannel: SmsWhatsAppChannel,
+    private readonly emailMarketing: EmailMarketingService,
   ) {}
 
   // ============================================================
@@ -185,6 +187,8 @@ export class WorkflowRunnerService {
       case 'send_email':        return this.actionSendEmail(schema, config, payload);
       case 'send_whatsapp':     return this.actionSendWhatsApp(schema, config, payload);
       case 'send_sms':          return this.actionSendSms(schema, config, payload);
+      case 'add_to_email_list':    return this.actionAddToEmailList(schema, config, payload);
+      case 'remove_from_email_list': return this.actionRemoveFromEmailList(schema, config, payload);
       default:
         this.logger.warn(`Unknown action type: ${action.action_type}`);
         return { skipped: true };
@@ -649,6 +653,69 @@ export class WorkflowRunnerService {
     const message = this.interpolate(config.message ?? '', entity);
     const sent = await this.smsChannel.sendSms(schema, toPhone, message);
     return { sent, to: toPhone };
+  }
+
+  // ── ADD TO EMAIL LIST ────────────────────────────────────────
+  private async actionAddToEmailList(schema: string, config: any, payload: any) {
+    const { listId, listName, tags, contactSelector } = config;
+    if (!listId) return { skipped: true, reason: 'no listId configured' };
+
+    // Resolve tenantId from schema
+    const [tenant] = await this.dataSource.query(
+      `SELECT id FROM public.tenants WHERE schema_name = $1 LIMIT 1`,
+      [schema],
+    );
+    if (!tenant) return { skipped: true, reason: 'tenant not found' };
+
+    const contacts = await this.emailMarketing.resolveEmailsFromEntity(
+      schema, payload.triggerModule, payload.entityId, contactSelector || 'primary',
+    );
+    if (!contacts.length) return { skipped: true, reason: 'no contacts resolved' };
+
+    let added = 0;
+    for (const c of contacts) {
+      try {
+        await this.emailMarketing.addContactToList(
+          tenant.id, schema, listId, listName || '',
+          { email: c.email, firstName: c.firstName, lastName: c.lastName },
+          c.contactId,
+        );
+        added++;
+      } catch (err: any) {
+        this.logger.warn(`Email list add failed for ${c.email}: ${err.message}`);
+      }
+    }
+    return { added, total: contacts.length };
+  }
+
+  // ── REMOVE FROM EMAIL LIST ─────────────────────────────────
+  private async actionRemoveFromEmailList(schema: string, config: any, payload: any) {
+    const { listId, contactSelector } = config;
+    if (!listId) return { skipped: true, reason: 'no listId configured' };
+
+    const [tenant] = await this.dataSource.query(
+      `SELECT id FROM public.tenants WHERE schema_name = $1 LIMIT 1`,
+      [schema],
+    );
+    if (!tenant) return { skipped: true, reason: 'tenant not found' };
+
+    const contacts = await this.emailMarketing.resolveEmailsFromEntity(
+      schema, payload.triggerModule, payload.entityId, contactSelector || 'primary',
+    );
+    if (!contacts.length) return { skipped: true, reason: 'no contacts resolved' };
+
+    let removed = 0;
+    for (const c of contacts) {
+      try {
+        await this.emailMarketing.removeContactFromList(
+          tenant.id, schema, listId, c.email, c.contactId,
+        );
+        removed++;
+      } catch (err: any) {
+        this.logger.warn(`Email list remove failed for ${c.email}: ${err.message}`);
+      }
+    }
+    return { removed, total: contacts.length };
   }
 
   // ============================================================

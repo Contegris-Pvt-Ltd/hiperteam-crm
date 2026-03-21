@@ -37,6 +37,7 @@ import { SearchModule } from './modules/search/search.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { Customer360Module } from './modules/customer-360/customer-360.module';
+import { EmailMarketingModule } from './modules/email-marketing/email-marketing.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { Customer360Module } from './modules/customer-360/customer-360.module';
     ApiKeysModule,
     SchedulingModule,
     Customer360Module,
+    EmailMarketingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
