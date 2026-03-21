@@ -616,9 +616,9 @@ function AddActionMenu({ onAdd }: { onAdd: (type: ActionType) => void }) {
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-2 z-30 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden">
+        <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl max-h-72 overflow-y-auto">
           <div className="p-2">
-            <div className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider px-2 py-1 mb-1">Choose action</div>
+            <div className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider px-2 py-1 mb-1 sticky top-0 bg-white dark:bg-slate-800 z-10">Choose action</div>
             {ACTION_TYPES.map(at => {
               const Icon = ACTION_ICONS[at.value] ?? Settings2;
               const col = actionColor(at.value);
@@ -1686,7 +1686,7 @@ export function WorkflowBuilderPage() {
         {/* LEFT: Canvas */}
         <div
           ref={canvas.containerRef}
-          className="flex-1 relative overflow-hidden cursor-default"
+          className="flex-1 relative overflow-auto cursor-default"
           style={{
             backgroundImage: 'radial-gradient(circle, rgba(139,92,246,0.08) 1px, transparent 1px)',
             backgroundSize: `${24 * canvas.zoom}px ${24 * canvas.zoom}px`,
