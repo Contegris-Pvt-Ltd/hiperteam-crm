@@ -226,7 +226,7 @@ function TypesTab({ types, onReload }: { types: TaskType[]; onReload: () => void
       {/* Create form */}
       {creating && (
         <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
               <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -386,7 +386,7 @@ function StatusesTab({ statuses, onReload }: { statuses: TaskStatus[]; onReload:
       {/* Create form */}
       {creating && (
         <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
               <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -564,7 +564,7 @@ function PrioritiesTab({ priorities, onReload }: { priorities: TaskPriority[]; o
       {/* Create form */}
       {creating && (
         <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
               <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}

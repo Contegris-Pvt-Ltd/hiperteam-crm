@@ -338,7 +338,7 @@ function TemplateSelector({
   onSelect: (template: LayoutTemplateType) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {templates.map(template => {
         const Icon = TEMPLATE_ICONS[template.id] || Square;
         const isSelected = selectedTemplate === template.id;

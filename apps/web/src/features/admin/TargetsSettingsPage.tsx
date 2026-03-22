@@ -397,7 +397,7 @@ function TargetsTab() {
           </h4>
 
           {/* Row 1: Metric (grouped by module) + Period */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Metric</label>
               <select
@@ -444,7 +444,7 @@ function TargetsTab() {
                 <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium uppercase tracking-wider mb-2">
                   Metric Configuration
                 </p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {selectedMetric.configFields.map(field => {
                     if (field.type === 'stage_picker') {
                       const stageModule = field.module || form.module;
@@ -524,7 +524,7 @@ function TargetsTab() {
           })()}
 
           {/* Row 2: Name + Description */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Target Name</label>
               <input
@@ -563,7 +563,7 @@ function TargetsTab() {
                 placeholder='SELECT COUNT(*) as value FROM "$SCHEMA".my_table WHERE created_at >= $FROM AND created_at <= $TO'
                 className="w-full text-xs font-mono border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
               />
-              <div className="grid grid-cols-3 gap-4 mt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Module</label>
                   <select
@@ -602,7 +602,7 @@ function TargetsTab() {
           )}
 
           {/* Row 3: Cascade */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="flex items-center gap-3 cursor-pointer">
               <div className="relative inline-flex items-center">
                 <input
@@ -994,7 +994,7 @@ function BadgesTab() {
       {showForm && (
         <div className="bg-yellow-50 dark:bg-slate-800/50 border border-yellow-200 dark:border-slate-700 rounded-xl p-5 space-y-4">
           <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{editingId ? 'Edit Badge' : 'New Custom Badge'}</h4>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Name</label>
               <input type="text" value={form.name} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
@@ -1007,7 +1007,7 @@ function BadgesTab() {
                 {Object.entries(TRIGGER_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Tier</label>
                 <select value={form.tier} onChange={e => setForm(prev => ({ ...prev, tier: e.target.value }))}
@@ -1022,7 +1022,7 @@ function BadgesTab() {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Description</label>
               <input type="text" value={form.description} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}

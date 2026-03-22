@@ -475,7 +475,7 @@ export function CustomFieldsPage() {
         </div>
       ) : (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 overflow-hidden">
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full min-w-[600px]">
             <thead>
                 <tr className="border-b border-gray-200 dark:border-slate-800">
                     <th className="w-10 px-4 py-3"></th>
@@ -604,7 +604,7 @@ export function CustomFieldsPage() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 
@@ -681,7 +681,7 @@ export function CustomFieldsPage() {
                     Choose where this field appears in the form
                   </p>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Section or Tab */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">

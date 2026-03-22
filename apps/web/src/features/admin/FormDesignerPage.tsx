@@ -462,7 +462,7 @@ function SectionComponent({
           {/* Ungrouped Fields */}
           {ungroupedFields.length > 0 && (
             <div className={sectionGroups.length > 0 ? 'pt-2 border-t border-gray-200 dark:border-slate-700' : ''}>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <SortableContext items={ungroupedFields.map(f => `field-${f.id}`)} strategy={verticalListSortingStrategy}>
                   {ungroupedFields.map(field => (
                     <SortableField
@@ -569,7 +569,7 @@ function TabContent({
         {/* Ungrouped Fields */}
         {ungroupedFields.length > 0 && (
           <div className={tabGroups.length > 0 ? 'pt-2 border-t border-purple-200 dark:border-purple-700' : ''}>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <SortableContext items={ungroupedFields.map(f => `field-${f.id}`)} strategy={verticalListSortingStrategy}>
                 {ungroupedFields.map(field => (
                   <SortableField
@@ -949,7 +949,7 @@ function FieldModal({
           </div>
 
           <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Label *</label>
                 <input

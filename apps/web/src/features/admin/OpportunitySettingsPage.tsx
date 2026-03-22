@@ -759,7 +759,7 @@ function PrioritiesTab({ priorities, onReload }: { priorities: Priority[]; onRel
       )}
 
       <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto"><table className="w-full min-w-[600px]">
           <thead className="bg-gray-50 dark:bg-slate-800/50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase">Priority</th>
@@ -859,7 +859,7 @@ function PrioritiesTab({ priorities, onReload }: { priorities: Priority[]; onRel
               );
             })}
           </tbody>
-        </table>
+        </table></div>
         {sorted.length === 0 && (
           <div className="px-4 py-8 text-center text-gray-400 dark:text-slate-500">
             No priorities configured. Add your first priority to get started.

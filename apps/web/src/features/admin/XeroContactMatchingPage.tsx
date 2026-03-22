@@ -174,7 +174,7 @@ export function XeroContactMatchingPage() {
       {!loading && !error && result && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">

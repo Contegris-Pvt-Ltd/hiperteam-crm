@@ -1,8 +1,9 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Settings, BarChart3, Users, Building2, Shield, ShieldCheck,
   Target, Briefcase, ArrowLeft, LayoutTemplate, ClipboardList,
   CheckSquare, Bell, Award, FileSpreadsheet, Plug, FolderKanban, Key, ArrowUpDown,
-  Heart,
+  Heart, Menu, X,
 } from 'lucide-react';
 
 const adminNavItems = [
@@ -54,11 +55,11 @@ const adminNavItems = [
     icon: Target,
     description: 'Stages, scoring, routing & more'
   },
-  { 
-    path: '/admin/opportunity-settings', 
-    label: 'Opportunity Settings', 
-    icon: Briefcase, 
-    description: 'Stages, scoring, routing & more' 
+  {
+    path: '/admin/opportunity-settings',
+    label: 'Opportunity Settings',
+    icon: Briefcase,
+    description: 'Stages, scoring, routing & more'
   },
   {
     label: 'Targets & Goals',
@@ -125,41 +126,115 @@ const moduleIcons: Record<string, typeof Users> = {
 
 export function AdminLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const currentItem = adminNavItems.find(item => location.pathname.startsWith(item.path));
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800">
+      <div className="sticky top-0 z-20 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800">
         <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center h-16 gap-4">
+          <div className="flex items-center h-14 sm:h-16 gap-3 sm:gap-4">
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden flex items-center justify-center w-9 h-9 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+
             {/* Back Button */}
             <button
               onClick={() => navigate('/')}
-              className="flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+              className="flex items-center gap-2 px-2 sm:px-3 py-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
               <span className="hidden sm:inline text-sm font-medium">Back</span>
             </button>
 
-            <div className="w-px h-8 bg-gray-200 dark:bg-slate-700" />
+            <div className="w-px h-8 bg-gray-200 dark:bg-slate-700 hidden sm:block" />
 
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center">
-                <Settings className="w-5 h-5 text-white" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg sm:rounded-xl flex items-center justify-center">
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Admin Settings</h1>
-                <p className="text-sm text-gray-500 dark:text-slate-400">Configure your CRM</p>
+                <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white">
+                  {currentItem ? currentItem.label : 'Admin Settings'}
+                </h1>
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 hidden sm:block">Configure your CRM</p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="px-4 sm:px-6 lg:px-8 py-8">
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-30 lg:hidden">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
+          <div className="fixed inset-y-0 left-0 w-72 bg-white dark:bg-slate-900 shadow-xl overflow-y-auto">
+            <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Settings</h2>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-1 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <nav className="p-3 space-y-1">
+              {adminNavItems.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
+                      isActive
+                        ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
+                        : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800'
+                    }`
+                  }
+                >
+                  <item.icon className="w-5 h-5 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm">{item.label}</div>
+                    {item.description && (
+                      <div className="text-xs opacity-70 truncate">{item.description}</div>
+                    )}
+                  </div>
+                </NavLink>
+              ))}
+            </nav>
+            <div className="px-3 pb-4">
+              <h3 className="px-3 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                Modules
+              </h3>
+              <div className="space-y-1">
+                {Object.entries(moduleIcons).map(([module, Icon]) => (
+                  <NavLink
+                    key={module}
+                    to={`/admin/form-builder?module=${module}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-3 py-2 text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="capitalize">{module}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="flex gap-8">
-          {/* Sidebar Navigation */}
-          <div className="w-64 flex-shrink-0">
+          {/* Desktop Sidebar Navigation */}
+          <div className="w-64 flex-shrink-0 hidden lg:block">
             <div className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto">
               <nav className="space-y-1">
                 {adminNavItems.map((item) => (
@@ -204,7 +279,7 @@ export function AdminLayout() {
             </div>
           </div>
 
-          {/* Main Content - Full Width */}
+          {/* Main Content */}
           <div className="flex-1 min-w-0">
             <Outlet />
           </div>

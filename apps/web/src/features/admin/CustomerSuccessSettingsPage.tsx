@@ -665,7 +665,7 @@ function RecommendationFormModal({
           </div>
 
           {/* Company Size */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Min Company Size</label>
               <input
@@ -994,7 +994,7 @@ function RenewalsTab() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              <div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-700/50">
                     <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Account</th>
@@ -1048,7 +1048,7 @@ function RenewalsTab() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
 
             {/* Pagination */}

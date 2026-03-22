@@ -839,7 +839,7 @@ export default function ProjectSettingsPage() {
                     rows={2}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                       Color
@@ -876,7 +876,7 @@ export default function ProjectSettingsPage() {
                   </span>
                 </div>
                 {tplApproval.requireApproval && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <select value={tplApproval.triggerEvent}
                       onChange={e => setTplApproval(a => ({ ...a, triggerEvent: e.target.value }))}
                       className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm">
@@ -931,7 +931,7 @@ export default function ProjectSettingsPage() {
                       {/* Phase Details when Expanded */}
                       {expandedPhases.includes(phase.id) && (
                         <div className="ml-6 space-y-3">
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">
                                 Color
@@ -994,7 +994,7 @@ export default function ProjectSettingsPage() {
                                         onChange={e => updateTask(phase.id, task.id, 'description', e.target.value)}
                                         className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                                       />
-                                      <div className="grid grid-cols-4 gap-1">
+                                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1">
                                         <select value={task.priority || 'medium'}
                                           onChange={e => updateTask(phase.id, task.id, 'priority', e.target.value)}
                                           className="px-1.5 py-0.5 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white">

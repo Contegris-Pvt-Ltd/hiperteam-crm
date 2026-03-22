@@ -146,7 +146,7 @@ export function ModuleLayoutSettingsPage() {
 
       {/* Settings Table */}
       <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto"><table className="w-full min-w-[600px]">
           <thead className="bg-gray-50 dark:bg-slate-800/50">
             <tr>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">
@@ -266,7 +266,7 @@ export function ModuleLayoutSettingsPage() {
               })
             ))}
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       {/* Help Text */}

@@ -451,7 +451,7 @@ function SlaSettingsTab({ config, onReload }: { config: SlaConfig; onReload: () 
 
           {/* Working Hours */}
           <SettingsCard title="Working Hours" icon={<Clock className="w-5 h-5 text-emerald-500" />} saving={saving === 'workingHoursStart' || saving === 'workingHoursEnd'}>
-            <div className="grid grid-cols-2 gap-4 py-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Start Time</label>
                 <input
@@ -1272,7 +1272,7 @@ function PrioritiesTab({ priorities, onReload }: { priorities: LeadPriority[]; o
       )}
 
       <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto"><table className="w-full min-w-[600px]">
           <thead className="bg-gray-50 dark:bg-slate-800/50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase">Priority</th>
@@ -1372,7 +1372,7 @@ function PrioritiesTab({ priorities, onReload }: { priorities: LeadPriority[]; o
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   );
@@ -1917,7 +1917,7 @@ function GeneralTab({ settings, onReload }: { settings: LeadSettings; onReload: 
             />
             <div className="py-3">
               <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase mb-2">Match Behavior</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {['exactEmailMatch', 'exactPhoneMatch', 'fuzzyNameMatch'].map((matchKey) => (
                   <div key={matchKey}>
                     <label className="block text-xs text-gray-600 dark:text-slate-400 mb-1">
@@ -1959,7 +1959,7 @@ function GeneralTab({ settings, onReload }: { settings: LeadSettings; onReload: 
           onChange={(v) => updateSetting('ownership', { ...ownership, notifyPreviousOwner: v })}
           label="Notify previous owner"
         />
-        <div className="grid grid-cols-2 gap-3 py-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-3">
           <div>
             <label className="block text-xs text-gray-600 dark:text-slate-400 mb-1">Previous owner role</label>
             <input type="text" value={ownership.previousOwnerRole || 'Lead Generator'}

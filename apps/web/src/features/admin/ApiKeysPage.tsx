@@ -157,7 +157,7 @@ export function ApiKeysPage() {
         </div>
       ) : (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full min-w-[600px]">
             <thead>
               <tr className="border-b border-gray-100 dark:border-slate-700">
                 <th className="text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider px-4 py-3">Name</th>
@@ -275,7 +275,7 @@ export function ApiKeysPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 
@@ -404,7 +404,7 @@ function CreateApiKeyModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Expiration</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {expiryOptions.map(opt => (
                 <button
                   key={opt.value}

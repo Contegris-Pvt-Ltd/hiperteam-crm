@@ -546,7 +546,7 @@ function CurrenciesTab() {
       </div>
 
       {adding && (
-        <div className="grid grid-cols-4 gap-3 p-4 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 p-4 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Code *</label>
             <input maxLength={3} value={newForm.code}
@@ -637,7 +637,7 @@ function Section({ title, icon: Icon, children }: {
       <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">
         <Icon size={15} className="text-gray-400" /> {title}
       </h3>
-      <div className="grid grid-cols-2 gap-4 p-4 bg-white dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-white dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-xl">
         {children}
       </div>
     </div>
