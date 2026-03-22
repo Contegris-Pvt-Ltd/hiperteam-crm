@@ -306,7 +306,7 @@ export class EmailMarketingService {
     provider: string,
     event: { type: string; email: string; listId?: string; timestamp?: string },
   ): Promise<void> {
-    const { type, email, listId, timestamp } = event;
+    const { type, email, listId } = event;
 
     // Look up contact by email
     const contacts = await this.dataSource.query(

@@ -657,7 +657,7 @@ export class WorkflowRunnerService {
 
   // ── ADD TO EMAIL LIST ────────────────────────────────────────
   private async actionAddToEmailList(schema: string, config: any, payload: any) {
-    const { listId, listName, tags, contactSelector } = config;
+    const { listId, listName, contactSelector } = config;
     if (!listId) return { skipped: true, reason: 'no listId configured' };
 
     // Resolve tenantId from schema
