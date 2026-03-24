@@ -864,39 +864,41 @@ export class InvoicesService {
   }
 
   private renderFooter(doc: InstanceType<typeof PDFDocument>, company: any) {
-    const pageH = doc.page.height;
-    const footerY = pageH - 60;
-
-    // Divider
-    doc.moveTo(50, footerY).lineTo(545, footerY).strokeColor('#e5e7eb').stroke();
-
-    // Build footer parts
+    // Build footer strings
     const parts: string[] = [];
     if (company.company_name) parts.push(company.company_name);
-
     const addrParts = [company.address_line1, company.address_line2, company.city, company.state, company.postal_code, company.country].filter(Boolean);
     if (addrParts.length) parts.push(addrParts.join(', '));
 
-    const contactParts: string[] = [];
-    if (company.phone) contactParts.push(company.phone);
-    if (company.email) contactParts.push(company.email);
-    if (company.website) contactParts.push(company.website);
+    const line2Parts: string[] = [];
+    if (company.phone) line2Parts.push(company.phone);
+    if (company.email) line2Parts.push(company.email);
+    if (company.website) line2Parts.push(company.website);
+    if (company.registration_no) line2Parts.push(`Reg: ${company.registration_no}`);
+    if (company.tax_id) line2Parts.push(`Tax ID: ${company.tax_id}`);
 
-    const regParts: string[] = [];
-    if (company.registration_no) regParts.push(`Reg: ${company.registration_no}`);
-    if (company.tax_id) regParts.push(`Tax ID: ${company.tax_id}`);
+    if (!parts.length && !line2Parts.length) return;
 
-    doc.fontSize(7).font('Helvetica').fillColor('#9ca3af');
+    const line1 = parts.join('  ·  ');
+    const line2 = line2Parts.join('  ·  ');
 
-    // Line 1: company name + address
-    if (parts.length) {
-      doc.text(parts.join('  ·  '), 50, footerY + 6, { width: 495, align: 'center' });
-    }
+    // Use pageAdded-safe approach: iterate all pages and stamp footer
+    const pages = doc.bufferedPageRange();
+    for (let i = 0; i < pages.count; i++) {
+      doc.switchToPage(i);
+      const pageH = doc.page.height;
+      const footerY = pageH - 50;
 
-    // Line 2: contact details + reg/tax
-    const line2 = [...contactParts, ...regParts].filter(Boolean);
-    if (line2.length) {
-      doc.text(line2.join('  ·  '), 50, footerY + 17, { width: 495, align: 'center' });
+      doc.save();
+      doc.moveTo(50, footerY).lineTo(545, footerY).strokeColor('#e5e7eb').stroke();
+      doc.fontSize(7).font('Helvetica').fillColor('#9ca3af');
+      if (line1) {
+        doc.text(line1, 50, footerY + 5, { width: 495, align: 'center', height: 10, ellipsis: true });
+      }
+      if (line2) {
+        doc.text(line2, 50, footerY + 15, { width: 495, align: 'center', height: 10, ellipsis: true });
+      }
+      doc.restore();
     }
   }
 
@@ -906,7 +908,7 @@ export class InvoicesService {
     const logoBuffer = company.logo_url ? await this.fetchLogoBuffer(company.logo_url) : null;
 
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 50 });
+      const doc = new PDFDocument({ margin: 50, margins: { top: 50, bottom: 70, left: 50, right: 50 }, autoFirstPage: true, bufferPages: true });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -917,47 +919,51 @@ export class InvoicesService {
 
       // ── Header ──
       const headerY = doc.y;
-      doc.fontSize(22).font('Helvetica-Bold')
-         .fillColor('#111827').text('INVOICE', 50, headerY);
+      doc.fontSize(20).font('Helvetica-Bold')
+         .fillColor('#111827').text('INVOICE', 50, headerY, { width: 200 });
 
       // Invoice number + status top right
       doc.fontSize(10).font('Helvetica').fillColor('#6b7280')
-         .text(invoice.invoiceNumber, 400, headerY, { width: 145, align: 'right' });
+         .text(invoice.invoiceNumber, 380, headerY, { width: 165, align: 'right' });
       doc.fontSize(9).text(invoice.status.toUpperCase().replace(/_/g, ' '),
-         400, headerY + 15, { width: 145, align: 'right' });
+         380, headerY + 14, { width: 165, align: 'right' });
 
-      doc.moveDown(2);
+      doc.y = headerY + 35;
 
-      // ── Bill To ──
-      doc.fontSize(9).font('Helvetica-Bold').fillColor('#6b7280')
-         .text('BILL TO');
-      doc.fontSize(11).font('Helvetica').fillColor('#111827')
-         .text(invoice.accountName || invoice.contactName || 'Client');
+      // ── Bill To + Dates side by side ──
+      const rowY = doc.y;
+
+      // Left: Bill To
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#6b7280')
+         .text('BILL TO', 50, rowY, { width: 200 });
+      doc.fontSize(10).font('Helvetica').fillColor('#111827')
+         .text(invoice.accountName || invoice.contactName || 'Client', 50, rowY + 12, { width: 200 });
       if (invoice.contactEmail) {
-        doc.fontSize(9).fillColor('#6b7280').text(invoice.contactEmail);
+        doc.fontSize(8).fillColor('#6b7280')
+           .text(invoice.contactEmail, 50, rowY + 26, { width: 200 });
       }
 
-      // ── Dates (right column) ──
-      const dateY = doc.y - 40;
+      // Right: Dates
       if (invoice.issueDate) {
-        doc.fontSize(9).font('Helvetica-Bold').fillColor('#6b7280')
-           .text('ISSUE DATE', 350, dateY, { width: 100 });
+        doc.fontSize(8).font('Helvetica-Bold').fillColor('#6b7280')
+           .text('ISSUE DATE', 350, rowY, { width: 90 });
         doc.fontSize(9).font('Helvetica').fillColor('#111827')
            .text(new Date(invoice.issueDate).toLocaleDateString('en-US', {
-             month: 'long', day: 'numeric', year: 'numeric',
-           }), 350, dateY + 12, { width: 100 });
+             month: 'short', day: 'numeric', year: 'numeric',
+           }), 350, rowY + 12, { width: 90 });
       }
 
       if (invoice.dueDate) {
-        doc.fontSize(9).font('Helvetica-Bold').fillColor('#6b7280')
-           .text('DUE DATE', 460, dateY, { width: 85 });
+        doc.fontSize(8).font('Helvetica-Bold').fillColor('#6b7280')
+           .text('DUE DATE', 460, rowY, { width: 85 });
         doc.fontSize(9).font('Helvetica').fillColor('#111827')
            .text(new Date(invoice.dueDate).toLocaleDateString('en-US', {
-             month: 'long', day: 'numeric', year: 'numeric',
-           }), 460, dateY + 12, { width: 85 });
+             month: 'short', day: 'numeric', year: 'numeric',
+           }), 460, rowY + 12, { width: 85 });
       }
 
-      doc.moveDown(2);
+      doc.y = rowY + 45;
+      doc.moveDown(0.5);
 
       // ── Line items table ──
       if (invoice.lineItems && invoice.lineItems.length > 0) {

@@ -658,32 +658,39 @@ export class ProposalsService {
   }
 
   private renderFooter(doc: InstanceType<typeof PDFDocument>, company: any) {
-    const pageH = doc.page.height;
-    const footerY = pageH - 60;
-
-    doc.moveTo(50, footerY).lineTo(545, footerY).strokeColor('#e5e7eb').stroke();
-
     const parts: string[] = [];
     if (company.company_name) parts.push(company.company_name);
     const addrParts = [company.address_line1, company.address_line2, company.city, company.state, company.postal_code, company.country].filter(Boolean);
     if (addrParts.length) parts.push(addrParts.join(', '));
 
-    const contactParts: string[] = [];
-    if (company.phone) contactParts.push(company.phone);
-    if (company.email) contactParts.push(company.email);
-    if (company.website) contactParts.push(company.website);
+    const line2Parts: string[] = [];
+    if (company.phone) line2Parts.push(company.phone);
+    if (company.email) line2Parts.push(company.email);
+    if (company.website) line2Parts.push(company.website);
+    if (company.registration_no) line2Parts.push(`Reg: ${company.registration_no}`);
+    if (company.tax_id) line2Parts.push(`Tax ID: ${company.tax_id}`);
 
-    const regParts: string[] = [];
-    if (company.registration_no) regParts.push(`Reg: ${company.registration_no}`);
-    if (company.tax_id) regParts.push(`Tax ID: ${company.tax_id}`);
+    if (!parts.length && !line2Parts.length) return;
 
-    doc.fontSize(7).font('Helvetica').fillColor('#9ca3af');
-    if (parts.length) {
-      doc.text(parts.join('  ·  '), 50, footerY + 6, { width: 495, align: 'center' });
-    }
-    const line2 = [...contactParts, ...regParts].filter(Boolean);
-    if (line2.length) {
-      doc.text(line2.join('  ·  '), 50, footerY + 17, { width: 495, align: 'center' });
+    const line1 = parts.join('  ·  ');
+    const line2 = line2Parts.join('  ·  ');
+
+    const pages = doc.bufferedPageRange();
+    for (let i = 0; i < pages.count; i++) {
+      doc.switchToPage(i);
+      const pageH = doc.page.height;
+      const footerY = pageH - 50;
+
+      doc.save();
+      doc.moveTo(50, footerY).lineTo(545, footerY).strokeColor('#e5e7eb').stroke();
+      doc.fontSize(7).font('Helvetica').fillColor('#9ca3af');
+      if (line1) {
+        doc.text(line1, 50, footerY + 5, { width: 495, align: 'center', height: 10, ellipsis: true });
+      }
+      if (line2) {
+        doc.text(line2, 50, footerY + 15, { width: 495, align: 'center', height: 10, ellipsis: true });
+      }
+      doc.restore();
     }
   }
 
@@ -693,7 +700,7 @@ export class ProposalsService {
     const logoBuffer = company.logo_url ? await this.fetchLogoBuffer(company.logo_url) : null;
 
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 50 });
+      const doc = new PDFDocument({ margin: 50, margins: { top: 50, bottom: 70, left: 50, right: 50 }, autoFirstPage: true, bufferPages: true });
       const chunks: Buffer[] = [];
 
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -703,31 +710,36 @@ export class ProposalsService {
       // ── Company Letterhead ──
       this.renderLetterhead(doc, company, logoBuffer);
 
-      // ── Header ──
-      doc.fontSize(20).font('Helvetica-Bold').text(proposal.title, { align: 'left' });
-      doc.moveDown(0.5);
-      doc.fontSize(10).font('Helvetica').fillColor('#6b7280')
-        .text(`Status: ${proposal.status.toUpperCase()}`, { align: 'left' });
+      // ── Title + Meta ──
+      const metaY = doc.y;
+      doc.fontSize(18).font('Helvetica-Bold').fillColor('#111827')
+        .text(proposal.title, 50, metaY, { width: 300, align: 'left' });
 
+      // Right side: status + dates
+      doc.fontSize(9).font('Helvetica').fillColor('#6b7280');
+      const statusLabel = proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1);
+      doc.text(statusLabel, 380, metaY, { width: 165, align: 'right' });
       if (proposal.validUntil) {
         doc.text(`Valid Until: ${new Date(proposal.validUntil).toLocaleDateString('en-US', {
           month: 'long', day: 'numeric', year: 'numeric'
-        })}`);
+        })}`, 380, metaY + 14, { width: 165, align: 'right' });
       }
-      doc.text(`Currency: ${proposal.currency}`);
-      doc.moveDown(1);
+      doc.text(`Currency: ${proposal.currency}`, 380, metaY + 28, { width: 165, align: 'right' });
+
+      doc.y = Math.max(doc.y, metaY + 45);
+      doc.moveDown(0.5);
 
       // ── Cover message ──
       if (proposal.coverMessage) {
-        doc.fontSize(11).font('Helvetica').fillColor('#111827')
-          .text(proposal.coverMessage, { align: 'left' });
+        doc.fontSize(10).font('Helvetica').fillColor('#374151')
+          .text(proposal.coverMessage, 50, doc.y, { width: 495, align: 'left' });
         doc.moveDown(1);
       }
 
       // ── Line items table ──
       if (proposal.lineItems && proposal.lineItems.length > 0) {
         doc.fontSize(12).font('Helvetica-Bold').fillColor('#111827')
-          .text('Line Items');
+          .text('Line Items', 50, doc.y, { align: 'left' });
         doc.moveDown(0.5);
 
         // Column headers
