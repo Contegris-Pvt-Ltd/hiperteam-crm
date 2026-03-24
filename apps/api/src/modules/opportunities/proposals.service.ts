@@ -615,7 +615,7 @@ export class ProposalsService {
   private async getCompanyInfo(schemaName: string) {
     const [row] = await this.dataSource.query(
       `SELECT company_name, tagline, email, phone, website, logo_url,
-              address, city, state, country, postal_code, tax_id, registration_no
+              address_line1, address_line2, city, state, country, postal_code, tax_id, registration_no
        FROM "${schemaName}".company_settings LIMIT 1`,
     );
     return row || {};
@@ -639,7 +639,7 @@ export class ProposalsService {
     if (company.email) { doc.text(company.email, rightX, rightY, { width: 195, align: 'right' }); rightY += 11; }
     if (company.phone) { doc.text(company.phone, rightX, rightY, { width: 195, align: 'right' }); rightY += 11; }
 
-    const addrParts = [company.address, company.city, company.state, company.postal_code, company.country].filter(Boolean);
+    const addrParts = [company.address_line1, company.address_line2, company.city, company.state, company.postal_code, company.country].filter(Boolean);
     if (addrParts.length) {
       doc.text(addrParts.join(', '), rightX, rightY, { width: 195, align: 'right' });
       rightY += 11;

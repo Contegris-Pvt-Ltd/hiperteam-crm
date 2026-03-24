@@ -9,7 +9,8 @@ interface CompanyInfo {
   phone: string | null;
   website: string | null;
   logoUrl: string | null;
-  address: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
   city: string | null;
   state: string | null;
   country: string | null;
@@ -40,7 +41,7 @@ export function CompanyLetterhead({ compact = false, className = '' }: CompanyLe
 
   if (!company || !company.companyName) return null;
 
-  const addressParts = [company.address, company.city, company.state, company.postalCode, company.country]
+  const addressParts = [company.addressLine1, company.addressLine2, company.city, company.state, company.postalCode, company.country]
     .filter(Boolean)
     .join(', ');
 
