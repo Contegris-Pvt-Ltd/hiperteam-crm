@@ -847,7 +847,7 @@ export class InvoicesService {
       }
     }
 
-    // Company name
+    // Company name + tagline
     if (company.company_name) {
       doc.fontSize(14).font('Helvetica-Bold').fillColor('#111827')
          .text(company.company_name, textStartX, startY);
@@ -857,33 +857,47 @@ export class InvoicesService {
       }
     }
 
-    // Right side: contact details
-    const rightX = 350;
-    let rightY = startY;
-    doc.fontSize(8).font('Helvetica').fillColor('#6b7280');
-    if (company.website) { doc.text(company.website, rightX, rightY, { width: 195, align: 'right' }); rightY += 11; }
-    if (company.email) { doc.text(company.email, rightX, rightY, { width: 195, align: 'right' }); rightY += 11; }
-    if (company.phone) { doc.text(company.phone, rightX, rightY, { width: 195, align: 'right' }); rightY += 11; }
-
-    // Address line
-    const addrParts = [company.address_line1, company.address_line2, company.city, company.state, company.postal_code, company.country].filter(Boolean);
-    if (addrParts.length) {
-      doc.text(addrParts.join(', '), rightX, rightY, { width: 195, align: 'right' });
-      rightY += 11;
-    }
-
-    // Registration / Tax
-    const regParts = [];
-    if (company.registration_no) regParts.push(`Reg: ${company.registration_no}`);
-    if (company.tax_id) regParts.push(`Tax ID: ${company.tax_id}`);
-    if (regParts.length) {
-      doc.text(regParts.join('  |  '), rightX, rightY, { width: 195, align: 'right' });
-    }
-
     // Divider line
-    const divY = Math.max(doc.y, rightY) + 8;
+    const divY = Math.max(doc.y, startY + 42) + 6;
     doc.moveTo(50, divY).lineTo(545, divY).strokeColor('#e5e7eb').stroke();
     doc.y = divY + 12;
+  }
+
+  private renderFooter(doc: InstanceType<typeof PDFDocument>, company: any) {
+    const pageH = doc.page.height;
+    const footerY = pageH - 60;
+
+    // Divider
+    doc.moveTo(50, footerY).lineTo(545, footerY).strokeColor('#e5e7eb').stroke();
+
+    // Build footer parts
+    const parts: string[] = [];
+    if (company.company_name) parts.push(company.company_name);
+
+    const addrParts = [company.address_line1, company.address_line2, company.city, company.state, company.postal_code, company.country].filter(Boolean);
+    if (addrParts.length) parts.push(addrParts.join(', '));
+
+    const contactParts: string[] = [];
+    if (company.phone) contactParts.push(company.phone);
+    if (company.email) contactParts.push(company.email);
+    if (company.website) contactParts.push(company.website);
+
+    const regParts: string[] = [];
+    if (company.registration_no) regParts.push(`Reg: ${company.registration_no}`);
+    if (company.tax_id) regParts.push(`Tax ID: ${company.tax_id}`);
+
+    doc.fontSize(7).font('Helvetica').fillColor('#9ca3af');
+
+    // Line 1: company name + address
+    if (parts.length) {
+      doc.text(parts.join('  ·  '), 50, footerY + 6, { width: 495, align: 'center' });
+    }
+
+    // Line 2: contact details + reg/tax
+    const line2 = [...contactParts, ...regParts].filter(Boolean);
+    if (line2.length) {
+      doc.text(line2.join('  ·  '), 50, footerY + 17, { width: 495, align: 'center' });
+    }
   }
 
   async generatePdf(schemaName: string, invoiceId: string): Promise<Buffer> {
@@ -1048,6 +1062,9 @@ export class InvoicesService {
            .text('TERMS & CONDITIONS');
         doc.fontSize(9).font('Helvetica').fillColor('#374151').text(invoice.terms);
       }
+
+      // ── Footer ──
+      this.renderFooter(doc, company);
 
       doc.end();
     });
