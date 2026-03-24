@@ -612,8 +612,54 @@ export class ProposalsService {
   // ============================================================
   // GENERATE PDF
   // ============================================================
+  private async getCompanyInfo(schemaName: string) {
+    const [row] = await this.dataSource.query(
+      `SELECT company_name, tagline, email, phone, website, logo_url,
+              address, city, state, country, postal_code, tax_id, registration_no
+       FROM "${schemaName}".company_settings LIMIT 1`,
+    );
+    return row || {};
+  }
+
+  private renderLetterhead(doc: InstanceType<typeof PDFDocument>, company: any) {
+    const startY = 50;
+    if (company.company_name) {
+      doc.fontSize(14).font('Helvetica-Bold').fillColor('#111827')
+         .text(company.company_name, 50, startY);
+      if (company.tagline) {
+        doc.fontSize(8).font('Helvetica').fillColor('#6b7280')
+           .text(company.tagline);
+      }
+    }
+
+    const rightX = 350;
+    let rightY = startY;
+    doc.fontSize(8).font('Helvetica').fillColor('#6b7280');
+    if (company.website) { doc.text(company.website, rightX, rightY, { width: 195, align: 'right' }); rightY += 11; }
+    if (company.email) { doc.text(company.email, rightX, rightY, { width: 195, align: 'right' }); rightY += 11; }
+    if (company.phone) { doc.text(company.phone, rightX, rightY, { width: 195, align: 'right' }); rightY += 11; }
+
+    const addrParts = [company.address, company.city, company.state, company.postal_code, company.country].filter(Boolean);
+    if (addrParts.length) {
+      doc.text(addrParts.join(', '), rightX, rightY, { width: 195, align: 'right' });
+      rightY += 11;
+    }
+
+    const regParts = [];
+    if (company.registration_no) regParts.push(`Reg: ${company.registration_no}`);
+    if (company.tax_id) regParts.push(`Tax ID: ${company.tax_id}`);
+    if (regParts.length) {
+      doc.text(regParts.join('  |  '), rightX, rightY, { width: 195, align: 'right' });
+    }
+
+    const divY = Math.max(doc.y, rightY) + 8;
+    doc.moveTo(50, divY).lineTo(545, divY).strokeColor('#e5e7eb').stroke();
+    doc.y = divY + 12;
+  }
+
   async generatePdf(schemaName: string, proposalId: string): Promise<Buffer> {
     const proposal = await this.findOne(schemaName, proposalId);
+    const company = await this.getCompanyInfo(schemaName);
 
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50 });
@@ -622,6 +668,9 @@ export class ProposalsService {
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
+
+      // ── Company Letterhead ──
+      this.renderLetterhead(doc, company);
 
       // ── Header ──
       doc.fontSize(20).font('Helvetica-Bold').text(proposal.title, { align: 'left' });
