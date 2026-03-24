@@ -195,7 +195,7 @@ function App() {
 
         {/* Admin Routes - Outside main layout */}
         <Route path="/admin" element={<PrivateRoute><AdminLayout /></PrivateRoute>}>
-          <Route index element={<Navigate to="/admin/form-builder" replace />} />
+          <Route index element={<Navigate to="/admin/general-settings" replace />} />
           <Route path="custom-fields" element={<Navigate to="/admin/form-builder" replace />} />
           <Route path="profile-completion" element={<ProfileCompletionPage />} />
           <Route path="layout-designer" element={<PageDesignerPage />} />

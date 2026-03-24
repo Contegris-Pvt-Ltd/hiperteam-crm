@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, CheckCircle, XCircle, FileText, Calendar, DollarSign } from 'lucide-react';
 import { proposalsApi } from '../../api/proposals.api';
+import { CompanyLetterhead } from '../../components/shared/CompanyLetterhead';
 import type { Proposal } from '../../api/proposals.api';
 
 export function ProposalPublicPage() {
@@ -95,6 +96,7 @@ export function ProposalPublicPage() {
 
         {/* Header card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+          <CompanyLetterhead />
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
               <p className="text-sm text-gray-400 mb-1">Proposal</p>

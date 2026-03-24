@@ -8,6 +8,7 @@ import {
   Eye, Mail, X, Send,
 } from 'lucide-react';
 import { invoicesApi } from '../../api/invoices.api';
+import { CompanyLetterhead } from '../../components/shared/CompanyLetterhead';
 import type { Invoice } from '../../api/invoices.api';
 
 const STATUS_CONFIG: Record<string, { label: string; badge: string; icon: React.ReactNode }> = {
@@ -578,6 +579,9 @@ function InvoiceDetailPanel({
             </div>
           ) : (
             <>
+              {/* Company Letterhead */}
+              <CompanyLetterhead />
+
               {/* Section 1 — Summary */}
               <div className="space-y-3">
                 <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Summary</h3>
