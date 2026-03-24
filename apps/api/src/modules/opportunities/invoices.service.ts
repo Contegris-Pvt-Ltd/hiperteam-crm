@@ -822,12 +822,35 @@ export class InvoicesService {
     return row || {};
   }
 
-  private renderLetterhead(doc: InstanceType<typeof PDFDocument>, company: any) {
+  private async fetchLogoBuffer(url: string): Promise<Buffer | null> {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const arrayBuf = await res.arrayBuffer();
+      return Buffer.from(arrayBuf);
+    } catch {
+      return null;
+    }
+  }
+
+  private renderLetterhead(doc: InstanceType<typeof PDFDocument>, company: any, logoBuffer: Buffer | null) {
     const startY = 50;
+    let textStartX = 50;
+
+    // Logo
+    if (logoBuffer) {
+      try {
+        doc.image(logoBuffer, 50, startY, { width: 40, height: 40 });
+        textStartX = 100;
+      } catch {
+        // Invalid image format — skip
+      }
+    }
+
     // Company name
     if (company.company_name) {
       doc.fontSize(14).font('Helvetica-Bold').fillColor('#111827')
-         .text(company.company_name, 50, startY);
+         .text(company.company_name, textStartX, startY);
       if (company.tagline) {
         doc.fontSize(8).font('Helvetica').fillColor('#6b7280')
            .text(company.tagline);
@@ -866,6 +889,7 @@ export class InvoicesService {
   async generatePdf(schemaName: string, invoiceId: string): Promise<Buffer> {
     const invoice = await this.findOne(schemaName, invoiceId);
     const company = await this.getCompanyInfo(schemaName);
+    const logoBuffer = company.logo_url ? await this.fetchLogoBuffer(company.logo_url) : null;
 
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50 });
@@ -875,7 +899,7 @@ export class InvoicesService {
       doc.on('error', reject);
 
       // ── Company Letterhead ──
-      this.renderLetterhead(doc, company);
+      this.renderLetterhead(doc, company, logoBuffer);
 
       // ── Header ──
       const headerY = doc.y;
