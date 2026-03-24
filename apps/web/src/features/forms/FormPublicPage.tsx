@@ -139,7 +139,7 @@ export function FormPublicPage() {
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
           {/* Title */}
           <div className="px-8 pt-8 pb-4" style={{ borderTop: `4px solid ${primaryColor}` }}>
-            <h1 className="text-2xl font-bold text-gray-900">{form.name}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{form.name}</h1>
             {form.description && <p className="text-gray-500 mt-1">{form.description}</p>}
           </div>
 

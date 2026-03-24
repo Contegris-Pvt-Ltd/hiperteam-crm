@@ -227,7 +227,7 @@ export function ContractSignPage() {
 
         {/* Header */}
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Contract Signing</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Contract Signing</h1>
           <p className="text-sm text-gray-500 mt-1">
             Please review the contract details below and provide your signature
           </p>

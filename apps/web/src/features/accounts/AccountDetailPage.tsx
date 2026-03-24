@@ -2197,7 +2197,7 @@ export function AccountDetailPage() {
                 size="lg"
               />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                   {account.accountClassification === 'individual' && account.firstName
                     ? `${account.firstName} ${account.lastName || ''}`
                     : account.name}
@@ -2371,7 +2371,7 @@ export function AccountDetailPage() {
               size="lg"
             />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {account.name}
               </h1>
               {account.industry && (
@@ -2475,7 +2475,7 @@ export function AccountDetailPage() {
             <span className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Revenue</span>
             <DollarSign className="w-4 h-4 text-gray-400" />
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(summary?.totalMrr || 0)}</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(summary?.totalMrr || 0)}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">MRR  {formatCurrency(summary?.totalArr || 0)} ARR</p>
         </Card>
 
@@ -2495,7 +2495,7 @@ export function AccountDetailPage() {
             <span className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">CLTV</span>
             <Target className="w-4 h-4 text-gray-400" />
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(scores?.cltv || 0)}</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(scores?.cltv || 0)}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">{scores?.upsellSuggestions?.length || 0} upsell opportunities</p>
         </Card>
       </div>

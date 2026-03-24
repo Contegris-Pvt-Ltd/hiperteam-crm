@@ -170,7 +170,7 @@ export function ProductDetailPage() {
               </div>
             )}
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{product.name}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{product.name}</h1>
               {product.code && (
                 <p className="text-sm text-gray-500 dark:text-slate-400 font-mono mt-0.5">SKU: {product.code}</p>
               )}
@@ -218,7 +218,7 @@ export function ProductDetailPage() {
             </div>
             <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider">Base Price</p>
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+          <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
             {formatCurrency(product.basePrice, product.currency)}
             {product.unit !== 'each' && <span className="text-sm font-normal text-gray-500">/{product.unit}</span>}
           </p>
@@ -231,7 +231,7 @@ export function ProductDetailPage() {
             </div>
             <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider">Cost</p>
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+          <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
             {product.cost != null ? formatCurrency(product.cost, product.currency) : '—'}
           </p>
         </div>
@@ -243,7 +243,7 @@ export function ProductDetailPage() {
             </div>
             <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider">Margin</p>
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{margin ? `${margin}%` : '—'}</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{margin ? `${margin}%` : '—'}</p>
         </div>
       </div>
 

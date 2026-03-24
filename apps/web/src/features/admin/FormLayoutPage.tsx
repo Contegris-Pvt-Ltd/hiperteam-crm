@@ -221,7 +221,7 @@ export function FormLayoutPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Form Layout</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Form Layout</h1>
           <p className="text-gray-500 dark:text-slate-400 mt-1">
             Organize custom fields into tabs and groups
           </p>

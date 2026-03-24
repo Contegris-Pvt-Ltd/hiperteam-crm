@@ -243,12 +243,12 @@ export function UserDetailPage() {
             ) : user.avatarUrl ? (
               <img src={user.avatarUrl} alt="" className="w-24 h-24 rounded-2xl border-4 border-white dark:border-slate-900 object-cover shadow-lg" />
             ) : (
-              <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl border-4 border-white dark:border-slate-900 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+              <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl border-4 border-white dark:border-slate-900 flex items-center justify-center text-white text-xl sm:text-2xl font-bold shadow-lg">
                 {user.firstName?.[0]}{user.lastName?.[0]}
               </div>
             )}
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{user.firstName} {user.lastName}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{user.firstName} {user.lastName}</h1>
               <div className="flex flex-wrap items-center gap-3 mt-1">
                 {user.jobTitle && <span className="text-gray-500 dark:text-slate-400">{user.jobTitle}</span>}
                 {user.role && (
@@ -480,7 +480,7 @@ export function UserDetailPage() {
       {/* ── Availability Tab ── */}
       {tab === 'availability' && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 max-w-2xl">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {isOwnProfile ? 'My Availability' : `${user.firstName}'s Availability`}
@@ -711,7 +711,7 @@ function StatCard({
         </div>
         <span className="text-xs text-gray-500 dark:text-slate-400">{label}</span>
       </div>
-      <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
+      <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
     </div>
   );
 }

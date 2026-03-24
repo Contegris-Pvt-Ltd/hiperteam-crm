@@ -11,7 +11,7 @@ const navItems = [
   { name: 'Home', href: '/', icon: LayoutDashboard },
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Leads', href: '/leads', icon: UserPlus },
-  { name: 'Deals', href: '/opportunities', icon: TrendingUp },
+  { name: 'Opps', href: '/opportunities', icon: TrendingUp },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
 ];
 

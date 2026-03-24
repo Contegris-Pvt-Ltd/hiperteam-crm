@@ -258,7 +258,7 @@ export function LeadDetailPage() {
   };
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto">
+    <div className="p-3 sm:p-6 max-w-[1400px] mx-auto">
       {/* ── HEADER ── */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -267,7 +267,7 @@ export function LeadDetailPage() {
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{fullName}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{fullName}</h1>
               {lead.pipeline && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 text-sm font-semibold rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

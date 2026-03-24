@@ -76,7 +76,7 @@ export function TargetsSettingsPage() {
             <Target className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Targets & Gamification</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Targets & Gamification</h1>
             <p className="text-sm text-gray-500 dark:text-slate-400">
               Configure performance targets, badges, and gamification across all modules
             </p>

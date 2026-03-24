@@ -134,7 +134,7 @@ export function ModuleLayoutSettingsPage() {
         <div className="flex items-center gap-3">
           <LayoutTemplate className="w-8 h-8 text-indigo-600" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
               Module Layout Settings
             </h1>
             <p className="text-gray-600 dark:text-slate-400">

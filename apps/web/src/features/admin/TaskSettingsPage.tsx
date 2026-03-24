@@ -110,7 +110,7 @@ export function TaskSettingsPage() {
             <CheckSquare className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Task Settings</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Task Settings</h1>
             <p className="text-gray-600 dark:text-slate-400">Configure task types, statuses, and priorities</p>
           </div>
         </div>

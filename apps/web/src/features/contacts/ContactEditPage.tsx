@@ -777,7 +777,7 @@ export function ContactEditPage() {
         </Link>
 
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
             {isNew ? 'New Contact' : 'Edit Contact'}
           </h1>
           <div className="flex items-center gap-2">

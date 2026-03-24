@@ -171,7 +171,7 @@ export function WorkflowRunsPage() {
   const failed    = runs.filter(r => r.status === 'failed').length;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <button
@@ -207,7 +207,7 @@ export function WorkflowRunsPage() {
             { label: 'Failed',      value: failed,    cls: 'text-red-500 dark:text-red-400' },
           ].map(s => (
             <div key={s.label} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 text-center">
-              <div className={`text-2xl font-bold ${s.cls}`}>{s.value}</div>
+              <div className={`text-xl sm:text-2xl font-bold ${s.cls}`}>{s.value}</div>
               <div className="text-xs text-gray-500 dark:text-slate-400">{s.label}</div>
             </div>
           ))}

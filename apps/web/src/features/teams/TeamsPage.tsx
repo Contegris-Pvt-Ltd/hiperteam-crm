@@ -234,11 +234,11 @@ export function TeamsPage() {
   // RENDER
   // ============================================================
   return (
-    <div className="p-6 max-w-[1400px] mx-auto space-y-6 animate-fadeIn">
+    <div className="p-3 sm:p-6 max-w-[1400px] mx-auto space-y-6 animate-fadeIn">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Teams</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Teams</h1>
           <p className="text-gray-500 dark:text-slate-400 mt-1">{meta.total} teams</p>
         </div>
         {canCreate('users') && (

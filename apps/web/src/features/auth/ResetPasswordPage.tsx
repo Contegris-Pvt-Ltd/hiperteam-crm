@@ -108,7 +108,7 @@ export function ResetPasswordPage() {
               <Building2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">HiperTeam</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-white">HiperTeam</h1>
               <p className="text-blue-200 text-sm">CRM Platform</p>
             </div>
           </div>
@@ -197,7 +197,7 @@ export function ResetPasswordPage() {
           {!loading && tokenValid && !success && (
             <>
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Set New Password</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Set New Password</h2>
                 <p className="text-gray-500 dark:text-slate-400 mt-2">
                   {userName ? `Hi ${userName}, c` : 'C'}reate a new password for{' '}
                   <span className="font-medium text-gray-700 dark:text-slate-200">{userEmail}</span>

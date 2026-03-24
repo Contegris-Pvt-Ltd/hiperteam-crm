@@ -352,7 +352,7 @@ export function FormSubmissionsPage() {
                 <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center mb-3`}>
                   <Icon className={`w-4 h-4 ${color}`} />
                 </div>
-                <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                <p className={`text-xl sm:text-2xl font-bold ${color}`}>{value}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{label}</p>
               </div>
             ))}

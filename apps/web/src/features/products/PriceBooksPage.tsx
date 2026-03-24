@@ -185,7 +185,7 @@ export function PriceBooksPage() {
 
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Price Books</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Price Books</h1>
             <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Manage pricing tiers for different customer segments</p>
           </div>
           <button
@@ -339,7 +339,7 @@ export function PriceBooksPage() {
       {showBookModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 w-full max-w-md mx-4 p-6">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingBook ? 'Edit Price Book' : 'New Price Book'}
               </h3>
@@ -424,7 +424,7 @@ export function PriceBooksPage() {
       {showEntryModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 w-full max-w-md mx-4 p-6">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Add Product to Price Book</h3>
               <button onClick={() => setShowEntryModal(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
                 <X className="w-5 h-5 text-gray-500" />

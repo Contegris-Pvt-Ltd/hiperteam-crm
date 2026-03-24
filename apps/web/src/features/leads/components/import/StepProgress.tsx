@@ -155,19 +155,19 @@ export default function StepProgress({ jobId, onClose, onViewLeads }: StepProgre
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
-          <p className="text-2xl font-bold text-emerald-600">{progress.importedRecords.toLocaleString()}</p>
+          <p className="text-xl sm:text-2xl font-bold text-emerald-600">{progress.importedRecords.toLocaleString()}</p>
           <p className="text-xs text-emerald-700 dark:text-emerald-300">Imported</p>
         </div>
         <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-          <p className="text-2xl font-bold text-red-600">{progress.failedRecords.toLocaleString()}</p>
+          <p className="text-xl sm:text-2xl font-bold text-red-600">{progress.failedRecords.toLocaleString()}</p>
           <p className="text-xs text-red-700 dark:text-red-300">Failed</p>
         </div>
         <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-          <p className="text-2xl font-bold text-amber-600">{progress.skippedRecords.toLocaleString()}</p>
+          <p className="text-xl sm:text-2xl font-bold text-amber-600">{progress.skippedRecords.toLocaleString()}</p>
           <p className="text-xs text-amber-700 dark:text-amber-300">Skipped</p>
         </div>
         <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-          <p className="text-2xl font-bold text-blue-600">{progress.duplicateRecords.toLocaleString()}</p>
+          <p className="text-xl sm:text-2xl font-bold text-blue-600">{progress.duplicateRecords.toLocaleString()}</p>
           <p className="text-xs text-blue-700 dark:text-blue-300">Duplicates</p>
         </div>
       </div>

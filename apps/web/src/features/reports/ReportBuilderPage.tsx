@@ -314,7 +314,7 @@ export function ReportBuilderPage() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-6xl mx-auto">
       {/* ── Header ── */}
       <div className="flex items-center gap-3 mb-6">
         <Link to="/reports" className="text-gray-400 hover:text-gray-600">

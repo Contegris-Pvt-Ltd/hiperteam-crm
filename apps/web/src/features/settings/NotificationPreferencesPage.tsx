@@ -240,7 +240,7 @@ export function NotificationPreferencesPage() {
           <ArrowLeft className="w-5 h-5 text-gray-500" />
         </button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Notification Settings</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Notification Settings</h1>
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
             Configure how and when you receive notifications
           </p>

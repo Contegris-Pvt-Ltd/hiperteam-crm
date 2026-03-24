@@ -45,7 +45,7 @@ export function LoginPage() {
               <Building2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">HiperTeam</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-white">HiperTeam</h1>
               <p className="text-blue-200 text-sm">CRM Platform</p>
             </div>
           </div>

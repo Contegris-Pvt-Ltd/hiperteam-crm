@@ -165,9 +165,9 @@ export function ProfileCompletionPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Profile Completion</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Profile Completion</h2>
           <p className="text-gray-500 dark:text-slate-400 mt-1">
             Configure which fields count towards profile completion and their weights
           </p>

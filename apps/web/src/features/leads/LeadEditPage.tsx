@@ -681,7 +681,7 @@ export function LeadEditPage() {
         </Link>
 
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
             {isNew ? 'New Lead' : 'Edit Lead'}
           </h1>
           <button

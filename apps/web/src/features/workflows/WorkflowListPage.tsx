@@ -194,7 +194,7 @@ function StatsBar({ workflows }: { workflows: Workflow[] }) {
         <div key={label} className={`${bg} rounded-xl p-4 flex items-center gap-3`}>
           <Icon className={`w-5 h-5 ${color}`} />
           <div>
-            <div className={`text-2xl font-bold ${color}`}>{value}</div>
+            <div className={`text-xl sm:text-2xl font-bold ${color}`}>{value}</div>
             <div className="text-xs text-gray-500 dark:text-slate-400">{label}</div>
           </div>
         </div>
@@ -301,11 +301,11 @@ export function WorkflowListPage() {
   });
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Zap className="w-6 h-6 text-violet-600 dark:text-violet-400" />
             Workflows
           </h1>

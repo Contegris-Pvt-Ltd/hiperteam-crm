@@ -426,7 +426,7 @@ export function ProjectDetailPage() {
                 className="w-3 h-3 rounded-full flex-shrink-0"
                 style={{ backgroundColor: project.color || '#6366f1' }}
               />
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">
                 {project.name}
               </h1>
               <select

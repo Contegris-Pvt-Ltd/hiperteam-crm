@@ -246,7 +246,7 @@ export function OpportunityDetailPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <button onClick={() => navigate('/opportunities')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4">
@@ -260,7 +260,7 @@ export function OpportunityDetailPage() {
                 <DollarSign className="w-5 h-5 text-emerald-600" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{opp.name}</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{opp.name}</h1>
                 <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
                   {opp.account && (
                     <Link to={`/accounts/${opp.accountId}`} className="flex items-center gap-1 hover:text-blue-600">
@@ -3290,7 +3290,7 @@ function PaymentModal({ invoice, onClose, onSaved }: PaymentModalProps) {
         <div className="p-5 space-y-4">
           <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
             <p className="text-xs text-gray-500 dark:text-gray-400">Amount Due</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
               {invoice.currency} {invoice.amountDue.toFixed(2)}
             </p>
             <p className="text-[10px] text-gray-400">of {invoice.currency} {invoice.totalAmount.toFixed(2)} total</p>

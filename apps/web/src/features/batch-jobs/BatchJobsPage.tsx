@@ -82,9 +82,9 @@ export function BatchJobsPage() {
   };
 
   return (
-    <div className="p-6 max-w-[1200px] mx-auto">
+    <div className="p-3 sm:p-6 max-w-[1200px] mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
@@ -93,7 +93,7 @@ export function BatchJobsPage() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Batch Jobs</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Batch Jobs</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">View and manage import jobs</p>
           </div>
         </div>

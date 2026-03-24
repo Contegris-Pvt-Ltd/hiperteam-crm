@@ -261,7 +261,7 @@ export function ProductEditPage() {
           <ArrowLeft className="w-4 h-4" />
           {isNew ? 'Back to Products' : 'Back to Product'}
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
           {isNew ? 'New Product' : 'Edit Product'}
         </h1>
       </div>

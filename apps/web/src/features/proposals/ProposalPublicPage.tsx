@@ -98,7 +98,7 @@ export function ProposalPublicPage() {
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
               <p className="text-sm text-gray-400 mb-1">Proposal</p>
-              <h1 className="text-2xl font-bold text-gray-900">{proposal.title}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{proposal.title}</h1>
             </div>
             <span className={`px-3 py-1 rounded-full text-sm font-medium shrink-0 ${
               proposal.status === 'accepted' ? 'bg-green-100 text-green-700' :

@@ -388,7 +388,7 @@ export default function ProjectSettingsPage() {
   );
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-4xl mx-auto">
       <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
         Project Settings
       </h1>
@@ -802,7 +802,7 @@ export default function ProjectSettingsPage() {
           ) : (
             // Template Editor
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Edit Template
                 </h2>

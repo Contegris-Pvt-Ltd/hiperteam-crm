@@ -157,7 +157,7 @@ export function TaskDetailPage() {
   const TypeIcon = task.taskType ? (TYPE_ICONS[task.taskType.icon] || CheckSquare) : CheckSquare;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-4xl mx-auto">
       {/* Back */}
       <button onClick={() => navigate('/tasks')} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 mb-4">
         <ArrowLeft size={16} /> Back to Tasks

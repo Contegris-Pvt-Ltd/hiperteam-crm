@@ -143,7 +143,7 @@ export function ReportViewerPage() {
 
   if (error && !report) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-3 sm:p-6 max-w-4xl mx-auto">
         <Link to="/reports" className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-4">
           <ArrowLeft className="w-4 h-4" /> Back to Reports
         </Link>
@@ -157,14 +157,14 @@ export function ReportViewerPage() {
   if (!report) return null;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto">
       {/* ── Header ── */}
       <div className="flex items-start justify-between mb-6">
         <div>
           <Link to="/reports" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-2">
             <ArrowLeft className="w-4 h-4" /> Reports
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{report.name}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{report.name}</h1>
           {report.description && (
             <p className="text-sm text-gray-500 mt-1">{report.description}</p>
           )}

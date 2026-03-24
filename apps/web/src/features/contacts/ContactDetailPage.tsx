@@ -530,7 +530,7 @@ export function ContactDetailPage() {
               size="lg"
             />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {contact.firstName} {contact.lastName}
               </h1>
               {contact.jobTitle && (

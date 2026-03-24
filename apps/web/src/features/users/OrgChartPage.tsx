@@ -318,7 +318,7 @@ function DetailSidebar({
           {node.avatarUrl ? (
             <img src={node.avatarUrl} alt="" className="w-20 h-20 rounded-full object-cover mx-auto mb-3 ring-4 ring-gray-100 dark:ring-slate-800 shadow-lg" />
           ) : (
-            <div className={`w-20 h-20 bg-gradient-to-br ${deptColor} rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3 ring-4 ring-gray-100 dark:ring-slate-800 shadow-lg`}>
+            <div className={`w-20 h-20 bg-gradient-to-br ${deptColor} rounded-full flex items-center justify-center text-white text-xl sm:text-2xl font-bold mx-auto mb-3 ring-4 ring-gray-100 dark:ring-slate-800 shadow-lg`}>
               {getInitials(node.firstName, node.lastName)}
             </div>
           )}

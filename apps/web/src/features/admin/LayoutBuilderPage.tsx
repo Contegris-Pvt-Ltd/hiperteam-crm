@@ -837,7 +837,7 @@ export function LayoutBuilderPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Layout Builder</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Layout Builder</h2>
           <p className="text-gray-500 dark:text-slate-400 mt-1">
             Drag and drop to organize your form layout
           </p>

@@ -143,7 +143,7 @@ export function InboxRulesPage() {
               <Filter className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Inbox Rules</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Inbox Rules</h1>
               <p className="text-gray-600 dark:text-slate-400">Automate email processing with conditions and actions</p>
             </div>
           </div>
@@ -358,7 +358,7 @@ function RuleForm({
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6 mb-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
           {rule ? 'Edit Rule' : 'New Rule'}
         </h2>

@@ -329,7 +329,7 @@ export function PublicBookingPage() {
             <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: `${primaryColor}20` }}>
               <CheckCircle className="w-8 h-8" style={{ color: primaryColor }} />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">You're confirmed!</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2">You're confirmed!</h2>
             <p className="text-gray-600 dark:text-gray-400 mb-1">
               {new Date(selectedSlot).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
