@@ -41,13 +41,24 @@ Results update as you type, filtering the list in real time.
 ### Sorting
 Click any **column header** to sort the list by that column. Click again to toggle between ascending and descending order. An arrow icon indicates the active sort direction.
 
-### Filtering
-Use the filter controls above the data table to narrow down results:
+### Filter Panel
 
-- **Status filter** — show contacts of a specific status
-- **Owner filter** — show contacts owned by a specific user
-- **Date range** — filter by creation or modification date
-- **Custom field filters** — filter on any custom field values
+Click the **Filters** button to open the filter panel. The following filters are available:
+
+| Filter | Description |
+|---|---|
+| **Status** | Filter by contact status (Active, Inactive, Lead, Customer, Prospect) |
+| **Account** | Filter by the linked account |
+| **Owner** | Filter by the assigned contact owner |
+| **Tags** | Filter by contact tags |
+
+**Active filter chips** appear below the filter panel showing which filters are applied. Each chip displays the filter name and value, with an **X** button to remove individual filters. Click **Clear All** to reset all filters at once.
+
+![Screenshot: Contacts filter panel with active filter chips](../../static/img/screenshots/contacts/contact-filters.png)
+
+:::tip
+Use the Account filter to quickly see all contacts at a specific organization without navigating to the account detail page.
+:::
 
 ## Column Customization
 

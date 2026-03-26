@@ -380,6 +380,227 @@ export class OpportunitiesService {
   }
 
   // ============================================================
+  // EXPORT
+  // ============================================================
+  async exportData(schemaName: string, userId: string, query: any): Promise<{ buffer: Buffer; fileName: string }> {
+    const {
+      search, pipelineId, stageId, ownerId, teamId, accountId, priorityId,
+      type, source, forecastCategory, minAmount, maxAmount,
+      closeDateFrom, closeDateTo, tag, isOpen, ownership,
+      sortBy = 'created_at', sortOrder = 'DESC', columns,
+    } = query;
+
+    let whereClause = 'o.deleted_at IS NULL';
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    if (search) {
+      whereClause += ` AND (o.name ILIKE $${paramIndex} OR a.name ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (pipelineId) {
+      whereClause += ` AND o.pipeline_id = $${paramIndex}`;
+      params.push(pipelineId);
+      paramIndex++;
+    }
+
+    if (stageId) {
+      whereClause += ` AND o.stage_id = $${paramIndex}`;
+      params.push(stageId);
+      paramIndex++;
+    }
+
+    if (ownerId) {
+      whereClause += ` AND o.owner_id = $${paramIndex}`;
+      params.push(ownerId);
+      paramIndex++;
+    }
+
+    if (teamId) {
+      whereClause += ` AND o.team_id = $${paramIndex}`;
+      params.push(teamId);
+      paramIndex++;
+    }
+
+    if (accountId) {
+      whereClause += ` AND o.account_id = $${paramIndex}`;
+      params.push(accountId);
+      paramIndex++;
+    }
+
+    if (priorityId) {
+      whereClause += ` AND o.priority_id = $${paramIndex}`;
+      params.push(priorityId);
+      paramIndex++;
+    }
+
+    if (type) {
+      whereClause += ` AND o.type = $${paramIndex}`;
+      params.push(type);
+      paramIndex++;
+    }
+
+    if (source) {
+      whereClause += ` AND o.source = $${paramIndex}`;
+      params.push(source);
+      paramIndex++;
+    }
+
+    if (forecastCategory) {
+      whereClause += ` AND o.forecast_category = $${paramIndex}`;
+      params.push(forecastCategory);
+      paramIndex++;
+    }
+
+    if (minAmount !== undefined) {
+      whereClause += ` AND o.amount >= $${paramIndex}`;
+      params.push(minAmount);
+      paramIndex++;
+    }
+
+    if (maxAmount !== undefined) {
+      whereClause += ` AND o.amount <= $${paramIndex}`;
+      params.push(maxAmount);
+      paramIndex++;
+    }
+
+    if (closeDateFrom) {
+      whereClause += ` AND o.close_date >= $${paramIndex}`;
+      params.push(closeDateFrom);
+      paramIndex++;
+    }
+
+    if (closeDateTo) {
+      whereClause += ` AND o.close_date <= $${paramIndex}`;
+      params.push(closeDateTo);
+      paramIndex++;
+    }
+
+    if (tag) {
+      whereClause += ` AND $${paramIndex} = ANY(o.tags)`;
+      params.push(tag);
+      paramIndex++;
+    }
+
+    if (isOpen === true || isOpen === 'true') {
+      whereClause += ` AND o.won_at IS NULL AND o.lost_at IS NULL`;
+    }
+
+    if (ownership === 'my_deals') {
+      whereClause += ` AND o.owner_id = $${paramIndex}`;
+      params.push(userId);
+      paramIndex++;
+    } else if (ownership === 'created_by_me') {
+      whereClause += ` AND o.created_by = $${paramIndex}`;
+      params.push(userId);
+      paramIndex++;
+    }
+
+    const sortMap: Record<string, string> = {
+      name: 'o.name',
+      amount: 'o.amount',
+      close_date: 'o.close_date',
+      probability: 'o.probability',
+      created_at: 'o.created_at',
+      updated_at: 'o.updated_at',
+    };
+    const orderColumn = sortMap[sortBy] || 'o.created_at';
+    const order = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+
+    const dataQuery = `
+      SELECT o.*,
+              u.first_name as owner_first_name, u.last_name as owner_last_name,
+              t.name as team_name,
+              ps.name as stage_name,
+              pl.name as pipeline_name,
+              op.name as priority_name,
+              a.name as account_name,
+              c.first_name as contact_first_name, c.last_name as contact_last_name
+       FROM "${schemaName}".opportunities o
+       LEFT JOIN "${schemaName}".users u ON o.owner_id = u.id
+       LEFT JOIN "${schemaName}".teams t ON o.team_id = t.id
+       LEFT JOIN "${schemaName}".pipeline_stages ps ON o.stage_id = ps.id
+       LEFT JOIN "${schemaName}".pipelines pl ON o.pipeline_id = pl.id
+       LEFT JOIN "${schemaName}".opportunity_priorities op ON o.priority_id = op.id
+       LEFT JOIN "${schemaName}".accounts a ON o.account_id = a.id
+       LEFT JOIN "${schemaName}".contacts c ON o.primary_contact_id = c.id
+       WHERE ${whereClause}
+       ORDER BY ${orderColumn} ${order}
+       LIMIT 10000`;
+
+    const opps = await this.dataSource.query(dataQuery, params);
+
+    const HEADER_MAP: Record<string, string> = {
+      name: 'Name',
+      amount: 'Amount',
+      currency: 'Currency',
+      probability: 'Probability',
+      weightedAmount: 'Weighted Amount',
+      forecastCategory: 'Forecast Category',
+      closeDate: 'Close Date',
+      type: 'Type',
+      source: 'Source',
+      industry: 'Industry',
+      nextStep: 'Next Step',
+      competitor: 'Competitor',
+      stageName: 'Stage',
+      pipelineName: 'Pipeline',
+      priorityName: 'Priority',
+      accountName: 'Account',
+      contactName: 'Primary Contact',
+      ownerName: 'Owner',
+      teamName: 'Team',
+      tags: 'Tags',
+      wonAt: 'Won At',
+      lostAt: 'Lost At',
+      createdAt: 'Created At',
+      updatedAt: 'Updated At',
+    };
+
+    const requestedColumns = columns ? columns.split(',').map((c: string) => c.trim()) : Object.keys(HEADER_MAP);
+    const headers = requestedColumns.filter((c: string) => HEADER_MAP[c]).map((c: string) => HEADER_MAP[c]);
+
+    const rows = opps.map((o: Record<string, unknown>) => {
+      const formatted = this.formatOpportunity(o) as Record<string, any>;
+      const row: Record<string, unknown> = {};
+      for (const col of requestedColumns) {
+        if (!HEADER_MAP[col]) continue;
+        if (col === 'ownerName') {
+          row[HEADER_MAP[col]] = formatted.owner ? `${formatted.owner.firstName} ${formatted.owner.lastName}` : '';
+        } else if (col === 'teamName') {
+          row[HEADER_MAP[col]] = formatted.team ? formatted.team.name : '';
+        } else if (col === 'stageName') {
+          row[HEADER_MAP[col]] = formatted.stage ? formatted.stage.name : '';
+        } else if (col === 'pipelineName') {
+          row[HEADER_MAP[col]] = formatted.pipeline ? formatted.pipeline.name : '';
+        } else if (col === 'priorityName') {
+          row[HEADER_MAP[col]] = formatted.priority ? formatted.priority.name : '';
+        } else if (col === 'accountName') {
+          row[HEADER_MAP[col]] = formatted.account ? formatted.account.name : '';
+        } else if (col === 'contactName') {
+          row[HEADER_MAP[col]] = formatted.primaryContact ? `${formatted.primaryContact.firstName} ${formatted.primaryContact.lastName}` : '';
+        } else if (col === 'tags') {
+          row[HEADER_MAP[col]] = Array.isArray(formatted.tags) ? formatted.tags.join(', ') : '';
+        } else {
+          row[HEADER_MAP[col]] = formatted[col] ?? '';
+        }
+      }
+      return row;
+    });
+
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Opportunities');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const date = new Date().toISOString().split('T')[0];
+    return { buffer, fileName: `opportunities-export-${date}.xlsx` };
+  }
+
+  // ============================================================
   // KANBAN VIEW
   // ============================================================
   private async findAllKanban(

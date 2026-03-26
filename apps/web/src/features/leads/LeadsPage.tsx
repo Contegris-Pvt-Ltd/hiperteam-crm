@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Search, Upload,
+  Plus, Search, Upload, Download,
   Eye, Pencil, Trash2, LayoutList, LayoutGrid,
   Flame, Thermometer, Snowflake, Sun, Minus,
   Filter, X, Building2, Package,
@@ -34,7 +34,7 @@ const PRIORITY_ICONS: Record<string, any> = {
 
 export function LeadsPage() {
   const navigate = useNavigate();
-  const { canCreate, canEdit, canDelete, canImport } = usePermissions();
+  const { canCreate, canEdit, canDelete, canImport, canExport } = usePermissions();
   const { allColumns, defaultVisibleKeys, loading: columnsLoading } = useTableColumns('leads');
   const tablePrefs = useTablePreferences('leads', allColumns, defaultVisibleKeys);
 
@@ -65,6 +65,7 @@ export function LeadsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [showImportWizard, setShowImportWizard] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -418,6 +419,28 @@ export function LeadsPage() {
                 <option key={p.id} value={p.id}>{p.name}{p.isDefault ? ' (Default)' : ''}</option>
               ))}
             </select>
+          )}
+          {canExport('leads') && (
+            <button
+              disabled={exporting}
+              onClick={async () => {
+                setExporting(true);
+                try {
+                  const { columnSearch: _cs, view: _v, ...exportQuery } = query;
+                  await leadsApi.exportData({
+                    ...exportQuery,
+                    columns: tablePrefs.visibleColumns?.join(','),
+                  });
+                } catch {
+                  // Export failed silently
+                }
+                setExporting(false);
+              }}
+              className="flex items-center gap-2 border border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-400 px-4 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+            >
+              {exporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+              Export
+            </button>
           )}
           {canImport('leads') && (
             <button

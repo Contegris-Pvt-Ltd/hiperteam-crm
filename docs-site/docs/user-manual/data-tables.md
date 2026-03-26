@@ -84,14 +84,30 @@ Each row has an actions menu on the right side:
 
 ![Screenshot: Row actions menu showing View, Edit, Delete options](../../static/img/screenshots/shared/row-actions-menu.png)
 
-## Row Selection
+## Row Selection & Bulk Actions
 
 Many tables support selecting multiple rows for [bulk operations](./bulk-operations):
 
 1. Click the **checkbox** on the left side of any row to select it
 2. Click the **header checkbox** to select all rows on the current page
-3. Selected row count appears above the table
+3. Selected row count appears in a floating action bar above the table
 4. Bulk action buttons appear when rows are selected
+
+### Available Bulk Actions
+
+On **Accounts** and **Contacts** list views, selecting rows reveals these bulk actions:
+
+| Action | Description |
+|---|---|
+| **Change Status** | Set the status of all selected records at once |
+| **Assign Owner** | Reassign selected records to a different user |
+| **Delete** | Soft-delete all selected records (with confirmation) |
+
+![Screenshot: Bulk action bar showing selected count with Change Status, Assign Owner, and Delete buttons](../../static/img/screenshots/shared/bulk-actions-bar.png)
+
+:::warning
+Bulk delete prompts for confirmation before proceeding. Deleted records can be recovered by an administrator.
+:::
 
 ## Search and Filtering
 
@@ -103,6 +119,17 @@ Most tables have a **search bar** above the table:
 - Results update as you type (with a small debounce delay)
 - Clear the search field to show all records again
 
+### Per-Column Search
+
+Tables support **per-column search** for precise filtering:
+
+1. Look for a **search input** below each column header
+2. Type in the column search field to filter by that specific column
+3. Multiple column searches combine — records must match all active column searches
+4. Clear a column search field to remove that filter
+
+This is especially useful when you need to find records matching specific criteria in a particular field — for example, searching for a specific industry in the Industry column while also filtering by city in the Address column.
+
 ### Column Filters
 
 Some tables support per-column filtering:
@@ -111,6 +138,36 @@ Some tables support per-column filtering:
 2. Click to open a column-specific filter
 3. Enter filter criteria (text match, date range, select options)
 4. Active filters are indicated with a highlighted icon
+
+## Pin Column (Freeze Left)
+
+You can pin columns to the left edge of the table so they remain visible while scrolling horizontally:
+
+1. **Hover** over any column header to reveal the **pin icon** (pushpin).
+2. Click the pin icon to **freeze** the column to the left side.
+3. Pinned columns stay visible as you scroll through other columns.
+4. Click the pin icon again to **unpin** the column.
+
+![Screenshot: Column header showing pin icon on hover](../../static/img/screenshots/shared/pin-column.png)
+
+:::tip
+Pin the "Name" or "Account Name" column so you always know which record you are looking at, even when scrolling to view columns on the right side of the table.
+:::
+
+## Filtered Export
+
+When you have filters applied to a table, you can export just the filtered results:
+
+1. Apply your desired filters (search, column filters, status, etc.).
+2. Click the **Export** button above the table.
+3. The export includes **only the currently visible columns** and **only the filtered records**.
+4. Choose CSV or Excel format.
+
+This gives you precise control over what data is exported — no need to export everything and then clean up in a spreadsheet.
+
+:::note
+Export respects your column visibility settings. Hidden columns are not included in the export. Adjust your visible columns before exporting to get exactly the data you need.
+:::
 
 ## Loading and Empty States
 
@@ -130,4 +187,7 @@ Preferences are stored per user per module. Other users won't be affected by you
 - **Customize columns early** — hide columns you don't need to reduce visual clutter
 - **Use sorting** to quickly find records (e.g., sort by "Created Date" descending to see newest first)
 - **Combine search + sort** for fast lookups
+- **Pin key columns** — freeze the Name column so you always have context while scrolling
+- **Use per-column search** for precise lookups in specific fields
+- **Export filtered views** — apply filters first, then export to get exactly the data you need
 - **Adjust page size** based on your workflow — fewer rows for quick scanning, more for bulk review

@@ -1,19 +1,51 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  Plus, Search, Filter, Download, 
+import {
+  Plus, Search, Filter, Download, Upload,
   Globe, Users,
-  Eye, Pencil, Trash2, Building2, User
+  Eye, Pencil, Trash2, Building2, User, X, Mail, Phone,
+  UserCog, RefreshCw, Loader2,
 } from 'lucide-react';
 import type { Account, AccountsQuery } from '../../api/accounts.api';
 import { accountsApi } from '../../api/accounts.api';
+import { productsApi } from '../../api/products.api';
+import { usersApi } from '../../api/users.api';
+import type { Product } from '../../api/products.api';
+import type { User as UserType } from '../../api/users.api';
 import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
-//import { ACCOUNT_CLASSIFICATIONS } from '../../api/accounts.api';
+import { usePermissions } from '../../hooks/usePermissions';
+
+interface Filters {
+  status?: string;
+  industry?: string;
+  ownerId?: string;
+  productId?: string;
+  tag?: string;
+}
+
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+  { value: 'churned', label: 'Churned' },
+  { value: 'on_hold', label: 'On Hold' },
+  { value: 'prospect', label: 'Prospect' },
+  { value: 'customer', label: 'Customer' },
+  { value: 'partner', label: 'Partner' },
+  { value: 'suspended', label: 'Suspended' },
+];
+
+const INDUSTRY_OPTIONS = [
+  'Technology', 'Healthcare', 'Finance', 'Education', 'Manufacturing',
+  'Retail', 'Real Estate', 'Media', 'Telecommunications', 'Energy',
+  'Transportation', 'Hospitality', 'Agriculture', 'Construction',
+  'Legal', 'Consulting', 'Non-Profit', 'Government', 'Other',
+];
 
 export function AccountsPage() {
   const navigate = useNavigate();
+  const { canExport } = usePermissions();
 
-  // ── DataTable: dynamic columns + user preferences ──
+  // DataTable: dynamic columns + user preferences
   const { allColumns, defaultVisibleKeys, loading: columnsLoading } = useTableColumns('accounts');
   const tablePrefs = useTablePreferences('accounts', allColumns, defaultVisibleKeys);
 
@@ -23,8 +55,54 @@ export function AccountsPage() {
   const [query, setQuery] = useState<AccountsQuery>({ page: 1, limit: 20 });
   const [searchInput, setSearchInput] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
-  // ── Sync table preferences into query once loaded ──
+  // Selection + bulk actions
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBulkStatus, setShowBulkStatus] = useState(false);
+  const [bulkStatusValue, setBulkStatusValue] = useState('');
+  const [bulkStatusLoading, setBulkStatusLoading] = useState(false);
+  const [showBulkOwner, setShowBulkOwner] = useState(false);
+  const [bulkOwnerValue, setBulkOwnerValue] = useState('');
+  const [bulkOwnerLoading, setBulkOwnerLoading] = useState(false);
+
+  // Per-column search
+  const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
+
+  // Filter panel state
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState<Filters>({});
+  const [pendingFilters, setPendingFilters] = useState<Filters>({});
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  // Data for filter dropdowns
+  const [users, setUsers] = useState<UserType[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+
+  const activeFilterCount = Object.values(filters).filter(v => v && v !== '').length;
+
+  // Load filter dropdown data
+  useEffect(() => {
+    usersApi.getAll({ limit: 100 }).then(res => setUsers(res.data)).catch(() => {});
+    productsApi.getAll({ limit: 100, status: 'active' }).then(res => setProducts(res.data)).catch(() => {});
+  }, []);
+
+  // Close filter panel on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setShowFilters(false);
+      }
+    };
+    if (showFilters) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showFilters]);
+
+  // Sync table preferences into query once loaded
   useEffect(() => {
     if (!tablePrefs.loading) {
       setQuery(prev => ({
@@ -36,9 +114,23 @@ export function AccountsPage() {
     }
   }, [tablePrefs.loading]);
 
+  // Debounce column search into query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(prev => ({
+        ...prev,
+        columnSearch: Object.values(columnSearch).some(v => v.trim()) ? columnSearch : undefined,
+        page: 1,
+      }));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [columnSearch]);
+
   useEffect(() => {
     if (tablePrefs.loading) return;
     fetchAccounts();
+    // Clear selection when page/filters change
+    setSelectedIds(new Set());
   }, [query, tablePrefs.loading]);
 
   const fetchAccounts = async () => {
@@ -59,6 +151,41 @@ export function AccountsPage() {
     setQuery({ ...query, search: searchInput, page: 1 });
   };
 
+  const handleApplyFilters = () => {
+    const newFilters = { ...pendingFilters };
+    setFilters(newFilters);
+    setQuery(prev => ({
+      ...prev,
+      status: newFilters.status || undefined,
+      industry: newFilters.industry || undefined,
+      ownerId: newFilters.ownerId || undefined,
+      productId: newFilters.productId || undefined,
+      tag: newFilters.tag || undefined,
+      page: 1,
+    }));
+    setShowFilters(false);
+  };
+
+  const handleClearFilters = () => {
+    setPendingFilters({});
+    setFilters({});
+    setQuery(prev => ({
+      ...prev,
+      status: undefined,
+      industry: undefined,
+      ownerId: undefined,
+      productId: undefined,
+      tag: undefined,
+      page: 1,
+    }));
+    setShowFilters(false);
+  };
+
+  const handleOpenFilters = () => {
+    setPendingFilters({ ...filters });
+    setShowFilters(!showFilters);
+  };
+
   const handleDeleteAccount = async (id: string) => {
     try {
       await accountsApi.delete(id);
@@ -66,6 +193,61 @@ export function AccountsPage() {
       fetchAccounts();
     } catch (error) {
       console.error('Failed to delete account:', error);
+    }
+  };
+
+  const handleColumnSearchChange = useCallback((key: string, value: string) => {
+    setColumnSearch(prev => {
+      const next = { ...prev };
+      if (value) next[key] = value;
+      else delete next[key];
+      return next;
+    });
+  }, []);
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    try {
+      await accountsApi.bulkDelete(Array.from(selectedIds));
+      setSelectedIds(new Set());
+      setShowBulkDelete(false);
+      fetchAccounts();
+    } catch (error) {
+      console.error('Failed to bulk delete accounts:', error);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleBulkStatusUpdate = async () => {
+    if (!bulkStatusValue) return;
+    setBulkStatusLoading(true);
+    try {
+      await accountsApi.bulkUpdate(Array.from(selectedIds), { status: bulkStatusValue });
+      setSelectedIds(new Set());
+      setShowBulkStatus(false);
+      setBulkStatusValue('');
+      fetchAccounts();
+    } catch (error) {
+      console.error('Failed to bulk update status:', error);
+    } finally {
+      setBulkStatusLoading(false);
+    }
+  };
+
+  const handleBulkOwnerUpdate = async () => {
+    if (!bulkOwnerValue) return;
+    setBulkOwnerLoading(true);
+    try {
+      await accountsApi.bulkUpdate(Array.from(selectedIds), { ownerId: bulkOwnerValue });
+      setSelectedIds(new Set());
+      setShowBulkOwner(false);
+      setBulkOwnerValue('');
+      fetchAccounts();
+    } catch (error) {
+      console.error('Failed to bulk update owner:', error);
+    } finally {
+      setBulkOwnerLoading(false);
     }
   };
 
@@ -79,13 +261,22 @@ export function AccountsPage() {
             {meta.total} {query.accountClassification === 'business' ? 'business' : query.accountClassification === 'individual' ? 'individual' : ''} accounts
           </p>
         </div>
-        <Link
-          to="/accounts/new"
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-medium rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg shadow-emerald-500/25"
-        >
-          <Plus className="w-4 h-4" />
-          Add Account
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/accounts/import"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 transition-all"
+          >
+            <Upload className="w-4 h-4" />
+            Import
+          </Link>
+          <Link
+            to="/accounts/new"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-medium rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg shadow-emerald-500/25"
+          >
+            <Plus className="w-4 h-4" />
+            Add Account
+          </Link>
+        </div>
       </div>
 
       {/* Filters Bar */}
@@ -106,18 +297,158 @@ export function AccountsPage() {
               <Search className="w-4 h-4" />
               Search
             </button>
-            <button type="button" className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-600 dark:text-slate-400">
-              <Filter className="w-4 h-4" />
-              Filters
-            </button>
-            <button type="button" className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-600 dark:text-slate-400">
-              <Download className="w-4 h-4" />
-              Export
-            </button>
+            <div className="relative" ref={filterRef}>
+              <button
+                type="button"
+                onClick={handleOpenFilters}
+                className={`flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm transition-all ${
+                  activeFilterCount > 0
+                    ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                    : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400'
+                }`}
+              >
+                <Filter className="w-4 h-4" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-emerald-600 text-white rounded-full">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Filter Dropdown Panel */}
+              {showFilters && (
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 shadow-lg z-50 p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Filters</h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowFilters(false)}
+                      className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Status</label>
+                    <select
+                      value={pendingFilters.status || ''}
+                      onChange={(e) => setPendingFilters(prev => ({ ...prev, status: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="">All Statuses</option>
+                      {STATUS_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Industry */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Industry</label>
+                    <select
+                      value={pendingFilters.industry || ''}
+                      onChange={(e) => setPendingFilters(prev => ({ ...prev, industry: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="">All Industries</option>
+                      {INDUSTRY_OPTIONS.map(ind => (
+                        <option key={ind} value={ind}>{ind}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Owner */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Owner</label>
+                    <select
+                      value={pendingFilters.ownerId || ''}
+                      onChange={(e) => setPendingFilters(prev => ({ ...prev, ownerId: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="">All Owners</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Product/Service */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Product / Service</label>
+                    <select
+                      value={pendingFilters.productId || ''}
+                      onChange={(e) => setPendingFilters(prev => ({ ...prev, productId: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="">All Products</option>
+                      {products.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Tags */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Tag</label>
+                    <input
+                      type="text"
+                      placeholder="Enter a tag..."
+                      value={pendingFilters.tag || ''}
+                      onChange={(e) => setPendingFilters(prev => ({ ...prev, tag: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={handleClearFilters}
+                      className="flex-1 px-3 py-2 text-sm text-gray-600 dark:text-slate-400 border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-all"
+                    >
+                      Clear All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleApplyFilters}
+                      className="flex-1 px-3 py-2 text-sm text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-all"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            {canExport('accounts') && (
+              <button
+                type="button"
+                disabled={exporting}
+                onClick={async () => {
+                  setExporting(true);
+                  try {
+                    const { columnSearch: _cs, ...exportQuery } = query;
+                    await accountsApi.exportData({
+                      ...exportQuery,
+                      columns: tablePrefs.visibleColumns?.join(','),
+                    });
+                  } catch {
+                    // Export failed silently
+                  }
+                  setExporting(false);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50"
+              >
+                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Export
+              </button>
+            )}
           </div>
         </form>
-        {/* Classification Filter — Add after search bar, before the existing filter/export buttons */}
-        <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-800 rounded-xl p-1">
+        {/* Classification Filter */}
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-800 rounded-xl p-1 mt-4">
           <button
             onClick={() => setQuery({ ...query, accountClassification: undefined, page: 1 })}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
@@ -149,9 +480,95 @@ export function AccountsPage() {
             <User className="w-3 h-3" /> B2C
           </button>
         </div>
+
+        {/* Active filters summary */}
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <span className="text-xs text-gray-500 dark:text-slate-400">Active filters:</span>
+            {filters.status && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-xs rounded-lg">
+                Status: {STATUS_OPTIONS.find(s => s.value === filters.status)?.label || filters.status}
+                <button onClick={() => { const f = { ...filters, status: undefined }; setFilters(f); setQuery(prev => ({ ...prev, status: undefined, page: 1 })); }} className="hover:text-emerald-900 dark:hover:text-emerald-200">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {filters.industry && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-xs rounded-lg">
+                Industry: {filters.industry}
+                <button onClick={() => { const f = { ...filters, industry: undefined }; setFilters(f); setQuery(prev => ({ ...prev, industry: undefined, page: 1 })); }} className="hover:text-emerald-900 dark:hover:text-emerald-200">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {filters.ownerId && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-xs rounded-lg">
+                Owner: {users.find(u => u.id === filters.ownerId)?.firstName || 'Selected'}
+                <button onClick={() => { const f = { ...filters, ownerId: undefined }; setFilters(f); setQuery(prev => ({ ...prev, ownerId: undefined, page: 1 })); }} className="hover:text-emerald-900 dark:hover:text-emerald-200">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {filters.productId && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-xs rounded-lg">
+                Product: {products.find(p => p.id === filters.productId)?.name || 'Selected'}
+                <button onClick={() => { const f = { ...filters, productId: undefined }; setFilters(f); setQuery(prev => ({ ...prev, productId: undefined, page: 1 })); }} className="hover:text-emerald-900 dark:hover:text-emerald-200">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {filters.tag && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-xs rounded-lg">
+                Tag: {filters.tag}
+                <button onClick={() => { const f = { ...filters, tag: undefined }; setFilters(f); setQuery(prev => ({ ...prev, tag: undefined, page: 1 })); }} className="hover:text-emerald-900 dark:hover:text-emerald-200">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* ── DataTable ── */}
+      {/* Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl px-4 py-3 flex items-center justify-between">
+          <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+            {selectedIds.size} account(s) selected
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowBulkStatus(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Change Status
+            </button>
+            <button
+              onClick={() => setShowBulkOwner(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all"
+            >
+              <UserCog className="w-3.5 h-3.5" />
+              Assign Owner
+            </button>
+            <button
+              onClick={() => setShowBulkDelete(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-all"
+            >
+              <X className="w-3.5 h-3.5" />
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* DataTable */}
       <DataTable<Account>
         module="accounts"
         allColumns={allColumns}
@@ -164,6 +581,11 @@ export function AccountsPage() {
         sortOrder={query.sortOrder || 'DESC'}
         pageSize={query.limit || 20}
         columnWidths={tablePrefs.columnWidths}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        idKey="id"
+        columnSearch={columnSearch}
+        onColumnSearchChange={handleColumnSearchChange}
         onSort={(col, order) => {
           setQuery(prev => ({ ...prev, sortBy: col, sortOrder: order, page: 1 }));
           tablePrefs.setSortColumn(col);
@@ -176,6 +598,8 @@ export function AccountsPage() {
         }}
         onColumnsChange={tablePrefs.setVisibleColumns}
         onColumnWidthsChange={tablePrefs.setColumnWidths}
+        pinnedColumn={tablePrefs.pinnedColumn}
+        onPinnedColumnChange={tablePrefs.setPinnedColumn}
         onRowClick={(row) => navigate(`/accounts/${row.id}`)}
         emptyMessage="No accounts found. Try adjusting your search or filters."
         renderCell={(col, value, row) => {
@@ -195,10 +619,38 @@ export function AccountsPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{account.name}</p>
                   {account.parentAccount && (
-                    <p className="text-xs text-gray-500 dark:text-slate-400">↳ {account.parentAccount.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">&#8627; {account.parentAccount.name}</p>
                   )}
                 </div>
               </div>
+            );
+          }
+
+          // Primary email column
+          if (col.key === 'primaryEmail' && value) {
+            return (
+              <a
+                href={`mailto:${value}`}
+                className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-300 hover:text-blue-600"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Mail className="w-3.5 h-3.5" />
+                {String(value)}
+              </a>
+            );
+          }
+
+          // Primary phone column
+          if (col.key === 'primaryPhone' && value) {
+            return (
+              <a
+                href={`tel:${value}`}
+                className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-300 hover:text-blue-600"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Phone className="w-3.5 h-3.5" />
+                {String(value)}
+              </a>
             );
           }
 
@@ -281,6 +733,108 @@ export function AccountsPage() {
             <div className="flex gap-3 justify-end">
               <button onClick={() => setShowDeleteConfirm(null)} className="px-4 py-2 border rounded-xl">Cancel</button>
               <button onClick={() => handleDeleteAccount(showDeleteConfirm)} className="px-4 py-2 bg-red-600 text-white rounded-xl">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirm */}
+      {showBulkDelete && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Delete {selectedIds.size} Account(s)</h3>
+            <p className="text-gray-500 dark:text-slate-400 mb-6">
+              Are you sure you want to delete {selectedIds.size} account(s)? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowBulkDelete(false)}
+                className="px-4 py-2 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {bulkDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Status Modal */}
+      {showBulkStatus && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Change Status for {selectedIds.size} Account(s)
+            </h3>
+            <select
+              value={bulkStatusValue}
+              onChange={(e) => setBulkStatusValue(e.target.value)}
+              className="w-full px-3 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 mb-6"
+            >
+              <option value="">Select status...</option>
+              {STATUS_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setShowBulkStatus(false); setBulkStatusValue(''); }}
+                className="px-4 py-2 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkStatusUpdate}
+                disabled={!bulkStatusValue || bulkStatusLoading}
+                className="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {bulkStatusLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Owner Modal */}
+      {showBulkOwner && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Assign Owner for {selectedIds.size} Account(s)
+            </h3>
+            <select
+              value={bulkOwnerValue}
+              onChange={(e) => setBulkOwnerValue(e.target.value)}
+              className="w-full px-3 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 mb-6"
+            >
+              <option value="">Select owner...</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+              ))}
+            </select>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setShowBulkOwner(false); setBulkOwnerValue(''); }}
+                className="px-4 py-2 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkOwnerUpdate}
+                disabled={!bulkOwnerValue || bulkOwnerLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {bulkOwnerLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Assign
+              </button>
             </div>
           </div>
         </div>

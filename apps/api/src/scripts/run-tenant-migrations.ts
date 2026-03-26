@@ -3852,6 +3852,65 @@ async function runTenantMigrations() {
             `,
           },
 
+          {
+            name: '058_default_account_contact_settings',
+            sql: `
+              -- Seed default account statuses
+              INSERT INTO "${schema}".module_settings (module, setting_key, setting_value, updated_at)
+              VALUES ('accounts', 'account_statuses', '${JSON.stringify([
+                { value: 'prospect', label: 'Prospect', color: '#8b5cf6', isDefault: true },
+                { value: 'qualified', label: 'Qualified', color: '#6366f1', isDefault: false },
+                { value: 'active', label: 'Active Customer', color: '#22c55e', isDefault: false },
+                { value: 'partner', label: 'Partner', color: '#06b6d4', isDefault: false },
+                { value: 'at_risk', label: 'At Risk', color: '#f59e0b', isDefault: false },
+                { value: 'on_hold', label: 'On Hold', color: '#f97316', isDefault: false },
+                { value: 'churned', label: 'Churned', color: '#ef4444', isDefault: false },
+                { value: 'inactive', label: 'Inactive', color: '#6b7280', isDefault: false },
+                { value: 'former', label: 'Former Customer', color: '#94a3b8', isDefault: false },
+              ])}'::jsonb, NOW())
+              ON CONFLICT (module, setting_key) DO NOTHING;
+
+              -- Seed default contact type settings
+              INSERT INTO "${schema}".module_settings (module, setting_key, setting_value, updated_at)
+              VALUES ('contacts', 'contact_type_settings', '${JSON.stringify({
+                phoneTypes: [
+                  { value: 'work', label: 'Work' },
+                  { value: 'mobile', label: 'Mobile' },
+                  { value: 'home', label: 'Home' },
+                  { value: 'direct', label: 'Direct Line' },
+                  { value: 'sales', label: 'Sales' },
+                  { value: 'support', label: 'Support' },
+                  { value: 'billing', label: 'Billing' },
+                  { value: 'fax', label: 'Fax' },
+                  { value: 'toll_free', label: 'Toll Free' },
+                  { value: 'other', label: 'Other' },
+                ],
+                emailTypes: [
+                  { value: 'work', label: 'Work' },
+                  { value: 'personal', label: 'Personal' },
+                  { value: 'sales', label: 'Sales' },
+                  { value: 'support', label: 'Support' },
+                  { value: 'billing', label: 'Billing' },
+                  { value: 'invoicing', label: 'Invoicing' },
+                  { value: 'info', label: 'General Info' },
+                  { value: 'other', label: 'Other' },
+                ],
+                addressTypes: [
+                  { value: 'headquarters', label: 'Headquarters' },
+                  { value: 'billing', label: 'Billing Address' },
+                  { value: 'shipping', label: 'Shipping Address' },
+                  { value: 'office', label: 'Office' },
+                  { value: 'branch', label: 'Branch Office' },
+                  { value: 'warehouse', label: 'Warehouse' },
+                  { value: 'registered', label: 'Registered Address' },
+                  { value: 'mailing', label: 'Mailing Address' },
+                  { value: 'other', label: 'Other' },
+                ],
+              })}'::jsonb, NOW())
+              ON CONFLICT (module, setting_key) DO NOTHING;
+            `,
+          },
+
         ];
 
         // ── Execute pending migrations ────────────────────────────

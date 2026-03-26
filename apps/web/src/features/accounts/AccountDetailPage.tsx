@@ -1124,6 +1124,9 @@ function SubscriptionsTabContent({
                     <div>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">{s.productName || 'Unknown'}</span>
                       {s.productCode && <span className="text-xs text-gray-400 ml-2">{s.productCode}</span>}
+                      {s.notes && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.notes}</p>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3"><StatusBadge status={s.status} /></td>

@@ -2307,6 +2307,105 @@ export class LeadsService {
   }
 
   // ============================================================
+  // EXPORT
+  // ============================================================
+  async exportData(schemaName: string, userId: string, query: any): Promise<{ buffer: Buffer; fileName: string }> {
+    const { columns, sortBy = 'created_at', sortOrder = 'DESC' } = query;
+
+    const { conditions, params, paramIndex } = this.buildFilterConditions(schemaName, query, userId);
+    const whereClause = conditions.join(' AND ');
+
+    const sortMap: Record<string, string> = {
+      created_at: 'l.created_at',
+      updated_at: 'l.updated_at',
+      name: 'l.last_name',
+      company: 'l.company',
+      score: 'l.score',
+      source: 'l.source',
+      last_activity_at: 'l.last_activity_at',
+      stage: 'ls.sort_order',
+    };
+    const orderColumn = sortMap[sortBy] || 'l.created_at';
+    const order = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+
+    const dataQuery = `
+      SELECT l.*,
+        u.first_name as owner_first_name, u.last_name as owner_last_name,
+        t.name as team_name,
+        ls.name as stage_name, ls.slug as stage_slug, ls.color as stage_color,
+        ls.sort_order as stage_sort_order, ls.is_won as stage_is_won, ls.is_lost as stage_is_lost,
+        lp.name as priority_name, lp.color as priority_color, lp.icon as priority_icon
+       FROM "${schemaName}".leads l
+       LEFT JOIN "${schemaName}".users u ON l.owner_id = u.id
+       LEFT JOIN "${schemaName}".teams t ON l.team_id = t.id
+       LEFT JOIN "${schemaName}".pipeline_stages ls ON l.stage_id = ls.id
+       LEFT JOIN "${schemaName}".lead_priorities lp ON l.priority_id = lp.id
+       WHERE ${whereClause}
+       ORDER BY ${orderColumn} ${order}
+       LIMIT 10000`;
+
+    const leads = await this.dataSource.query(dataQuery, params);
+
+    const HEADER_MAP: Record<string, string> = {
+      firstName: 'First Name',
+      lastName: 'Last Name',
+      email: 'Email',
+      phone: 'Phone',
+      mobile: 'Mobile',
+      company: 'Company',
+      jobTitle: 'Job Title',
+      website: 'Website',
+      city: 'City',
+      state: 'State',
+      country: 'Country',
+      source: 'Source',
+      industry: 'Industry',
+      score: 'Score',
+      stageName: 'Stage',
+      priorityName: 'Priority',
+      ownerName: 'Owner',
+      teamName: 'Team',
+      tags: 'Tags',
+      createdAt: 'Created At',
+      updatedAt: 'Updated At',
+    };
+
+    const requestedColumns = columns ? columns.split(',').map((c: string) => c.trim()) : Object.keys(HEADER_MAP);
+    const headers = requestedColumns.filter((c: string) => HEADER_MAP[c]).map((c: string) => HEADER_MAP[c]);
+
+    const rows = leads.map((l: Record<string, unknown>) => {
+      const formatted = this.formatLead(l);
+      const row: Record<string, unknown> = {};
+      for (const col of requestedColumns) {
+        if (!HEADER_MAP[col]) continue;
+        if (col === 'ownerName') {
+          row[HEADER_MAP[col]] = formatted.owner ? `${formatted.owner.firstName} ${formatted.owner.lastName}` : '';
+        } else if (col === 'teamName') {
+          row[HEADER_MAP[col]] = formatted.team ? formatted.team.name : '';
+        } else if (col === 'stageName') {
+          row[HEADER_MAP[col]] = formatted.stage ? formatted.stage.name : '';
+        } else if (col === 'priorityName') {
+          row[HEADER_MAP[col]] = formatted.priority ? formatted.priority.name : '';
+        } else if (col === 'tags') {
+          row[HEADER_MAP[col]] = Array.isArray(formatted.tags) ? formatted.tags.join(', ') : '';
+        } else {
+          row[HEADER_MAP[col]] = formatted[col] ?? '';
+        }
+      }
+      return row;
+    });
+
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const date = new Date().toISOString().split('T')[0];
+    return { buffer, fileName: `leads-export-${date}.xlsx` };
+  }
+
+  // ============================================================
   // BULK UPDATE
   // ============================================================
   async bulkUpdate(schemaName: string, userId: string, dto: BulkUpdateDto) {

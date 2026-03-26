@@ -9,11 +9,14 @@ import {
   Query,
   UseGuards,
   Request,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AccountsService } from './accounts.service';
 import { CreateAccountDto, UpdateAccountDto, QueryAccountsDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { PermissionGuard, RequirePermission } from '../../common/guards/permissions.guard';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
@@ -33,6 +36,26 @@ export class AccountsController {
     private notesService: NotesService,
   ) {}
 
+  // ── Bulk operations (named routes MUST come before :id) ──
+
+  @Post('bulk/update')
+  @ApiOperation({ summary: 'Bulk update accounts' })
+  async bulkUpdate(
+    @Request() req: { user: JwtPayload },
+    @Body() body: { ids: string[]; updates: Record<string, any> },
+  ) {
+    return this.accountsService.bulkUpdate(req.user.tenantSchema, req.user.sub, body.ids, body.updates);
+  }
+
+  @Post('bulk/delete')
+  @ApiOperation({ summary: 'Bulk delete accounts' })
+  async bulkDelete(
+    @Request() req: { user: JwtPayload },
+    @Body() body: { ids: string[] },
+  ) {
+    return this.accountsService.bulkDelete(req.user.tenantSchema, req.user.sub, body.ids);
+  }
+
   @Post()
   @ApiOperation({ summary: 'Create a new account' })
   async create(
@@ -40,6 +63,24 @@ export class AccountsController {
     @Body() dto: CreateAccountDto,
   ) {
     return this.accountsService.create(req.user.tenantSchema, req.user.sub, dto);
+  }
+
+  @Get('export')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('accounts', 'export')
+  @ApiOperation({ summary: 'Export accounts to XLSX' })
+  async exportData(
+    @Request() req: { user: JwtPayload },
+    @Query() query: any,
+    @Res() res: Response,
+  ) {
+    const { buffer, fileName } = await this.accountsService.exportData(req.user.tenantSchema, req.user.sub, query);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @Get()

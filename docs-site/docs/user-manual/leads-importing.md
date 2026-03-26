@@ -73,6 +73,20 @@ In this step, you match each column from your file to a lead field in the CRM:
 - **Manual mapping** — select the correct CRM field from the dropdown
 - **Skip** — leave the mapping blank to skip this column
 
+### Account Association
+
+The field mapping includes an **Account Name** field. When mapped:
+
+- The import process searches for existing accounts in the CRM that match the value in the mapped column.
+- If a matching account is found, the imported lead is automatically **linked to that account**.
+- If no matching account is found, the lead is imported without an account link.
+
+This is useful when importing leads from sources that include company information, ensuring leads are properly associated with their parent accounts from the moment they enter the CRM.
+
+:::tip
+Ensure account names in your import file match the account names in the CRM exactly. The matching is case-insensitive but otherwise requires an exact name match.
+:::
+
 :::info
 Custom fields appear in the mapping dropdown alongside standard fields. You can map to any field your administrator has configured for the Leads module.
 :::

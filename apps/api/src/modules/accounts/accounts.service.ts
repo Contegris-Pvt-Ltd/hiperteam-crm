@@ -4,6 +4,7 @@
 // ============================================================
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import * as XLSX from 'xlsx';
 import { CreateAccountDto, UpdateAccountDto, QueryAccountsDto } from './dto';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
@@ -106,6 +107,7 @@ export class AccountsService {
   async findAll(schemaName: string, query: QueryAccountsDto, userId?: string) {
     const {
       search, status, accountType, accountClassification, industry, tag, ownerId, parentAccountId,
+      productId,
       page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC'
     } = query;
     const offset = (page - 1) * limit;
@@ -178,22 +180,33 @@ export class AccountsService {
       paramIndex++;
     }
 
+    // Product filter — join account_subscriptions
+    let productJoin = '';
+    if (productId) {
+      productJoin = ` INNER JOIN "${schemaName}".account_subscriptions asub ON asub.account_id = a.id AND asub.product_id = $${paramIndex} AND asub.deleted_at IS NULL`;
+      params.push(productId);
+      paramIndex++;
+    }
+
     const allowedSortFields = ['created_at', 'updated_at', 'name', 'industry', 'account_type', 'account_classification'];
     const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
     const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
 
-    const countQuery = `SELECT COUNT(*) FROM "${schemaName}".accounts a WHERE ${whereClause}`;
+    const countQuery = `SELECT COUNT(*) FROM "${schemaName}".accounts a${productJoin} WHERE ${whereClause}`;
     const [{ count }] = await this.dataSource.query(countQuery, params);
 
     const dataQuery = `
-      SELECT a.*, 
-             u.first_name as owner_first_name, 
+      SELECT a.*,
+             u.first_name as owner_first_name,
              u.last_name as owner_last_name,
              pa.name as parent_account_name,
+             a.emails->0->>'email' as primary_email,
+             a.phones->0->>'number' as primary_phone,
              (SELECT COUNT(*) FROM "${schemaName}".contact_accounts ca WHERE ca.account_id = a.id) as contacts_count
       FROM "${schemaName}".accounts a
       LEFT JOIN "${schemaName}".users u ON a.owner_id = u.id
       LEFT JOIN "${schemaName}".accounts pa ON a.parent_account_id = pa.id
+      ${productJoin}
       WHERE ${whereClause}
       ORDER BY a.${safeSortBy} ${safeSortOrder}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -543,9 +556,252 @@ export class AccountsService {
       owner: account.owner_first_name
         ? { id: account.owner_id, firstName: account.owner_first_name, lastName: account.owner_last_name }
         : null,
+      primaryEmail: account.primary_email || null,
+      primaryPhone: account.primary_phone || null,
       contactsCount: parseInt(String(account.contacts_count || '0')),
       createdAt: account.created_at,
       updatedAt: account.updated_at,
     };
+  }
+
+  // ── Export ──
+
+  async exportData(schemaName: string, userId: string, query: any): Promise<{ buffer: Buffer; fileName: string }> {
+    const {
+      search, status, accountType, accountClassification, industry, tag, ownerId, parentAccountId,
+      productId, sortBy = 'created_at', sortOrder = 'DESC', columns,
+    } = query;
+
+    let whereClause = 'a.deleted_at IS NULL';
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    // Record-level access filtering
+    if (userId) {
+      const accessLevel = await this.dataAccessService.getAccessLevel(schemaName, userId, 'accounts');
+      if (accessLevel !== 'all') {
+        const filter = await this.dataAccessService.buildAccessFilter(
+          { userId, tenantSchema: schemaName, module: 'accounts', accessLevel },
+          'a.owner_id',
+          paramIndex,
+        );
+        whereClause += ` AND ${filter.whereClause}`;
+        params.push(...filter.params);
+        paramIndex += filter.params.length;
+      }
+    }
+
+    if (search) {
+      whereClause += ` AND (a.name ILIKE $${paramIndex} OR a.website ILIKE $${paramIndex} OR a.first_name ILIKE $${paramIndex} OR a.last_name ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (status) {
+      whereClause += ` AND a.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (accountType) {
+      whereClause += ` AND a.account_type = $${paramIndex}`;
+      params.push(accountType);
+      paramIndex++;
+    }
+
+    if (accountClassification) {
+      whereClause += ` AND a.account_classification = $${paramIndex}`;
+      params.push(accountClassification);
+      paramIndex++;
+    }
+
+    if (industry) {
+      whereClause += ` AND a.industry = $${paramIndex}`;
+      params.push(industry);
+      paramIndex++;
+    }
+
+    if (tag) {
+      whereClause += ` AND $${paramIndex} = ANY(a.tags)`;
+      params.push(tag);
+      paramIndex++;
+    }
+
+    if (ownerId) {
+      whereClause += ` AND a.owner_id = $${paramIndex}`;
+      params.push(ownerId);
+      paramIndex++;
+    }
+
+    if (parentAccountId) {
+      whereClause += ` AND a.parent_account_id = $${paramIndex}`;
+      params.push(parentAccountId);
+      paramIndex++;
+    }
+
+    let productJoin = '';
+    if (productId) {
+      productJoin = ` INNER JOIN "${schemaName}".account_subscriptions asub ON asub.account_id = a.id AND asub.product_id = $${paramIndex} AND asub.deleted_at IS NULL`;
+      params.push(productId);
+      paramIndex++;
+    }
+
+    const allowedSortFields = ['created_at', 'updated_at', 'name', 'industry', 'account_type', 'account_classification'];
+    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
+    const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+
+    const dataQuery = `
+      SELECT a.*,
+             u.first_name as owner_first_name,
+             u.last_name as owner_last_name,
+             pa.name as parent_account_name,
+             a.emails->0->>'email' as primary_email,
+             a.phones->0->>'number' as primary_phone
+      FROM "${schemaName}".accounts a
+      LEFT JOIN "${schemaName}".users u ON a.owner_id = u.id
+      LEFT JOIN "${schemaName}".accounts pa ON a.parent_account_id = pa.id
+      ${productJoin}
+      WHERE ${whereClause}
+      ORDER BY a.${safeSortBy} ${safeSortOrder}
+      LIMIT 10000
+    `;
+
+    const accounts = await this.dataSource.query(dataQuery, params);
+
+    // Column header mapping
+    const HEADER_MAP: Record<string, string> = {
+      name: 'Name',
+      website: 'Website',
+      industry: 'Industry',
+      companySize: 'Company Size',
+      annualRevenue: 'Annual Revenue',
+      accountType: 'Account Type',
+      accountClassification: 'Classification',
+      status: 'Status',
+      primaryEmail: 'Primary Email',
+      primaryPhone: 'Primary Phone',
+      firstName: 'First Name',
+      lastName: 'Last Name',
+      ownerName: 'Owner',
+      parentAccountName: 'Parent Account',
+      tags: 'Tags',
+      source: 'Source',
+      createdAt: 'Created At',
+      updatedAt: 'Updated At',
+    };
+
+    const requestedColumns = columns ? columns.split(',').map((c: string) => c.trim()) : Object.keys(HEADER_MAP);
+    const headers = requestedColumns.filter((c: string) => HEADER_MAP[c]).map((c: string) => HEADER_MAP[c]);
+
+    const rows = accounts.map((a: Record<string, unknown>) => {
+      const formatted = this.formatAccount(a);
+      const row: Record<string, unknown> = {};
+      for (const col of requestedColumns) {
+        if (!HEADER_MAP[col]) continue;
+        if (col === 'ownerName') {
+          row[HEADER_MAP[col]] = formatted.owner ? `${(formatted.owner as any).firstName} ${(formatted.owner as any).lastName}` : '';
+        } else if (col === 'parentAccountName') {
+          row[HEADER_MAP[col]] = formatted.parentAccount ? (formatted.parentAccount as any).name : '';
+        } else if (col === 'tags') {
+          row[HEADER_MAP[col]] = Array.isArray(formatted.tags) ? (formatted.tags as string[]).join(', ') : '';
+        } else {
+          row[HEADER_MAP[col]] = formatted[col] ?? '';
+        }
+      }
+      return row;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Accounts');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const date = new Date().toISOString().split('T')[0];
+    return { buffer, fileName: `accounts-export-${date}.xlsx` };
+  }
+
+  // ── Bulk Operations ──
+
+  async bulkUpdate(schemaName: string, userId: string, ids: string[], updates: Record<string, any>) {
+    if (!ids.length) return { updated: 0 };
+
+    const allowedFields: Record<string, string> = {
+      status: 'status',
+      ownerId: 'owner_id',
+      accountType: 'account_type',
+      industry: 'industry',
+    };
+
+    const setClauses: string[] = [];
+    const values: any[] = [ids];
+    let paramIndex = 2;
+
+    for (const [key, dbCol] of Object.entries(allowedFields)) {
+      if (updates[key] !== undefined) {
+        setClauses.push(`${dbCol} = $${paramIndex}`);
+        values.push(updates[key]);
+        paramIndex++;
+      }
+    }
+
+    if (!setClauses.length) return { updated: 0 };
+
+    setClauses.push('updated_at = NOW()');
+
+    const result = await this.dataSource.query(
+      `UPDATE "${schemaName}".accounts
+       SET ${setClauses.join(', ')}
+       WHERE id = ANY($1) AND deleted_at IS NULL
+       RETURNING id`,
+      values,
+    );
+
+    // Audit each updated record
+    for (const row of result) {
+      await this.auditService.log(schemaName, {
+        entityType: 'accounts',
+        entityId: row.id,
+        action: 'update',
+        changes: updates,
+        newValues: updates,
+        performedBy: userId,
+      });
+    }
+
+    return { updated: result.length };
+  }
+
+  async bulkDelete(schemaName: string, userId: string, ids: string[]) {
+    if (!ids.length) return { deleted: 0 };
+
+    const result = await this.dataSource.query(
+      `UPDATE "${schemaName}".accounts
+       SET deleted_at = NOW()
+       WHERE id = ANY($1) AND deleted_at IS NULL
+       RETURNING id, name`,
+      [ids],
+    );
+
+    // Audit each deleted record
+    for (const row of result) {
+      await this.activityService.create(schemaName, {
+        entityType: 'accounts',
+        entityId: row.id,
+        activityType: 'deleted',
+        title: 'Account deleted',
+        description: `Account "${row.name}" was deleted (bulk)`,
+        performedBy: userId,
+      });
+      await this.auditService.log(schemaName, {
+        entityType: 'accounts',
+        entityId: row.id,
+        action: 'delete',
+        changes: {},
+        newValues: { deletedAt: new Date().toISOString() },
+        performedBy: userId,
+      });
+    }
+
+    return { deleted: result.length };
   }
 }

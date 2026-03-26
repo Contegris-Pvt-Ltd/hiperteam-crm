@@ -33,6 +33,7 @@ export const LEAD_FIELD_OPTIONS = [
   { value: 'owner', label: 'Owner' },
   { value: 'team', label: 'Team' },
   { value: 'product', label: 'Product' },
+  { value: 'account', label: 'Account Name' },
   { value: 'teamMembers', label: 'Record Team Members' },
   { value: '__skip__', label: 'Skip (Do not import)' },
 ];
@@ -62,6 +63,7 @@ const FIELD_KEYWORDS: Record<string, string[]> = {
   owner: ['owner', 'assigned', 'assignee', 'agent', 'rep', 'representative', 'salesperson', 'assigned_to', 'assignedto'],
   team: ['team', 'group', 'department', 'dept'],
   product: ['product', 'item', 'service', 'offering', 'product_name', 'productname'],
+  account: ['account', 'account_name', 'accountname', 'account name', 'company_name', 'companyname', 'organization', 'organisation', 'client'],
   teamMembers: ['team_members', 'teammembers', 'team members', 'record_team', 'recordteam', 'members', 'collaborators'],
 };
 

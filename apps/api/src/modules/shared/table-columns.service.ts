@@ -200,12 +200,14 @@ const COMPUTED_COLUMNS: Record<string, TableColumn[]> = {
   contacts: [
     { key: 'name', label: 'Name', type: 'text', sortKey: 'first_name', sortable: true, defaultVisible: true, defaultWidth: 280, frozen: true, isCustomField: false, source: 'computed' },
     { key: 'ownerName', label: 'Owner', type: 'text', sortable: false, defaultVisible: true, defaultWidth: 160, isCustomField: false, source: 'computed' },
-    { key: 'accountName', label: 'Account', type: 'text', sortable: false, defaultVisible: false, defaultWidth: 180, isCustomField: false, source: 'computed' },
+    { key: 'accountName', label: 'Account', type: 'text', sortable: false, defaultVisible: true, defaultWidth: 180, isCustomField: false, source: 'computed' },
   ],
   accounts: [
     { key: 'ownerName', label: 'Owner', type: 'text', sortable: false, defaultVisible: true, defaultWidth: 160, isCustomField: false, source: 'computed' },
     { key: 'parentAccountName', label: 'Parent Account', type: 'text', sortable: false, defaultVisible: false, defaultWidth: 180, isCustomField: false, source: 'computed' },
     { key: 'contactsCount', label: 'Contacts', type: 'number', sortable: false, defaultVisible: true, defaultWidth: 100, align: 'center', isCustomField: false, source: 'computed' },
+    { key: 'primaryEmail', label: 'Email', type: 'text', sortable: false, defaultVisible: true, defaultWidth: 200, isCustomField: false, source: 'computed' },
+    { key: 'primaryPhone', label: 'Phone', type: 'text', sortable: false, defaultVisible: true, defaultWidth: 150, isCustomField: false, source: 'computed' },
   ],
   products: [
     { key: 'categoryName', label: 'Category', type: 'text', sortable: false, defaultVisible: true, defaultWidth: 150, isCustomField: false, source: 'computed' },

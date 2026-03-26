@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Building2, Loader2, Save, Plus, Trash2, Star,
   Globe, Phone, MapPin, Tag, ToggleLeft, ToggleRight, DollarSign, Upload,
+  Download, AlertTriangle, Shield, Database, X, CheckCircle2,
+  ChevronUp, ChevronDown, Users, Mail, Home,
 } from 'lucide-react';
 import { generalSettingsApi } from '../../api/admin.api';
 import type { CompanySettings, Industry } from '../../api/admin.api';
@@ -19,6 +21,9 @@ const TABS = [
   { id: 'company', label: 'Company Profile', icon: Building2 },
   { id: 'industries', label: 'Industries', icon: Tag },
   { id: 'currencies', label: 'Currencies', icon: DollarSign },
+  { id: 'account-statuses', label: 'Account Statuses', icon: Users },
+  { id: 'contact-types', label: 'Contact Types', icon: Phone },
+  { id: 'data', label: 'Data Management', icon: Database },
 ] as const;
 type TabId = typeof TABS[number]['id'];
 
@@ -62,9 +67,12 @@ export function GeneralSettingsPage() {
         </nav>
       </div>
 
-      {activeTab === 'company'    && <CompanyProfileTab />}
-      {activeTab === 'industries' && <IndustriesTab />}
-      {activeTab === 'currencies' && <CurrenciesTab />}
+      {activeTab === 'company'          && <CompanyProfileTab />}
+      {activeTab === 'industries'       && <IndustriesTab />}
+      {activeTab === 'currencies'       && <CurrenciesTab />}
+      {activeTab === 'account-statuses' && <AccountStatusesTab />}
+      {activeTab === 'contact-types'    && <ContactTypesTab />}
+      {activeTab === 'data'             && <DataManagementTab />}
     </div>
   );
 }
@@ -618,6 +626,644 @@ function CurrenciesTab() {
             </button>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Data Management Tab ──────────────────────────────────────────
+
+function DataManagementTab() {
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
+
+  const [confirmPhrase, setConfirmPhrase] = useState('');
+  const [showPurgeModal, setShowPurgeModal] = useState(false);
+  const [purging, setPurging] = useState(false);
+  const [purgeResult, setPurgeResult] = useState<Record<string, number> | null>(null);
+  const [purgeError, setPurgeError] = useState('');
+
+  const phraseMatches = confirmPhrase === 'DELETE ALL DATA';
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportError('');
+    try {
+      await newSettingsApi.exportAllData();
+    } catch (err: any) {
+      setExportError(err?.response?.data?.message || 'Failed to export data. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handlePurgeClick = () => {
+    if (!phraseMatches) return;
+    setShowPurgeModal(true);
+  };
+
+  const handlePurgeConfirm = async () => {
+    setPurging(true);
+    setPurgeError('');
+    try {
+      const result = await newSettingsApi.purgeAllData(confirmPhrase);
+      setPurgeResult(result.deleted);
+      setShowPurgeModal(false);
+      setConfirmPhrase('');
+    } catch (err: any) {
+      setPurgeError(err?.response?.data?.message || 'Failed to purge data. Please try again.');
+      setShowPurgeModal(false);
+    } finally {
+      setPurging(false);
+    }
+  };
+
+  const preservedItems = [
+    'Users and user accounts',
+    'Roles and permissions',
+    'Teams and departments',
+    'Products and price books',
+    'Pipeline and stage configurations',
+    'Custom fields and form layouts',
+    'System settings',
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Export Card */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <Download className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Export All Data</h3>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+              Download a complete export of all your CRM data as an Excel file. Includes accounts,
+              contacts, leads, opportunities, tasks, invoices, and more.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium disabled:opacity-50 transition-colors"
+        >
+          {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+          {exporting ? 'Preparing Export...' : 'Download Export'}
+        </button>
+
+        {exportError && (
+          <p className="mt-3 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+            <AlertTriangle size={14} /> {exportError}
+          </p>
+        )}
+
+        <p className="mt-3 text-xs text-gray-400 dark:text-slate-500">
+          This may take a few moments for large datasets.
+        </p>
+      </div>
+
+      {/* Danger Zone */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border-2 border-red-300 dark:border-red-800 p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
+            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-red-600 dark:text-red-400">Danger Zone</h3>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3 mb-4">
+          <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
+            <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Delete All Data</h4>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+              Permanently delete ALL data from your CRM including accounts, contacts, leads,
+              opportunities, tasks, invoices, projects, and all related records.
+            </p>
+          </div>
+        </div>
+
+        <div className="mb-4 p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+          <p className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
+            <Shield size={14} className="text-green-600 dark:text-green-400" />
+            The following will NOT be deleted:
+          </p>
+          <ul className="space-y-1">
+            {preservedItems.map(item => (
+              <li key={item} className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
+                <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-800/50 mb-4">
+          <p className="text-sm font-medium text-red-700 dark:text-red-400 flex items-center gap-1.5 mb-1">
+            <AlertTriangle size={14} />
+            This action is PERMANENT and cannot be undone.
+          </p>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+            To confirm, type <span className="font-mono font-bold text-red-600 dark:text-red-400">DELETE ALL DATA</span> below:
+          </label>
+          <input
+            type="text"
+            value={confirmPhrase}
+            onChange={e => setConfirmPhrase(e.target.value)}
+            placeholder="Type DELETE ALL DATA to confirm"
+            className="w-full max-w-md px-3 py-2 text-sm border border-red-300 dark:border-red-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+          />
+        </div>
+
+        <button
+          onClick={handlePurgeClick}
+          disabled={!phraseMatches || purging}
+          className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {purging ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+          Delete All Data
+        </button>
+
+        {purgeError && (
+          <p className="mt-3 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+            <AlertTriangle size={14} /> {purgeError}
+          </p>
+        )}
+
+        {/* Purge Results */}
+        {purgeResult && (
+          <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/10 rounded-lg border border-green-200 dark:border-green-800/50">
+            <p className="text-sm font-semibold text-green-700 dark:text-green-400 mb-2 flex items-center gap-1.5">
+              <CheckCircle2 size={14} /> Data purge completed successfully
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {Object.entries(purgeResult)
+                .filter(([, count]) => count > 0)
+                .map(([table, count]) => (
+                  <div key={table} className="text-xs text-gray-600 dark:text-slate-400">
+                    <span className="font-medium">{table.replace(/_/g, ' ')}:</span>{' '}
+                    <span className="text-red-600 dark:text-red-400">{count} deleted</span>
+                  </div>
+                ))}
+            </div>
+            {Object.values(purgeResult).every(c => c <= 0) && (
+              <p className="text-xs text-gray-500 dark:text-slate-400">No data was found to delete.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Purge Confirmation Modal */}
+      {showPurgeModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Are you absolutely sure?</h3>
+            </div>
+
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
+              This will permanently delete all accounts, contacts, leads, opportunities, tasks,
+              invoices, projects, and all related records. This action cannot be undone.
+            </p>
+
+            <p className="text-sm font-medium text-red-600 dark:text-red-400 mb-6">
+              We strongly recommend exporting your data first before proceeding.
+            </p>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowPurgeModal(false)}
+                disabled={purging}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePurgeConfirm}
+                disabled={purging}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-medium disabled:opacity-50 transition-colors"
+              >
+                {purging ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                {purging ? 'Deleting...' : 'Yes, Delete Everything'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Account Statuses Tab ─────────────────────────────────────────
+
+interface AccountStatus {
+  value: string;
+  label: string;
+  color: string;
+  isDefault: boolean;
+}
+
+function AccountStatusesTab() {
+  const [statuses, setStatuses] = useState<AccountStatus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    newSettingsApi.getAccountStatuses()
+      .then((data: AccountStatus[]) => setStatuses(data))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const slugify = (text: string) =>
+    text.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+  const handleAdd = () => {
+    setStatuses(prev => [
+      ...prev,
+      { value: '', label: '', color: '#6b7280', isDefault: false },
+    ]);
+  };
+
+  const handleRemove = (idx: number) => {
+    setStatuses(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleChange = (idx: number, field: keyof AccountStatus, val: any) => {
+    setStatuses(prev => prev.map((s, i) => {
+      if (i !== idx) return s;
+      const updated = { ...s, [field]: val };
+      if (field === 'label' && !s.value) {
+        updated.value = slugify(val as string);
+      }
+      return updated;
+    }));
+  };
+
+  const handleSetDefault = (idx: number) => {
+    setStatuses(prev => prev.map((s, i) => ({ ...s, isDefault: i === idx })));
+  };
+
+  const handleMoveUp = (idx: number) => {
+    if (idx === 0) return;
+    setStatuses(prev => {
+      const next = [...prev];
+      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+      return next;
+    });
+  };
+
+  const handleMoveDown = (idx: number) => {
+    if (idx >= statuses.length - 1) return;
+    setStatuses(prev => {
+      const next = [...prev];
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      return next;
+    });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Auto-generate slugs for any empty values
+      const cleaned = statuses.map(s => ({
+        ...s,
+        value: s.value || slugify(s.label),
+      }));
+      await newSettingsApi.updateAccountStatuses(cleaned);
+      setStatuses(cleaned);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">Account Statuses</h3>
+          <p className="text-sm text-gray-500 dark:text-slate-400">
+            Define the lifecycle statuses available for accounts
+          </p>
+        </div>
+        <button
+          onClick={handleAdd}
+          className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-xl text-xs hover:bg-purple-700"
+        >
+          <Plus className="w-3 h-3" /> Add Status
+        </button>
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
+        {/* Header */}
+        <div className="grid grid-cols-[40px_44px_1fr_1fr_80px_70px_40px] gap-2 px-4 py-2 bg-gray-50 dark:bg-slate-800 text-xs font-medium text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-slate-700">
+          <span>Order</span>
+          <span>Color</span>
+          <span>Label</span>
+          <span>Value (slug)</span>
+          <span>Default</span>
+          <span></span>
+          <span></span>
+        </div>
+
+        {statuses.map((status, idx) => (
+          <div
+            key={idx}
+            className={`grid grid-cols-[40px_44px_1fr_1fr_80px_70px_40px] gap-2 px-4 py-2.5 items-center ${
+              idx > 0 ? 'border-t border-gray-100 dark:border-slate-800' : ''
+            }`}
+          >
+            {/* Up/Down arrows */}
+            <div className="flex flex-col gap-0.5">
+              <button
+                onClick={() => handleMoveUp(idx)}
+                disabled={idx === 0}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 disabled:opacity-20"
+              >
+                <ChevronUp size={14} />
+              </button>
+              <button
+                onClick={() => handleMoveDown(idx)}
+                disabled={idx >= statuses.length - 1}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 disabled:opacity-20"
+              >
+                <ChevronDown size={14} />
+              </button>
+            </div>
+
+            {/* Color picker */}
+            <div className="flex items-center">
+              <input
+                type="color"
+                value={status.color}
+                onChange={e => handleChange(idx, 'color', e.target.value)}
+                className="w-7 h-7 rounded-lg border border-gray-200 dark:border-slate-700 cursor-pointer p-0.5"
+              />
+            </div>
+
+            {/* Label */}
+            <input
+              value={status.label}
+              onChange={e => handleChange(idx, 'label', e.target.value)}
+              placeholder="Status label"
+              className="px-2 py-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none"
+            />
+
+            {/* Value slug */}
+            <input
+              value={status.value}
+              onChange={e => handleChange(idx, 'value', e.target.value)}
+              placeholder="auto-generated"
+              className="px-2 py-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-gray-50 dark:bg-slate-800/50 text-gray-600 dark:text-slate-400 focus:ring-2 focus:ring-purple-500 outline-none font-mono text-xs"
+            />
+
+            {/* Default radio */}
+            <div className="flex justify-center">
+              <input
+                type="radio"
+                name="defaultStatus"
+                checked={status.isDefault}
+                onChange={() => handleSetDefault(idx)}
+                className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+              />
+            </div>
+
+            {/* Delete */}
+            <div className="flex justify-center">
+              <button
+                onClick={() => handleRemove(idx)}
+                className="text-gray-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-colors"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+
+            {/* Color preview circle */}
+            <div
+              className="w-5 h-5 rounded-full border border-gray-200 dark:border-slate-700"
+              style={{ backgroundColor: status.color }}
+            />
+          </div>
+        ))}
+
+        {statuses.length === 0 && (
+          <div className="px-4 py-8 text-center text-sm text-gray-400">
+            No statuses defined. Click "Add Status" to get started.
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium disabled:opacity-50 transition-colors"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {saved ? 'Saved!' : 'Save Statuses'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Contact Types Tab ────────────────────────────────────────────
+
+interface TypeItem {
+  value: string;
+  label: string;
+}
+
+interface ContactTypeSettings {
+  phoneTypes: TypeItem[];
+  emailTypes: TypeItem[];
+  addressTypes: TypeItem[];
+}
+
+function ContactTypesTab() {
+  const [settings, setSettings] = useState<ContactTypeSettings>({
+    phoneTypes: [],
+    emailTypes: [],
+    addressTypes: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    newSettingsApi.getContactTypeSettings()
+      .then((data: ContactTypeSettings) => setSettings(data))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const slugify = (text: string) =>
+    text.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+  const handleAdd = (key: keyof ContactTypeSettings) => {
+    setSettings(prev => ({
+      ...prev,
+      [key]: [...prev[key], { value: '', label: '' }],
+    }));
+  };
+
+  const handleRemove = (key: keyof ContactTypeSettings, idx: number) => {
+    setSettings(prev => ({
+      ...prev,
+      [key]: prev[key].filter((_, i) => i !== idx),
+    }));
+  };
+
+  const handleChange = (
+    key: keyof ContactTypeSettings,
+    idx: number,
+    field: keyof TypeItem,
+    val: string,
+  ) => {
+    setSettings(prev => ({
+      ...prev,
+      [key]: prev[key].map((item, i) => {
+        if (i !== idx) return item;
+        const updated = { ...item, [field]: val };
+        if (field === 'label' && !item.value) {
+          updated.value = slugify(val);
+        }
+        return updated;
+      }),
+    }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Auto-generate slugs for any empty values
+      const cleaned: ContactTypeSettings = {
+        phoneTypes: settings.phoneTypes.map(t => ({
+          ...t,
+          value: t.value || slugify(t.label),
+        })),
+        emailTypes: settings.emailTypes.map(t => ({
+          ...t,
+          value: t.value || slugify(t.label),
+        })),
+        addressTypes: settings.addressTypes.map(t => ({
+          ...t,
+          value: t.value || slugify(t.label),
+        })),
+      };
+      await newSettingsApi.updateContactTypeSettings(cleaned);
+      setSettings(cleaned);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  const sections: { key: keyof ContactTypeSettings; title: string; icon: React.ElementType }[] = [
+    { key: 'phoneTypes', title: 'Phone Types', icon: Phone },
+    { key: 'emailTypes', title: 'Email Types', icon: Mail },
+    { key: 'addressTypes', title: 'Address Types', icon: Home },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white">Contact Type Settings</h3>
+        <p className="text-sm text-gray-500 dark:text-slate-400">
+          Configure the types available for phone numbers, email addresses, and physical addresses
+        </p>
+      </div>
+
+      {sections.map(({ key, title, icon: Icon }) => (
+        <div key={key} className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-slate-300">
+              <Icon size={15} className="text-gray-400" /> {title}
+            </h4>
+            <button
+              onClick={() => handleAdd(key)}
+              className="flex items-center gap-1 px-2.5 py-1 bg-purple-600 text-white rounded-lg text-xs hover:bg-purple-700"
+            >
+              <Plus className="w-3 h-3" /> Add
+            </button>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
+            {settings[key].map((item, idx) => (
+              <div
+                key={idx}
+                className={`flex items-center gap-3 px-4 py-2.5 ${
+                  idx > 0 ? 'border-t border-gray-100 dark:border-slate-800' : ''
+                }`}
+              >
+                <input
+                  value={item.label}
+                  onChange={e => handleChange(key, idx, 'label', e.target.value)}
+                  placeholder="Type label"
+                  className="flex-1 px-2 py-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                />
+                <input
+                  value={item.value}
+                  onChange={e => handleChange(key, idx, 'value', e.target.value)}
+                  placeholder="auto-generated"
+                  className="w-36 px-2 py-1.5 text-xs font-mono border border-gray-200 dark:border-slate-700 rounded-lg bg-gray-50 dark:bg-slate-800/50 text-gray-600 dark:text-slate-400 focus:ring-2 focus:ring-purple-500 outline-none"
+                />
+                <button
+                  onClick={() => handleRemove(key, idx)}
+                  className="text-gray-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-colors"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+            {settings[key].length === 0 && (
+              <div className="px-4 py-6 text-center text-sm text-gray-400">
+                No types defined. Click "Add" to create one.
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+
+      <div className="flex justify-end pt-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium disabled:opacity-50 transition-colors"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {saved ? 'Saved!' : 'Save Contact Types'}
+        </button>
       </div>
     </div>
   );

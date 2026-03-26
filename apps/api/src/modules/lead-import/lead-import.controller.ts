@@ -17,6 +17,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionGuard, RequirePermission } from '../../common/guards/permissions.guard';
 import { LeadImportService } from './lead-import.service';
 import { StartImportDto } from './dto/start-import.dto';
 import { SaveTemplateDto } from './dto/save-template.dto';
@@ -24,7 +25,7 @@ import { Response } from 'express';
 
 @ApiTags('Lead Import')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('lead-import')
 export class LeadImportController {
   constructor(private readonly importService: LeadImportService) {}
@@ -33,6 +34,7 @@ export class LeadImportController {
   // FILE UPLOAD & PARSE
   // ============================================================
   @Post('upload')
+  @RequirePermission('leads', 'import')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', {
     limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
@@ -58,6 +60,7 @@ export class LeadImportController {
   // START IMPORT
   // ============================================================
   @Post('start')
+  @RequirePermission('leads', 'import')
   async startImport(@Body() dto: StartImportDto, @Req() req: any) {
     return this.importService.startImport(dto, req.user.tenantSchema, req.user.sub);
   }
@@ -66,6 +69,7 @@ export class LeadImportController {
   // JOB MANAGEMENT
   // ============================================================
   @Get('jobs')
+  @RequirePermission('leads', 'view')
   async getJobs(
     @Req() req: any,
     @Query('page') page?: string,
@@ -80,16 +84,19 @@ export class LeadImportController {
   }
 
   @Get('jobs/:id')
+  @RequirePermission('leads', 'view')
   async getJobDetail(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
     return this.importService.getJobDetail(req.user.tenantSchema, id);
   }
 
   @Post('jobs/:id/cancel')
+  @RequirePermission('leads', 'import')
   async cancelJob(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
     return this.importService.cancelJob(req.user.tenantSchema, id);
   }
 
   @Get('jobs/:id/failed-file')
+  @RequirePermission('leads', 'import')
   async downloadFailedFile(
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: any,
@@ -110,16 +117,19 @@ export class LeadImportController {
   // TEMPLATES
   // ============================================================
   @Get('templates')
+  @RequirePermission('leads', 'import')
   async getTemplates(@Req() req: any) {
     return this.importService.getTemplates(req.user.tenantSchema);
   }
 
   @Post('templates')
+  @RequirePermission('leads', 'import')
   async saveTemplate(@Body() dto: SaveTemplateDto, @Req() req: any) {
     return this.importService.saveTemplate(dto, req.user.tenantSchema, req.user.sub);
   }
 
   @Put('templates/:id')
+  @RequirePermission('leads', 'import')
   async updateTemplate(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SaveTemplateDto,
@@ -129,6 +139,7 @@ export class LeadImportController {
   }
 
   @Delete('templates/:id')
+  @RequirePermission('leads', 'import')
   async deleteTemplate(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
     return this.importService.deleteTemplate(req.user.tenantSchema, id);
   }

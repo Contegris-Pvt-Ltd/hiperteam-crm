@@ -157,6 +157,84 @@ A starter list is provided:
 Customize the industry list to match your target market. Remove industries you do not sell to and add niche verticals specific to your business.
 :::
 
+## Account Status Settings
+
+Configure the available statuses for account records. Each status has a **name** and a **color** for visual identification across the CRM.
+
+### Default Account Statuses
+
+| Status | Color | Description |
+|---|---|---|
+| **Prospect** | Blue | Initial status for potential customers |
+| **Qualified** | Indigo | Prospect has been vetted and shows potential |
+| **Active** | Green | Current, active customer |
+| **Partner** | Purple | Business partner or reseller |
+| **At Risk** | Orange | Customer showing churn signals |
+| **On Hold** | Yellow | Temporarily paused relationship |
+| **Churned** | Red | Customer has left |
+| **Inactive** | Gray | No recent activity |
+| **Former** | Slate | Previously active, now concluded |
+
+### Managing Account Statuses
+
+1. Scroll to the **Account Statuses** section.
+2. To **add** a status: click **Add Status**, enter a name, and select a color.
+3. To **edit** a status: click the status to change its name or color.
+4. To **delete** a status: click **Delete**. If accounts use this status, you will be prompted to select a replacement status.
+5. **Reorder** statuses by dragging them — the order determines how they appear in dropdowns and filters.
+
+![Screenshot: Account status settings showing colored status list with edit controls](../../static/img/screenshots/admin/account-status-settings.png)
+
+:::tip
+Keep your status list concise and meaningful. Too many statuses create confusion; too few miss important distinctions. The default set covers most B2B workflows.
+:::
+
+## Contact Type Settings
+
+Configure the types available for contact phone numbers, email addresses, and physical addresses.
+
+### Phone Types
+
+Define the available phone number types that users can assign when adding phone numbers to contacts:
+
+- **Work** — office phone number
+- **Mobile** — personal mobile number
+- **Home** — home phone number
+- **Fax** — fax number
+- **Other** — any other phone type
+
+### Email Types
+
+Define the available email address types:
+
+- **Work** — professional email
+- **Personal** — personal email
+- **Other** — any other email type
+
+### Address Types
+
+Define the available address types:
+
+- **Billing** — billing address
+- **Shipping** — shipping/delivery address
+- **Office** — office location
+- **Home** — home address
+- **Other** — any other address type
+
+### Managing Contact Types
+
+1. Scroll to the **Contact Types** section.
+2. Select the sub-tab: **Phone Types**, **Email Types**, or **Address Types**.
+3. Click **Add Type** to create a new type.
+4. Click an existing type to **edit** its name.
+5. Click **Delete** to remove a type (with replacement prompt if in use).
+
+![Screenshot: Contact type settings showing phone, email, and address type tabs](../../static/img/screenshots/admin/contact-type-settings.png)
+
+:::note
+Contact types help users categorize multi-value fields. A contact might have both a "Work" and "Personal" email, or a "Mobile" and "Office" phone number. Consistent types improve data quality and make filtering easier.
+:::
+
 ## Outbound Email Defaults
 
 Configure defaults for all outbound emails sent from the CRM:

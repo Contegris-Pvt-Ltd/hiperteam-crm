@@ -115,6 +115,21 @@ Once configured, usage data appears in the **Overview** tab as sparkline trends:
 
 Usage trends feed into the health score (Product Usage factor) and upsell suggestions.
 
+## Subscription Notes
+
+Each subscription supports **notes** — free-text annotations that your team can add to record context about a specific subscription. Common uses include:
+
+- Recording renewal conversation outcomes
+- Noting special pricing agreements or discount reasons
+- Tracking customer feedback about a specific product
+- Documenting configuration details or SLA terms
+
+To add a note, expand a subscription row and click **Add Note**. Notes are timestamped and attributed to the user who created them.
+
+:::tip
+Use subscription notes to capture context that does not fit neatly into structured fields. When a colleague takes over an account, these notes provide valuable background on each product relationship.
+:::
+
 ## What's Next
 
 - [Customer 360 View](./customer-360-overview.md) — health scores, churn risk, and the full 360 overview

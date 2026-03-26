@@ -1,13 +1,16 @@
 import {
   Injectable,
+  Logger,
   ConflictException,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import * as XLSX from 'xlsx';
 
 @Injectable()
 export class GeneralSettingsService {
+  private readonly logger = new Logger(GeneralSettingsService.name);
   constructor(private readonly dataSource: DataSource) {}
 
   // ── Company Settings ─────────────────────────────────────────────
@@ -165,5 +168,330 @@ export class GeneralSettingsService {
     if (row.is_default) throw new BadRequestException('Cannot delete the default currency');
     await this.dataSource.query(`DELETE FROM "${schema}".currencies WHERE id = $1`, [id]);
     return { success: true };
+  }
+
+  // ── Account Status Settings ──────────────────────────────────
+
+  async getAccountStatuses(schemaName: string) {
+    const defaults = [
+      { value: 'active', label: 'Active', color: '#22c55e', isDefault: true },
+      { value: 'prospect', label: 'Prospect', color: '#8b5cf6', isDefault: false },
+      { value: 'customer', label: 'Customer', color: '#3b82f6', isDefault: false },
+      { value: 'partner', label: 'Partner', color: '#06b6d4', isDefault: false },
+      { value: 'on_hold', label: 'On Hold', color: '#f59e0b', isDefault: false },
+      { value: 'churned', label: 'Churned', color: '#ef4444', isDefault: false },
+      { value: 'inactive', label: 'Inactive', color: '#6b7280', isDefault: false },
+    ];
+    const [row] = await this.dataSource.query(
+      `SELECT setting_value FROM "${schemaName}".module_settings
+       WHERE module = 'accounts' AND setting_key = 'account_statuses'`,
+    );
+    return row?.setting_value || defaults;
+  }
+
+  async updateAccountStatuses(schemaName: string, statuses: any[]) {
+    await this.dataSource.query(
+      `INSERT INTO "${schemaName}".module_settings (module, setting_key, setting_value, updated_at)
+       VALUES ('accounts', 'account_statuses', $1::jsonb, NOW())
+       ON CONFLICT (module, setting_key)
+       DO UPDATE SET setting_value = $1::jsonb, updated_at = NOW()`,
+      [JSON.stringify(statuses)],
+    );
+    return statuses;
+  }
+
+  // ── Contact Type Settings (phone, email, address types) ──────
+
+  async getContactTypeSettings(schemaName: string) {
+    const defaults = {
+      phoneTypes: [
+        { value: 'work', label: 'Work' },
+        { value: 'mobile', label: 'Mobile' },
+        { value: 'home', label: 'Home' },
+        { value: 'sales', label: 'Sales' },
+        { value: 'support', label: 'Support' },
+        { value: 'billing', label: 'Billing' },
+        { value: 'other', label: 'Other' },
+      ],
+      emailTypes: [
+        { value: 'work', label: 'Work' },
+        { value: 'personal', label: 'Personal' },
+        { value: 'sales', label: 'Sales' },
+        { value: 'support', label: 'Support' },
+        { value: 'billing', label: 'Billing' },
+        { value: 'other', label: 'Other' },
+      ],
+      addressTypes: [
+        { value: 'headquarters', label: 'Headquarters' },
+        { value: 'billing', label: 'Billing' },
+        { value: 'shipping', label: 'Shipping' },
+        { value: 'office', label: 'Office' },
+        { value: 'branch', label: 'Branch' },
+        { value: 'warehouse', label: 'Warehouse' },
+        { value: 'other', label: 'Other' },
+      ],
+    };
+    const [row] = await this.dataSource.query(
+      `SELECT setting_value FROM "${schemaName}".module_settings
+       WHERE module = 'contacts' AND setting_key = 'contact_type_settings'`,
+    );
+    return row?.setting_value || defaults;
+  }
+
+  async updateContactTypeSettings(schemaName: string, settings: any) {
+    await this.dataSource.query(
+      `INSERT INTO "${schemaName}".module_settings (module, setting_key, setting_value, updated_at)
+       VALUES ('contacts', 'contact_type_settings', $1::jsonb, NOW())
+       ON CONFLICT (module, setting_key)
+       DO UPDATE SET setting_value = $1::jsonb, updated_at = NOW()`,
+      [JSON.stringify(settings)],
+    );
+    return settings;
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // DATA EXPORT — Download all system data as XLSX
+  // ══════════════════════════════════════════════════════════════
+
+  async exportAllData(schemaName: string): Promise<{ buffer: Buffer; fileName: string }> {
+    const wb = XLSX.utils.book_new();
+
+    const sheets: { name: string; table: string; headers: Record<string, string> }[] = [
+      {
+        name: 'Accounts',
+        table: 'accounts',
+        headers: {
+          id: 'ID', name: 'Name', type: 'Type', industry: 'Industry',
+          email: 'Email', phone: 'Phone', website: 'Website',
+          city: 'City', state: 'State', country: 'Country',
+          annual_revenue: 'Annual Revenue', employee_count: 'Employee Count',
+          status: 'Status', created_at: 'Created At',
+        },
+      },
+      {
+        name: 'Contacts',
+        table: 'contacts',
+        headers: {
+          id: 'ID', first_name: 'First Name', last_name: 'Last Name',
+          email: 'Email', phone: 'Phone', mobile: 'Mobile',
+          job_title: 'Job Title', department: 'Department',
+          city: 'City', state: 'State', country: 'Country',
+          account_id: 'Account ID', status: 'Status', created_at: 'Created At',
+        },
+      },
+      {
+        name: 'Leads',
+        table: 'leads',
+        headers: {
+          id: 'ID', first_name: 'First Name', last_name: 'Last Name',
+          email: 'Email', phone: 'Phone', company: 'Company',
+          source: 'Source', stage_id: 'Stage ID', pipeline_id: 'Pipeline ID',
+          score: 'Score', expected_revenue: 'Expected Revenue',
+          status: 'Status', created_at: 'Created At',
+        },
+      },
+      {
+        name: 'Opportunities',
+        table: 'opportunities',
+        headers: {
+          id: 'ID', name: 'Name', account_id: 'Account ID',
+          stage_id: 'Stage ID', pipeline_id: 'Pipeline ID',
+          amount: 'Amount', currency: 'Currency',
+          probability: 'Probability', expected_close_date: 'Expected Close Date',
+          status: 'Status', created_at: 'Created At',
+        },
+      },
+      {
+        name: 'Products',
+        table: 'products',
+        headers: {
+          id: 'ID', name: 'Name', code: 'Code', category: 'Category',
+          unit_price: 'Unit Price', currency: 'Currency',
+          is_active: 'Active', created_at: 'Created At',
+        },
+      },
+      {
+        name: 'Tasks',
+        table: 'tasks',
+        headers: {
+          id: 'ID', title: 'Title', description: 'Description',
+          status: 'Status', priority: 'Priority', task_type: 'Task Type',
+          due_date: 'Due Date', assigned_to: 'Assigned To',
+          entity_type: 'Entity Type', entity_id: 'Entity ID',
+          created_at: 'Created At',
+        },
+      },
+      {
+        name: 'Invoices',
+        table: 'invoices',
+        headers: {
+          id: 'ID', invoice_number: 'Invoice Number', status: 'Status',
+          subtotal: 'Subtotal', tax_amount: 'Tax Amount', total: 'Total',
+          currency: 'Currency', issue_date: 'Issue Date', due_date: 'Due Date',
+          opportunity_id: 'Opportunity ID', account_id: 'Account ID',
+          created_at: 'Created At',
+        },
+      },
+      {
+        name: 'Projects',
+        table: 'projects',
+        headers: {
+          id: 'ID', name: 'Name', status: 'Status',
+          start_date: 'Start Date', end_date: 'End Date',
+          budget: 'Budget', account_id: 'Account ID',
+          created_at: 'Created At',
+        },
+      },
+      {
+        name: 'Account Subscriptions',
+        table: 'account_subscriptions',
+        headers: {
+          id: 'ID', account_id: 'Account ID', product_id: 'Product ID',
+          plan_name: 'Plan Name', status: 'Status',
+          mrr: 'MRR', arr: 'ARR', currency: 'Currency',
+          start_date: 'Start Date', end_date: 'End Date',
+          created_at: 'Created At',
+        },
+      },
+    ];
+
+    for (const sheet of sheets) {
+      try {
+        const rows = await this.dataSource.query(
+          `SELECT * FROM "${schemaName}"."${sheet.table}" WHERE deleted_at IS NULL ORDER BY created_at DESC`,
+        );
+        if (rows.length > 0) {
+          // Map columns that actually exist in the data to friendly headers
+          const availableCols = Object.keys(rows[0]);
+          const cols = Object.keys(sheet.headers).filter(c => availableCols.includes(c));
+          const data = rows.map((r: any) => {
+            const row: Record<string, any> = {};
+            for (const col of cols) {
+              const val = r[col];
+              row[sheet.headers[col] || col] = val == null ? '' : typeof val === 'object' ? JSON.stringify(val) : val;
+            }
+            return row;
+          });
+          const ws = XLSX.utils.json_to_sheet(data);
+          XLSX.utils.book_append_sheet(wb, ws, sheet.name);
+        } else {
+          const headerNames = Object.values(sheet.headers);
+          const ws = XLSX.utils.json_to_sheet([
+            headerNames.reduce((acc: Record<string, string>, h) => { acc[h] = ''; return acc; }, {}),
+          ]);
+          XLSX.utils.book_append_sheet(wb, ws, sheet.name);
+        }
+      } catch (err: any) {
+        // Table may not exist — create empty sheet with note
+        this.logger.warn(`Export: table "${sheet.table}" error: ${err.message}`);
+        const ws = XLSX.utils.json_to_sheet([{ Note: `Table "${sheet.table}" not found or error` }]);
+        XLSX.utils.book_append_sheet(wb, ws, sheet.name);
+      }
+    }
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const dateStr = new Date().toISOString().slice(0, 10);
+    return { buffer: Buffer.from(buf), fileName: `crm-data-export-${dateStr}.xlsx` };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // DATA PURGE — Delete all data except users and roles
+  // ══════════════════════════════════════════════════════════════
+
+  async purgeAllData(
+    schemaName: string,
+    userId: string,
+    confirmationPhrase: string,
+  ): Promise<{ success: boolean; deleted: Record<string, number> }> {
+    if (confirmationPhrase !== 'DELETE ALL DATA') {
+      throw new BadRequestException('Invalid confirmation phrase');
+    }
+
+    const tablesToPurge = [
+      // Activities, notes, documents, audit logs first
+      'activities',
+      'notes',
+      'documents',
+      'audit_logs',
+      'notifications',
+
+      // Import jobs
+      'import_jobs',
+      'import_mapping_templates',
+
+      // Customer 360
+      'product_usage_logs',
+      'account_usage_sources',
+      'product_usage_metrics',
+      'account_subscriptions',
+      'customer_scores',
+      'product_recommendations',
+
+      // Email marketing
+      'contact_email_marketing',
+
+      // Record teams
+      'record_team_members',
+      'record_stage_assignments',
+
+      // Tasks
+      'task_comments',
+      'task_checklist_items',
+      'tasks',
+
+      // Opportunities children
+      'proposal_line_items',
+      'proposals',
+      'invoice_items',
+      'invoice_payments',
+      'invoices',
+      'contracts',
+      'opportunity_products',
+      'opportunities',
+
+      // Leads children
+      'lead_products',
+      'lead_qualification_answers',
+      'leads',
+
+      // Projects children
+      'project_time_entries',
+      'project_tasks',
+      'project_phases',
+      'project_milestones',
+      'project_members',
+      'projects',
+
+      // Contacts & Accounts
+      'contacts',
+      'accounts',
+    ];
+
+    const deleted: Record<string, number> = {};
+
+    for (const table of tablesToPurge) {
+      try {
+        const result = await this.dataSource.query(
+          `DELETE FROM "${schemaName}"."${table}" RETURNING id`,
+        );
+        deleted[table] = result.length;
+      } catch {
+        // Table might not exist — skip
+        deleted[table] = -1;
+      }
+    }
+
+    // Log the purge action
+    try {
+      await this.dataSource.query(
+        `INSERT INTO "${schemaName}".audit_logs (entity_type, entity_id, action, new_values, performed_by, created_at)
+         VALUES ('system', gen_random_uuid(), 'data_purge', $1::jsonb, $2, NOW())`,
+        [JSON.stringify({ deleted, timestamp: new Date().toISOString() }), userId],
+      );
+    } catch {
+      // audit_logs might have been purged — ignore
+    }
+
+    return { success: true, deleted };
   }
 }

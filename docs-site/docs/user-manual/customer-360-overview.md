@@ -90,8 +90,30 @@ Each signal includes a suggested action like "Reach out to renew" or "Schedule c
 
 A bar chart on the Overview tab shows monthly revenue over the last 12 months, calculated from paid invoices plus MRR from active subscriptions. This gives you an instant visual of whether the account is growing, flat, or declining.
 
+## The Unified 14-Tab Account Page
+
+The Customer 360 view is not a separate page — it is built directly into the [Account Detail Page](./accounts-detail-page.md), which organizes all account information across **14 tabs**:
+
+1. **Overview** — journey map, score cards, health breakdown, upsell suggestions, revenue trend
+2. **Subscriptions** — product subscriptions, MRR/ARR, renewal dates, usage tracking
+3. **Leads** — all leads associated with this account
+4. **Opportunities** — sales pipeline for this account
+5. **Projects** — active and completed projects
+6. **Financials** — invoices, revenue trend chart, payment summary
+7. **Contacts** — people linked to this account with roles
+8. **Email Marketing** — email marketing status and list membership (when [MailerLite/Mailchimp](../admin-manual/email-marketing.md) is connected)
+9. **Emails** — communication history
+10. **Tasks** — follow-ups and action items
+11. **Notes** — team observations and meeting summaries
+12. **Documents** — attached files and contracts
+13. **Timeline** — unified chronological feed across all modules
+14. **Activity / History** — audit trail of record changes
+
+The left sidebar with health score, MRR/ARR, churn risk, and CLTV remains visible regardless of which tab is selected, giving you constant context about the account's health.
+
 ## What's Next
 
 - [Subscriptions](./subscriptions-overview.md) — learn about product subscriptions, renewal tracking, and usage monitoring
 - [Account Detail Page](./accounts-detail-page.md) — full reference for all 14 tabs
 - [Managing Accounts](./accounts-managing.md) — creating, editing, and organizing accounts
+- [Account Import](./account-import.md) — bulk import accounts, contacts, and subscriptions from Excel

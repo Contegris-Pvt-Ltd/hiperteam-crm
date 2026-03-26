@@ -3,8 +3,9 @@
 // ============================================================
 import {
   Controller, Get, Post, Put, Delete,
-  Body, Param, Query, UseGuards, Request,
+  Body, Param, Query, UseGuards, Request, Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { LeadsService } from './leads.service';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadsDto, ConvertLeadDto, ChangeStageDto } from './dto';
@@ -66,6 +67,27 @@ export class LeadsController {
       { ...query, columnSearch: Object.keys(columnSearch).length ? columnSearch : undefined } as QueryLeadsDto & { columnSearch?: Record<string, string> },
       req.user.sub,
     );
+  }
+
+  // ============================================================
+  // EXPORT
+  // ============================================================
+
+  @Get('export')
+  @RequirePermission('leads', 'export')
+  @ApiOperation({ summary: 'Export leads to XLSX' })
+  async exportData(
+    @Request() req: { user: JwtPayload },
+    @Query() query: any,
+    @Res() res: Response,
+  ) {
+    const { buffer, fileName } = await this.leadsService.exportData(req.user.tenantSchema, req.user.sub, query);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   // ============================================================

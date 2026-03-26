@@ -448,7 +448,7 @@ export function DataTable<T>({
                       onDragOver={(e) => handleHeaderDragOver(e, index)}
                       onDrop={handleHeaderDrop}
                       onClick={() => isSortable && handleSort(col)}
-                      className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider select-none whitespace-nowrap ${
+                      className={`group/th px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider select-none whitespace-nowrap ${
                         isSortable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50' : ''
                       } ${isPinned ? 'sticky z-10 bg-white dark:bg-slate-900' : ''} ${
                         !isPinned ? 'cursor-grab active:cursor-grabbing' : ''
@@ -470,14 +470,14 @@ export function DataTable<T>({
                         {onPinnedColumnChange && (
                           <button
                             onClick={e => { e.stopPropagation(); onPinnedColumnChange(isPinned ? '' : col.key); }}
-                            className={`ml-1 p-0.5 rounded transition-colors ${
+                            className={`ml-1 p-1 rounded transition-colors ${
                               isPinned
-                                ? 'text-blue-500'
-                                : 'text-gray-300 dark:text-slate-600 hover:text-blue-400 dark:hover:text-blue-400'
+                                ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                                : 'text-gray-400 dark:text-slate-500 opacity-0 group-hover/th:opacity-100 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-slate-700'
                             }`}
                             title={isPinned ? 'Unpin column' : 'Pin column (freeze left)'}
                           >
-                            <Pin className="w-3 h-3" />
+                            <Pin className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>

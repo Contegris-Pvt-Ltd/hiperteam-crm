@@ -141,6 +141,7 @@ export interface ContactsQuery {
   limit?: number;
   sortBy?: string;
   sortOrder?: 'ASC' | 'DESC';
+  columnSearch?: Record<string, string>;
 }
 
 export interface CreateContactData {
@@ -230,12 +231,18 @@ export interface Document {
 
 export const contactsApi = {
   getAll: async (query: ContactsQuery = {}): Promise<ContactsResponse> => {
+    const { columnSearch, ...rest } = query;
     const params = new URLSearchParams();
-    Object.entries(query).forEach(([key, value]) => {
+    Object.entries(rest).forEach(([key, value]) => {
       if (value !== undefined && value !== '') {
         params.append(key, String(value));
       }
     });
+    if (columnSearch) {
+      for (const [key, value] of Object.entries(columnSearch)) {
+        if (value?.trim()) params.append(`cs_${key}`, value);
+      }
+    }
     const { data } = await api.get(`/contacts?${params.toString()}`);
     return data;
   },
@@ -257,6 +264,16 @@ export const contactsApi = {
 
   delete: async (id: string): Promise<void> => {
     await api.delete(`/contacts/${id}`);
+  },
+
+  bulkUpdate: async (ids: string[], updates: Record<string, any>): Promise<{ updated: number }> => {
+    const { data } = await api.post('/contacts/bulk/update', { ids, updates });
+    return data;
+  },
+
+  bulkDelete: async (ids: string[]): Promise<{ deleted: number }> => {
+    const { data } = await api.post('/contacts/bulk/delete', { ids });
+    return data;
   },
 
   // Accounts
@@ -300,6 +317,19 @@ export const contactsApi = {
   getDocuments: async (id: string): Promise<Document[]> => {
     const { data } = await api.get(`/contacts/${id}/documents`);
     return data;
+  },
+
+  // Export
+  exportData: async (params: any) => {
+    const response = await api.get('/contacts/export', { params, responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `contacts-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   },
 };
 

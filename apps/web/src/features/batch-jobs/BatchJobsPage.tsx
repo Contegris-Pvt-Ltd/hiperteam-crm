@@ -267,10 +267,10 @@ export function BatchJobsPage() {
                       <p className="text-xs text-gray-400 mb-2">Column Mapping</p>
                       <div className="flex flex-wrap gap-1.5">
                         {Object.entries(job.columnMapping || {})
-                          .filter(([, v]) => v !== '__skip__')
+                          .filter(([, v]) => v !== '__skip__' && typeof v === 'string')
                           .map(([fileCol, leadField]) => (
                             <span key={fileCol} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-slate-800 text-xs rounded text-gray-700 dark:text-gray-300">
-                              {fileCol} → {leadField}
+                              {fileCol} → {String(leadField)}
                             </span>
                           ))}
                       </div>

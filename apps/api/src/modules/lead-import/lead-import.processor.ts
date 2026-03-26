@@ -208,6 +208,13 @@ export class LeadImportProcessor {
       );
       for (const p of productRows) productMap.set(p.name, p.id);
 
+      // Accounts: lowercased name → id
+      const accountMap = new Map<string, string>();
+      const accountRows = await this.dataSource.query(
+        `SELECT id, lower(name) as name FROM "${schemaName}".accounts WHERE deleted_at IS NULL`,
+      );
+      for (const a of accountRows) accountMap.set(a.name, a.id);
+
       // 6. Process in batches
       const failedRows: FailedRow[] = [];
       let processedCount = 0;
@@ -373,6 +380,27 @@ export class LeadImportProcessor {
             if (matched) resolvedProductId = matched;
           }
 
+          // Resolve account by name
+          let resolvedAccountId: string | null = null;
+          if (rawData.account) {
+            const accountName = rawData.account.toLowerCase().trim();
+            resolvedAccountId = accountMap.get(accountName) || null;
+          }
+
+          // Resolve contact by email + account match
+          let resolvedContactId: string | null = null;
+          if (resolvedAccountId && email) {
+            try {
+              const [contact] = await this.dataSource.query(
+                `SELECT id FROM "${schemaName}".contacts WHERE email = $1 AND account_id = $2 AND deleted_at IS NULL LIMIT 1`,
+                [email, resolvedAccountId],
+              );
+              if (contact) resolvedContactId = contact.id;
+            } catch {
+              // non-critical, skip contact lookup errors
+            }
+          }
+
           // --- Duplicate check ---
           if (settings.duplicateStrategy === 'skip') {
             let isDuplicate = false;
@@ -418,7 +446,7 @@ export class LeadImportProcessor {
               try {
                 await this.updateExistingLead(
                   schemaName, existingLeadId, rawData, customFieldValues, qualificationValues,
-                  { pipelineId: resolvedPipelineId, stageId: resolvedStageId, priorityId: resolvedPriorityId, tags, ownerId: resolvedOwnerId, teamId: resolvedTeamId, productId: resolvedProductId },
+                  { pipelineId: resolvedPipelineId, stageId: resolvedStageId, priorityId: resolvedPriorityId, tags, ownerId: resolvedOwnerId, teamId: resolvedTeamId, productId: resolvedProductId, accountId: resolvedAccountId, contactId: resolvedContactId },
                   userId,
                 );
                 duplicateCount++;
@@ -479,6 +507,8 @@ export class LeadImportProcessor {
             resolvedTeamId,                         // 22
             userId,                                 // 23
             rawData.industry || null,               // 24
+            resolvedAccountId,                      // 25
+            resolvedContactId,                      // 26
           ]);
           batchProductIds.push(resolvedProductId);
           batchTeamMemberIds.push(resolvedTeamMemberIds);
@@ -611,13 +641,14 @@ export class LeadImportProcessor {
       });
 
       // 9. Send notification
+      const hasFailures = failedCount > 0;
       await this.notificationService.notify(schemaName, {
         userId,
         eventType: 'lead_import_complete',
         title: finalStatus === 'completed' ? 'Lead Import Complete' : 'Lead Import Failed',
-        body: `Imported ${importedCount} of ${dataRows.length} leads. ${failedCount} failed, ${skippedCount} skipped.`,
+        body: `Imported ${importedCount} of ${dataRows.length} leads.${failedCount ? ` ${failedCount} failed.` : ''}${skippedCount ? ` ${skippedCount} skipped.` : ''}${hasFailures ? ' Download failed rows from Batch Jobs.' : ''}`,
         icon: finalStatus === 'completed' ? 'check-circle' : 'alert-circle',
-        actionUrl: `/admin/batch-jobs`,
+        actionUrl: hasFailures ? `/admin/batch-jobs?highlight=${jobId}` : `/admin/batch-jobs`,
         entityType: 'import_job',
         entityId: jobId,
       });
@@ -729,6 +760,7 @@ export class LeadImportProcessor {
         tags, custom_fields, qualification,
         owner_id, team_id, created_by,
         industry,
+        account_id, contact_id,
         stage_entered_at, stage_history
       ) VALUES ${placeholders.join(', ')}
       RETURNING id
@@ -748,11 +780,12 @@ export class LeadImportProcessor {
         tags, custom_fields, qualification,
         owner_id, team_id, created_by,
         industry,
+        account_id, contact_id,
         stage_entered_at, stage_history
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, $23, $24, $25, NOW(), $26
+        $21, $22, $23, $24, $25, $26, $27, NOW(), $28
       ) RETURNING id`,
       [
         ...row,
@@ -771,6 +804,7 @@ export class LeadImportProcessor {
     resolved: {
       pipelineId: string | null; stageId: string | null; priorityId: string | null;
       tags: string[]; ownerId: string | null; teamId: string | null; productId: string | null;
+      accountId: string | null; contactId: string | null;
     },
     userId: string,
   ) {
@@ -823,6 +857,14 @@ export class LeadImportProcessor {
     if (resolved.teamId) {
       updates.push(`team_id = $${paramIdx++}`);
       values.push(resolved.teamId);
+    }
+    if (resolved.accountId) {
+      updates.push(`account_id = $${paramIdx++}`);
+      values.push(resolved.accountId);
+    }
+    if (resolved.contactId) {
+      updates.push(`contact_id = $${paramIdx++}`);
+      values.push(resolved.contactId);
     }
     if (resolved.tags.length > 0) {
       updates.push(`tags = $${paramIdx++}`);

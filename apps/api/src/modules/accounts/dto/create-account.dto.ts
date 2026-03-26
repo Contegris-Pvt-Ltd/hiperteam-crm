@@ -248,6 +248,7 @@ export class QueryAccountsDto {
   @IsOptional() @IsString() tag?: string;
   @IsOptional() @IsUUID() ownerId?: string;
   @IsOptional() @IsUUID() parentAccountId?: string;
+  @IsOptional() @IsUUID() productId?: string;
 
   @IsOptional() @Type(() => Number) page?: number = 1;
   @IsOptional() @Type(() => Number) limit?: number = 20;

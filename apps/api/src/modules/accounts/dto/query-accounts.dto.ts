@@ -38,6 +38,16 @@ export class QueryAccountsDto {
   @IsOptional()
   parentAccountId?: string;
 
+  @ApiPropertyOptional({ example: 'business', enum: ['business', 'individual'] })
+  @IsString()
+  @IsOptional()
+  accountClassification?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by product subscription', example: '550e8400-e29b-41d4-a716-446655440000' })
+  @IsUUID()
+  @IsOptional()
+  productId?: string;
+
   @ApiPropertyOptional({ example: 1, default: 1 })
   @Type(() => Number)
   @IsInt()

@@ -40,6 +40,7 @@ const sidebars: SidebarsConfig = {
         'user-manual/accounts-detail-page',
         'user-manual/customer-360-overview',
         'user-manual/subscriptions-overview',
+        'user-manual/account-import',
       ],
     },
     {
@@ -150,6 +151,7 @@ const sidebars: SidebarsConfig = {
         'user-manual/activity-timeline',
         'user-manual/data-tables',
         'user-manual/bulk-operations',
+        'user-manual/mobile-app',
       ],
     },
   ],
@@ -251,6 +253,7 @@ const sidebars: SidebarsConfig = {
         'admin-manual/xero-integration',
         'admin-manual/google-calendar',
         'admin-manual/email-integration',
+        'admin-manual/email-marketing',
       ],
     },
     {
@@ -258,6 +261,7 @@ const sidebars: SidebarsConfig = {
       label: 'Data Management',
       items: [
         'admin-manual/import-export',
+        'admin-manual/data-management',
         'admin-manual/batch-jobs',
         'admin-manual/audit-logs',
       ],

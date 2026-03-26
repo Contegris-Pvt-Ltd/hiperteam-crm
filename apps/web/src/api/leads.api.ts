@@ -512,6 +512,19 @@ export const leadsApi = {
     await api.put(`/leads/${leadId}/products/${productId}/notes`, { notes });
   },
 
+  // Export
+  exportData: async (params: any) => {
+    const response = await api.get('/leads/export', { params, responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `leads-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
   // ── SLA ──
   getSlaStatus: async (leadId: string): Promise<LeadSlaStatus> => {
     const { data } = await api.get(`/leads/${leadId}/sla`);

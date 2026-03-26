@@ -105,6 +105,17 @@ All contacts linked to this account with their roles:
 Maintain accurate contact roles. This helps your sales team know exactly who to reach for technical discussions, billing, or executive buy-in.
 :::
 
+### Email Marketing
+
+View and manage the email marketing status of all contacts linked to this account:
+
+- Table of contacts with subscription status, lists, and last engagement
+- **Bulk Add to List** — select contacts and add them to an email marketing list in one action
+- **Bulk Remove from List** — remove contacts from a list
+- Filter by subscription status
+
+This tab is available when a [MailerLite or Mailchimp integration](../admin-manual/email-marketing.md) is configured.
+
 ### Emails
 
 Email communication history with this account. View, reply, and compose new emails directly from this tab.

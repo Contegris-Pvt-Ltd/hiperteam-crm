@@ -41,12 +41,25 @@ Use the **search bar** above the data table to search accounts by name, email, p
 ### Sorting
 Click any **column header** to sort by that column. Click again to reverse the sort order.
 
-### Filtering
-Use filter controls to narrow down the list:
-- **Account Type** — Customer, Prospect, Partner, Other
-- **Industry** — filter by business sector
-- **Owner** — filter by assigned owner
-- **Date range** — filter by creation or modification date
+### Filter Panel
+
+Click the **Filters** button to open the filter panel. The following filters are available:
+
+| Filter | Description |
+|---|---|
+| **Status** | Filter by account status (Prospect, Qualified, Active, Partner, At Risk, On Hold, Churned, Inactive, Former) |
+| **Industry** | Filter by business sector |
+| **Owner** | Filter by the assigned account owner |
+| **Product/Service** | Filter by accounts that have subscriptions to a specific product |
+| **Tags** | Filter by account tags |
+
+**Active filter chips** appear below the filter panel showing which filters are applied. Each chip displays the filter name and value, with an **X** button to remove individual filters. Click **Clear All** to reset all filters at once.
+
+![Screenshot: Accounts filter panel with active filter chips below](../../static/img/screenshots/accounts/account-filters.png)
+
+:::tip
+Combine multiple filters for precise results — for example, filter by Status = "Active" + Industry = "Technology" + Owner = your name to see your active tech accounts.
+:::
 
 ## Creating Accounts
 

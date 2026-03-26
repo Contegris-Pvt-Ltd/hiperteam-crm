@@ -75,6 +75,8 @@ export interface Account {
     firstName: string;
     lastName: string;
   };
+  primaryEmail?: string | null;
+  primaryPhone?: string | null;
   contactsCount: number;
   createdAt: string;
   updatedAt: string;
@@ -106,10 +108,12 @@ export interface AccountsQuery {
   tag?: string;
   ownerId?: string;
   parentAccountId?: string;
+  productId?: string;
   page?: number;
   limit?: number;
   sortBy?: string;
   sortOrder?: 'ASC' | 'DESC';
+  columnSearch?: Record<string, string>;
 }
 
 export interface CreateAccountData {
@@ -154,12 +158,18 @@ export interface LinkedContact {
 
 export const accountsApi = {
   getAll: async (query: AccountsQuery = {}): Promise<AccountsResponse> => {
+    const { columnSearch, ...rest } = query;
     const params = new URLSearchParams();
-    Object.entries(query).forEach(([key, value]) => {
+    Object.entries(rest).forEach(([key, value]) => {
       if (value !== undefined && value !== '') {
         params.append(key, String(value));
       }
     });
+    if (columnSearch) {
+      for (const [key, value] of Object.entries(columnSearch)) {
+        if (value?.trim()) params.append(`cs_${key}`, value);
+      }
+    }
     const { data } = await api.get(`/accounts?${params.toString()}`);
     return data;
   },
@@ -181,6 +191,16 @@ export const accountsApi = {
 
   delete: async (id: string): Promise<void> => {
     await api.delete(`/accounts/${id}`);
+  },
+
+  bulkUpdate: async (ids: string[], updates: Record<string, any>): Promise<{ updated: number }> => {
+    const { data } = await api.post('/accounts/bulk/update', { ids, updates });
+    return data;
+  },
+
+  bulkDelete: async (ids: string[]): Promise<{ deleted: number }> => {
+    const { data } = await api.post('/accounts/bulk/delete', { ids });
+    return data;
   },
 
   // Contacts
@@ -234,5 +254,18 @@ export const accountsApi = {
   getDocuments: async (id: string): Promise<Document[]> => {
     const { data } = await api.get(`/accounts/${id}/documents`);
     return data;
+  },
+
+  // Export
+  exportData: async (params: any) => {
+    const response = await api.get('/accounts/export', { params, responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `accounts-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   },
 };

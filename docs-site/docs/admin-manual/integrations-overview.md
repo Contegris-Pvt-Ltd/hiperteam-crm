@@ -37,6 +37,8 @@ The integrations page shows a card for each available integration with its curre
 | **SendGrid** | Email Delivery | Outbound | Transactional email delivery |
 | **Stripe** | Payments | Bi-directional | Payment processing and subscription tracking |
 | **Slack** | Messaging | Outbound | CRM event notifications to Slack channels |
+| **MailerLite** | Email Marketing | Bi-directional | [Email Marketing](./email-marketing.md) |
+| **Mailchimp** | Email Marketing | Bi-directional | [Email Marketing](./email-marketing.md) |
 
 ## Integration Health Monitoring
 

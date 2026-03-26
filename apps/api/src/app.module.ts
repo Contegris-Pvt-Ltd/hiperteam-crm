@@ -38,6 +38,7 @@ import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { Customer360Module } from './modules/customer-360/customer-360.module';
 import { EmailMarketingModule } from './modules/email-marketing/email-marketing.module';
+import { AccountImportModule } from './modules/account-import/account-import.module';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { EmailMarketingModule } from './modules/email-marketing/email-marketing.
     SchedulingModule,
     Customer360Module,
     EmailMarketingModule,
+    AccountImportModule,
   ],
   controllers: [AppController],
   providers: [AppService],

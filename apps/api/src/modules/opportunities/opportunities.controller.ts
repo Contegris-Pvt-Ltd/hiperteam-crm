@@ -8,8 +8,9 @@
 // ============================================================
 import {
   Controller, Get, Post, Put, Delete,
-  Body, Param, Query, Request, UseGuards,
+  Body, Param, Query, Request, UseGuards, Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RequirePermission } from '../../common/guards/permissions.guard';
@@ -71,6 +72,23 @@ export class OpportunitiesController {
       { ...query, columnSearch: Object.keys(columnSearch).length ? columnSearch : undefined },
       req.user.sub,
     );
+  }
+
+  @Get('export')
+  @RequirePermission('deals', 'export')
+  @ApiOperation({ summary: 'Export opportunities to XLSX' })
+  async exportData(
+    @Request() req: { user: JwtPayload },
+    @Query() query: any,
+    @Res() res: Response,
+  ) {
+    const { buffer, fileName } = await this.opportunitiesService.exportData(req.user.tenantSchema, req.user.sub, query);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @Get('forecast')

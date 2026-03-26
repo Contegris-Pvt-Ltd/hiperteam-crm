@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import * as XLSX from 'xlsx';
 import { CreateContactDto, UpdateContactDto, QueryContactsDto } from './dto';
 import { formatPhoneE164 } from '../../common/utils/phone.util';
 import { AuditService } from '../shared/audit.service';
@@ -537,9 +538,10 @@ export class ContactsService {
       doNotEmail: contact.do_not_email,
       doNotCall: contact.do_not_call,
       accountId: contact.account_id,
+      accountName: contact.account_name || null,
       account: contact.account_name
-        ? { 
-            id: contact.account_id, 
+        ? {
+            id: contact.account_id,
             name: contact.account_name,
             logoUrl: contact.account_logo_url,
             industry: contact.account_industry,
@@ -554,5 +556,223 @@ export class ContactsService {
       createdAt: contact.created_at,
       updatedAt: contact.updated_at,
     };
+  }
+
+  // ── Export ──
+
+  async exportData(schemaName: string, userId: string, query: any): Promise<{ buffer: Buffer; fileName: string }> {
+    const { search, status, company, tag, ownerId, accountId, sortBy = 'created_at', sortOrder = 'DESC', columns } = query;
+
+    let whereClause = 'c.deleted_at IS NULL';
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    // Record-level access filtering
+    if (userId) {
+      const accessLevel = await this.dataAccessService.getAccessLevel(schemaName, userId, 'contacts');
+      if (accessLevel !== 'all') {
+        const filter = await this.dataAccessService.buildAccessFilter(
+          { userId, tenantSchema: schemaName, module: 'contacts', accessLevel },
+          'c.owner_id',
+          paramIndex,
+        );
+        whereClause += ` AND ${filter.whereClause}`;
+        params.push(...filter.params);
+        paramIndex += filter.params.length;
+      }
+    }
+
+    if (search) {
+      whereClause += ` AND (c.first_name ILIKE $${paramIndex} OR c.last_name ILIKE $${paramIndex} OR c.email ILIKE $${paramIndex} OR c.company ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (status) {
+      whereClause += ` AND c.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (company) {
+      whereClause += ` AND c.company ILIKE $${paramIndex}`;
+      params.push(`%${company}%`);
+      paramIndex++;
+    }
+
+    if (tag) {
+      whereClause += ` AND $${paramIndex} = ANY(c.tags)`;
+      params.push(tag);
+      paramIndex++;
+    }
+
+    if (ownerId) {
+      whereClause += ` AND c.owner_id = $${paramIndex}`;
+      params.push(ownerId);
+      paramIndex++;
+    }
+
+    if (accountId) {
+      whereClause += ` AND c.account_id = $${paramIndex}`;
+      params.push(accountId);
+      paramIndex++;
+    }
+
+    const allowedSortFields = ['created_at', 'updated_at', 'first_name', 'last_name', 'email', 'company'];
+    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
+    const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+
+    const dataQuery = `
+      SELECT c.*,
+             u.first_name as owner_first_name,
+             u.last_name as owner_last_name,
+             a.name as account_name
+      FROM "${schemaName}".contacts c
+      LEFT JOIN "${schemaName}".users u ON c.owner_id = u.id
+      LEFT JOIN "${schemaName}".accounts a ON c.account_id = a.id
+      WHERE ${whereClause}
+      ORDER BY c.${safeSortBy} ${safeSortOrder}
+      LIMIT 10000
+    `;
+
+    const contacts = await this.dataSource.query(dataQuery, params);
+
+    const HEADER_MAP: Record<string, string> = {
+      firstName: 'First Name',
+      lastName: 'Last Name',
+      email: 'Email',
+      phone: 'Phone',
+      mobile: 'Mobile',
+      company: 'Company',
+      jobTitle: 'Job Title',
+      website: 'Website',
+      city: 'City',
+      state: 'State',
+      country: 'Country',
+      status: 'Status',
+      source: 'Source',
+      industry: 'Industry',
+      ownerName: 'Owner',
+      accountName: 'Account',
+      tags: 'Tags',
+      doNotContact: 'Do Not Contact',
+      doNotEmail: 'Do Not Email',
+      doNotCall: 'Do Not Call',
+      createdAt: 'Created At',
+      updatedAt: 'Updated At',
+    };
+
+    const requestedColumns = columns ? columns.split(',').map((c: string) => c.trim()) : Object.keys(HEADER_MAP);
+    const headers = requestedColumns.filter((c: string) => HEADER_MAP[c]).map((c: string) => HEADER_MAP[c]);
+
+    const rows = contacts.map((c: Record<string, unknown>) => {
+      const formatted = this.formatContact(c);
+      const row: Record<string, unknown> = {};
+      for (const col of requestedColumns) {
+        if (!HEADER_MAP[col]) continue;
+        if (col === 'ownerName') {
+          row[HEADER_MAP[col]] = formatted.owner ? `${(formatted.owner as any).firstName} ${(formatted.owner as any).lastName}` : '';
+        } else if (col === 'accountName') {
+          row[HEADER_MAP[col]] = formatted.account ? (formatted.account as any).name : '';
+        } else if (col === 'tags') {
+          row[HEADER_MAP[col]] = Array.isArray(formatted.tags) ? (formatted.tags as string[]).join(', ') : '';
+        } else {
+          row[HEADER_MAP[col]] = formatted[col] ?? '';
+        }
+      }
+      return row;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Contacts');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const date = new Date().toISOString().split('T')[0];
+    return { buffer, fileName: `contacts-export-${date}.xlsx` };
+  }
+
+  // ── Bulk Operations ──
+
+  async bulkUpdate(schemaName: string, userId: string, ids: string[], updates: Record<string, any>) {
+    if (!ids.length) return { updated: 0 };
+
+    const allowedFields: Record<string, string> = {
+      status: 'status',
+      ownerId: 'owner_id',
+      company: 'company',
+    };
+
+    const setClauses: string[] = [];
+    const values: any[] = [ids];
+    let paramIndex = 2;
+
+    for (const [key, dbCol] of Object.entries(allowedFields)) {
+      if (updates[key] !== undefined) {
+        setClauses.push(`${dbCol} = $${paramIndex}`);
+        values.push(updates[key]);
+        paramIndex++;
+      }
+    }
+
+    if (!setClauses.length) return { updated: 0 };
+
+    setClauses.push('updated_at = NOW()');
+
+    const result = await this.dataSource.query(
+      `UPDATE "${schemaName}".contacts
+       SET ${setClauses.join(', ')}
+       WHERE id = ANY($1) AND deleted_at IS NULL
+       RETURNING id`,
+      values,
+    );
+
+    // Audit each updated record
+    for (const row of result) {
+      await this.auditService.log(schemaName, {
+        entityType: 'contacts',
+        entityId: row.id,
+        action: 'update',
+        changes: updates,
+        newValues: updates,
+        performedBy: userId,
+      });
+    }
+
+    return { updated: result.length };
+  }
+
+  async bulkDelete(schemaName: string, userId: string, ids: string[]) {
+    if (!ids.length) return { deleted: 0 };
+
+    const result = await this.dataSource.query(
+      `UPDATE "${schemaName}".contacts
+       SET deleted_at = NOW()
+       WHERE id = ANY($1) AND deleted_at IS NULL
+       RETURNING id, first_name, last_name`,
+      [ids],
+    );
+
+    // Audit each deleted record
+    for (const row of result) {
+      await this.activityService.create(schemaName, {
+        entityType: 'contacts',
+        entityId: row.id,
+        activityType: 'deleted',
+        title: 'Contact deleted',
+        description: `Contact "${row.first_name} ${row.last_name}" was deleted (bulk)`,
+        performedBy: userId,
+      });
+      await this.auditService.log(schemaName, {
+        entityType: 'contacts',
+        entityId: row.id,
+        action: 'delete',
+        changes: {},
+        newValues: { deletedAt: new Date().toISOString() },
+        performedBy: userId,
+      });
+    }
+
+    return { deleted: result.length };
   }
 }
