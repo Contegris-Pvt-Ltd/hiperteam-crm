@@ -66,7 +66,7 @@ export function Sidebar() {
         </div>
         {!isCollapsed && (
           <div className="overflow-hidden">
-            <h1 className="font-bold text-white leading-tight">HiperTeam</h1>
+            <h1 className="font-bold text-white leading-tight">IntelliSales</h1>
             <p className="text-[10px] text-slate-400 uppercase tracking-widest">CRM Platform</p>
           </div>
         )}

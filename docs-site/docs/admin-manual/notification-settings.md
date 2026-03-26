@@ -1,7 +1,7 @@
 ---
 sidebar_position: 24
 title: "Notification Settings"
-description: "Configure notification channels in HiperTeam CRM — set up in-app, email (SMTP), SMS (Twilio), WhatsApp (Twilio), and browser push (VAPID) notifications, preferences matrix, and templates."
+description: "Configure notification channels in IntelliSales CRM — set up in-app, email (SMTP), SMS (Twilio), WhatsApp (Twilio), and browser push (VAPID) notifications, preferences matrix, and templates."
 ---
 
 # Notification Settings
@@ -14,7 +14,7 @@ Navigate to **Admin > Notification Settings**.
 
 ## Notification Channels
 
-HiperTeam CRM supports five notification channels:
+IntelliSales CRM supports five notification channels:
 
 | Channel | Provider | Setup Required |
 |---------|----------|---------------|
@@ -46,7 +46,7 @@ In-app notifications are delivered instantly through WebSocket and appear in the
 | **Password** | SMTP authentication password | Encrypted at rest |
 | **TLS / SSL** | Encryption mode | TLS (recommended) |
 | **From Address** | Sender email address | `notifications@yourcompany.com` |
-| **From Name** | Sender display name | `HiperTeam CRM` |
+| **From Name** | Sender display name | `IntelliSales CRM` |
 
 3. Click **Test Connection** to verify the SMTP settings are correct.
 4. Click **Send Test Email** to send a test message to your own address and confirm delivery.

@@ -91,7 +91,7 @@ The system periodically fetches usage data from an external API endpoint:
 - **Metric Mappings** — map JSON response paths to metric names (e.g., `$.data.activeUsers` → "Active Users")
 
 ### Push Webhook
-The external system sends usage data to HiperTeam CRM:
+The external system sends usage data to IntelliSales CRM:
 - A unique webhook URL is generated per account+product
 - The external system POSTs usage data to this URL
 - Data is ingested automatically

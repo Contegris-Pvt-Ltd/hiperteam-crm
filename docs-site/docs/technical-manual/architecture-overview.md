@@ -1,12 +1,12 @@
 ---
 sidebar_position: 1
 title: "Architecture Overview"
-description: "High-level system architecture, technology stack, and design principles of HiperTeam CRM"
+description: "High-level system architecture, technology stack, and design principles of IntelliSales CRM"
 ---
 
 # Architecture Overview
 
-HiperTeam CRM is a multi-tenant SaaS CRM platform built as a full Business & People Operating System. It covers the complete customer lifecycle: **Lead → Opportunity → Deal → Project → Support → Customer Success**.
+IntelliSales CRM is a multi-tenant SaaS CRM platform built as a full Business & People Operating System. It covers the complete customer lifecycle: **Lead → Opportunity → Deal → Project → Support → Customer Success**.
 
 ## System Architecture
 

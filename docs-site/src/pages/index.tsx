@@ -48,14 +48,14 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="Documentation"
-      description="HiperTeam CRM Documentation — User Manual, Admin Manual, and Technical Manual">
+      description="IntelliSales CRM Documentation — User Manual, Admin Manual, and Technical Manual">
 
       {/* Hero */}
       <header className="hero-banner">
         <div className="container">
-          <img src="/img/logo-transparent.png" alt="HiperTeam CRM" className="hero-logo" />
+          <img src="/img/logo-transparent.png" alt="IntelliSales CRM" className="hero-logo" />
           <div className="hero-version">Documentation Portal</div>
-          <h1 className="hero-title">HiperTeam CRM</h1>
+          <h1 className="hero-title">IntelliSales CRM</h1>
           <p className="hero-subtitle">
             Complete Business &amp; People Operating System — from Lead to Customer Success
           </p>

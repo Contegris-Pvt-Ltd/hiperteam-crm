@@ -6,7 +6,7 @@ description: "View and edit your profile information, upload an avatar, change y
 
 # Your Profile
 
-Your profile contains your personal information, avatar, and preferences within HiperTeam CRM. Keeping it up to date helps your team identify you and ensures communications are routed correctly.
+Your profile contains your personal information, avatar, and preferences within IntelliSales CRM. Keeping it up to date helps your team identify you and ensures communications are routed correctly.
 
 ## Viewing Your Profile
 

@@ -6,7 +6,7 @@ description: "Understand pipelines, stages, stage movement, field requirements, 
 
 # Leads Pipeline & Stages
 
-Pipelines and stages are the backbone of lead management in HiperTeam CRM. They define the path a lead follows from initial entry to conversion or disqualification.
+Pipelines and stages are the backbone of lead management in IntelliSales CRM. They define the path a lead follows from initial entry to conversion or disqualification.
 
 ## Understanding Pipelines
 

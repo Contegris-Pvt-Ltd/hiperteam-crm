@@ -6,7 +6,7 @@ description: "Understand how lead scoring rules calculate scores and how SLA rul
 
 # Lead Scoring & SLA
 
-HiperTeam CRM provides two powerful mechanisms to help you prioritize and manage leads effectively: **Lead Scoring** ranks leads by quality, and **SLA (Service Level Agreement)** rules ensure timely follow-up.
+IntelliSales CRM provides two powerful mechanisms to help you prioritize and manage leads effectively: **Lead Scoring** ranks leads by quality, and **SLA (Service Level Agreement)** rules ensure timely follow-up.
 
 ## Lead Scoring Overview
 

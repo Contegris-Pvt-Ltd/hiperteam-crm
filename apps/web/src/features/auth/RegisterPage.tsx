@@ -60,7 +60,7 @@ export function RegisterPage() {
               <Building2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white">HiperTeam</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-white">IntelliSales</h1>
               <p className="text-emerald-200 text-sm">CRM Platform</p>
             </div>
           </div>
@@ -71,7 +71,7 @@ export function RegisterPage() {
             Start your journey<br />to better sales.
           </h2>
           <p className="text-emerald-100 text-lg max-w-md">
-            Join thousands of teams using HiperTeam to grow their business.
+            Join thousands of teams using IntelliSales to grow their business.
           </p>
           
           <div className="space-y-3 pt-4">
@@ -87,7 +87,7 @@ export function RegisterPage() {
         </div>
 
         <div className="relative text-emerald-200 text-sm">
-          © 2026 HiperTeam. All rights reserved.
+          © 2026 IntelliSales. All rights reserved.
         </div>
       </div>
 
@@ -100,7 +100,7 @@ export function RegisterPage() {
               <Building2 className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">HiperTeam</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">IntelliSales</h1>
               <p className="text-gray-500 dark:text-slate-400 text-xs">CRM Platform</p>
             </div>
           </div>

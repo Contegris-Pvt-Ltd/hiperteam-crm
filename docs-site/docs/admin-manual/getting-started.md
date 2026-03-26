@@ -1,12 +1,12 @@
 ---
 sidebar_position: 1
 title: "Getting Started"
-description: "Welcome to the HiperTeam CRM Admin Manual — learn who this guide is for, what admin access means, and how to navigate the admin panel."
+description: "Welcome to the IntelliSales CRM Admin Manual — learn who this guide is for, what admin access means, and how to navigate the admin panel."
 ---
 
-# Getting Started with HiperTeam CRM Administration
+# Getting Started with IntelliSales CRM Administration
 
-Welcome to the **HiperTeam CRM Admin Manual**. This guide covers every configuration surface available to system administrators, from user management and role-based access control through to workflow automation, integrations, and audit compliance.
+Welcome to the **IntelliSales CRM Admin Manual**. This guide covers every configuration surface available to system administrators, from user management and role-based access control through to workflow automation, integrations, and audit compliance.
 
 ## Who Is This Guide For?
 
@@ -21,7 +21,7 @@ You must have a user account with **roleLevel >= 100** (Admin) to access the adm
 
 ## Admin Role Requirements
 
-HiperTeam CRM uses a **role-level hierarchy** where higher numbers indicate broader authority:
+IntelliSales CRM uses a **role-level hierarchy** where higher numbers indicate broader authority:
 
 | Role | Level | Admin Access |
 |------|-------|-------------|
@@ -33,7 +33,7 @@ Only users at level 100 or above can access the `/admin` routes. The system enfo
 
 ## Accessing the Admin Panel
 
-1. Log in to HiperTeam CRM with your admin credentials.
+1. Log in to IntelliSales CRM with your admin credentials.
 2. Click the **gear icon** or **Admin** link in the left sidebar.
 3. You will be taken to the Admin Panel, which contains its own sidebar navigation organized by category.
 
@@ -60,7 +60,7 @@ As an administrator, you are responsible for:
 
 ## Recommended Setup Sequence
 
-If you are setting up HiperTeam CRM for the first time, follow this order:
+If you are setting up IntelliSales CRM for the first time, follow this order:
 
 1. **[Roles & Permissions](./roles-permissions.md)** — Define who can do what.
 2. **[Departments](./departments.md)** — Create your organizational structure.
@@ -81,7 +81,7 @@ Changing roles or permissions after users have started working can disrupt their
 - **This Manual** — Covers all admin features in detail.
 - **[User Manual](../user-manual/getting-started)** — For end-user guidance on daily CRM operations.
 - **[Technical Manual](../technical-manual/architecture-overview)** — For developers and DevOps engineers.
-- **Support** — Contact your HiperTeam CRM account manager or submit a ticket through the support portal.
+- **Support** — Contact your IntelliSales CRM account manager or submit a ticket through the support portal.
 
 ---
 

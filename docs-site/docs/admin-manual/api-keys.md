@@ -1,12 +1,12 @@
 ---
 sidebar_position: 36
 title: "API Keys"
-description: "Manage API keys in HiperTeam CRM — generate keys for third-party access, assign scopes and permissions, track usage, rotate and revoke keys securely."
+description: "Manage API keys in IntelliSales CRM — generate keys for third-party access, assign scopes and permissions, track usage, rotate and revoke keys securely."
 ---
 
 # API Keys
 
-API keys enable third-party applications and custom integrations to access HiperTeam CRM data programmatically. As an admin, you control who has access, what they can do, and monitor how keys are being used.
+API keys enable third-party applications and custom integrations to access IntelliSales CRM data programmatically. As an admin, you control who has access, what they can do, and monitor how keys are being used.
 
 Navigate to **Admin > API Keys**.
 
@@ -14,7 +14,7 @@ Navigate to **Admin > API Keys**.
 
 ## API Keys Overview
 
-An API key is a secure token that authenticates external systems to the HiperTeam CRM API. Each key has:
+An API key is a secure token that authenticates external systems to the IntelliSales CRM API. Each key has:
 
 - A unique identifier
 - Assigned permissions (scoped to specific modules and actions)

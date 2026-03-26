@@ -10,7 +10,7 @@ The **Projects** module helps you plan and execute work after a deal is closed. 
 
 ## Projects Module Overview
 
-Projects in HiperTeam CRM can be:
+Projects in IntelliSales CRM can be:
 
 - Created **from scratch** for internal or standalone initiatives
 - Created **from an opportunity** when closing a deal (maintaining the link to the original sale)

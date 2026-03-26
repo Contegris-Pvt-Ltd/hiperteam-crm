@@ -5015,7 +5015,7 @@ function buildNotificationsMigration(schema: string): string {
     -- SEED: Settings
     INSERT INTO "${schema}".notification_settings (setting_key, setting_value) VALUES
       ('default_preferences', '{"task_assigned":{"in_app":true,"email":true,"browser_push":false,"sms":false,"whatsapp":false},"task_due_reminder":{"in_app":true,"email":true,"browser_push":true,"sms":false,"whatsapp":false},"task_overdue":{"in_app":true,"email":true,"browser_push":true,"sms":false,"whatsapp":false},"task_completed":{"in_app":true,"email":false,"browser_push":false,"sms":false,"whatsapp":false},"meeting_reminder":{"in_app":true,"email":true,"browser_push":true,"sms":false,"whatsapp":false},"meeting_booked":{"in_app":true,"email":true,"browser_push":false,"sms":false,"whatsapp":false},"meeting_cancelled":{"in_app":true,"email":true,"browser_push":false,"sms":false,"whatsapp":false},"meeting_rescheduled":{"in_app":true,"email":true,"browser_push":false,"sms":false,"whatsapp":false},"lead_assigned":{"in_app":true,"email":true,"browser_push":false,"sms":false,"whatsapp":false},"mention":{"in_app":true,"email":true,"browser_push":true,"sms":false,"whatsapp":false}}'),
-      ('smtp_config', '{"host":"","port":587,"secure":false,"user":"","pass":"","from":"noreply@hiperteam.com","fromName":"HiperTeam CRM"}'),
+      ('smtp_config', '{"host":"","port":587,"secure":false,"user":"","pass":"","from":"noreply@hiperteam.com","fromName":"IntelliSales CRM"}'),
       ('twilio_config', '{"accountSid":"","authToken":"","fromPhone":"","whatsappFrom":""}'),
       ('push_config', '{"publicKey":"","privateKey":"","contact":"mailto:admin@hiperteam.com"}')
     ON CONFLICT (setting_key) DO NOTHING;

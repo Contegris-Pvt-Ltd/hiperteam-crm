@@ -1,12 +1,12 @@
 ---
 sidebar_position: 21
 title: "Project Settings"
-description: "Configure project management settings in HiperTeam CRM — project statuses, task statuses, project templates with phases and tasks, and template preview."
+description: "Configure project management settings in IntelliSales CRM — project statuses, task statuses, project templates with phases and tasks, and template preview."
 ---
 
 # Project Settings
 
-Project Settings control how projects are structured and managed within HiperTeam CRM. Configure project statuses, task statuses, and create reusable templates with pre-defined phases and tasks.
+Project Settings control how projects are structured and managed within IntelliSales CRM. Configure project statuses, task statuses, and create reusable templates with pre-defined phases and tasks.
 
 Navigate to **Admin > Project Settings**.
 

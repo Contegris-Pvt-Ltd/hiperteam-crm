@@ -1,7 +1,7 @@
 ---
 sidebar_position: 33
 title: "Batch Jobs"
-description: "Monitor and manage batch import and export jobs in HiperTeam CRM — track progress, view errors, download failed records, and manage job history."
+description: "Monitor and manage batch import and export jobs in IntelliSales CRM — track progress, view errors, download failed records, and manage job history."
 ---
 
 # Batch Jobs
@@ -14,7 +14,7 @@ Navigate to **Admin > Batch Jobs**.
 
 ## Batch Jobs Overview
 
-All long-running operations in HiperTeam CRM are processed as background jobs using a queue system. This allows users to continue working while operations complete.
+All long-running operations in IntelliSales CRM are processed as background jobs using a queue system. This allows users to continue working while operations complete.
 
 ## Job Types
 

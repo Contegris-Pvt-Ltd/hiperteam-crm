@@ -1,12 +1,12 @@
 ---
 sidebar_position: 8
 title: "Roles & Permissions"
-description: "Configure role-based access control (RBAC) in HiperTeam CRM — define module permissions, create custom roles, and manage the permission matrix."
+description: "Configure role-based access control (RBAC) in IntelliSales CRM — define module permissions, create custom roles, and manage the permission matrix."
 ---
 
 # Roles & Permissions
 
-HiperTeam CRM uses a comprehensive **Role-Based Access Control (RBAC)** system with three layers: Module Permissions, Record Scope, and Field Permissions. This chapter covers the first layer — module-level permissions and role management.
+IntelliSales CRM uses a comprehensive **Role-Based Access Control (RBAC)** system with three layers: Module Permissions, Record Scope, and Field Permissions. This chapter covers the first layer — module-level permissions and role management.
 
 ## RBAC Overview
 

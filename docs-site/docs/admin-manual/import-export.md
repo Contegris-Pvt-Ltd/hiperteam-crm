@@ -1,7 +1,7 @@
 ---
 sidebar_position: 32
 title: "Import & Export"
-description: "Bulk import and export data in HiperTeam CRM — CSV and Excel support, column mapping, duplicate detection, templates, and best practices."
+description: "Bulk import and export data in IntelliSales CRM — CSV and Excel support, column mapping, duplicate detection, templates, and best practices."
 ---
 
 # Import & Export

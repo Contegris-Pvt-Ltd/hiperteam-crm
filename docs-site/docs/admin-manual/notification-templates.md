@@ -1,7 +1,7 @@
 ---
 sidebar_position: 25
 title: "Notification Templates"
-description: "Customize notification message templates in HiperTeam CRM — use template variables, edit email/SMS/in-app templates, preview, and test delivery."
+description: "Customize notification message templates in IntelliSales CRM — use template variables, edit email/SMS/in-app templates, preview, and test delivery."
 ---
 
 # Notification Templates

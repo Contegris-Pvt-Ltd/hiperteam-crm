@@ -1,12 +1,12 @@
 ---
 sidebar_position: 7
 title: "Teams"
-description: "Create and manage cross-functional teams in HiperTeam CRM — assign members, set team roles, and understand how teams affect record access."
+description: "Create and manage cross-functional teams in IntelliSales CRM — assign members, set team roles, and understand how teams affect record access."
 ---
 
 # Team Management
 
-Teams in HiperTeam CRM are cross-functional groupings of users who work together, regardless of their department. A user can belong to multiple teams, making teams ideal for project-based collaboration, territory management, and shared record access.
+Teams in IntelliSales CRM are cross-functional groupings of users who work together, regardless of their department. A user can belong to multiple teams, making teams ideal for project-based collaboration, territory management, and shared record access.
 
 ## Team Management Overview
 

@@ -1,7 +1,7 @@
 ---
 sidebar_position: 22
 title: "Targets & Quotas"
-description: "Configure performance targets in HiperTeam CRM — create targets, assign to individuals and teams, cascade goals, and track progress in real time."
+description: "Configure performance targets in IntelliSales CRM — create targets, assign to individuals and teams, cascade goals, and track progress in real time."
 ---
 
 # Targets & Quotas

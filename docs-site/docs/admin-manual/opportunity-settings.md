@@ -1,7 +1,7 @@
 ---
 sidebar_position: 19
 title: "Opportunity Settings"
-description: "Configure opportunity management in HiperTeam CRM — pipelines, stage ownership, close reasons, types, sources, forecast categories, and priorities."
+description: "Configure opportunity management in IntelliSales CRM — pipelines, stage ownership, close reasons, types, sources, forecast categories, and priorities."
 ---
 
 # Opportunity Settings

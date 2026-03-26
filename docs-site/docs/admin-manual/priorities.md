@@ -1,7 +1,7 @@
 ---
 sidebar_position: 17
 title: "Priorities"
-description: "Manage priority levels in HiperTeam CRM — configure icons, colors, and default priorities for leads and opportunities."
+description: "Manage priority levels in IntelliSales CRM — configure icons, colors, and default priorities for leads and opportunities."
 ---
 
 # Priority Management

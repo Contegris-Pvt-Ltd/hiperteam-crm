@@ -6,7 +6,7 @@ description: "JWT authentication flow, token management, registration, invitatio
 
 # Authentication & JWT
 
-HiperTeam CRM uses stateless JWT authentication. The JWT token embeds the complete RBAC payload, eliminating per-request permission lookups.
+IntelliSales CRM uses stateless JWT authentication. The JWT token embeds the complete RBAC payload, eliminating per-request permission lookups.
 
 ## Authentication Flow Overview
 

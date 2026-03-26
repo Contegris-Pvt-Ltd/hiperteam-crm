@@ -368,7 +368,7 @@ export function NotificationPreferencesPage() {
               <InputField label="Username" value={smtpConfig.user || ''} onChange={v => setSmtpConfig({ ...smtpConfig, user: v })} placeholder="user@domain.com" />
               <PasswordField label="Password" value={smtpConfig.pass || ''} onChange={v => setSmtpConfig({ ...smtpConfig, pass: v })} show={showPasswords.smtp} onToggle={() => setShowPasswords(p => ({ ...p, smtp: !p.smtp }))} />
               <InputField label="From Email" value={smtpConfig.from || ''} onChange={v => setSmtpConfig({ ...smtpConfig, from: v })} placeholder="noreply@domain.com" />
-              <InputField label="From Name" value={smtpConfig.fromName || ''} onChange={v => setSmtpConfig({ ...smtpConfig, fromName: v })} placeholder="HiperTeam CRM" />
+              <InputField label="From Name" value={smtpConfig.fromName || ''} onChange={v => setSmtpConfig({ ...smtpConfig, fromName: v })} placeholder="IntelliSales CRM" />
             </div>
 
             {/* TLS + Save row */}

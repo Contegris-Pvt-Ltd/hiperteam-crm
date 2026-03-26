@@ -6,7 +6,7 @@ description: "Understand weighted pipeline forecasting, forecast categories, acc
 
 # Opportunity Forecasting
 
-Forecasting in HiperTeam CRM helps you predict future revenue based on your active pipeline. By combining deal amounts with win probabilities and forecast categories, you get a data-driven view of expected revenue.
+Forecasting in IntelliSales CRM helps you predict future revenue based on your active pipeline. By combining deal amounts with win probabilities and forecast categories, you get a data-driven view of expected revenue.
 
 ## Forecast Overview
 
@@ -73,7 +73,7 @@ This view helps account managers understand their book of business and identify 
 
 ## Revenue Predictions
 
-HiperTeam CRM generates revenue predictions based on:
+IntelliSales CRM generates revenue predictions based on:
 
 - **Historical close rates** — how often deals at each stage convert
 - **Current pipeline** — all active opportunities with their amounts and probabilities

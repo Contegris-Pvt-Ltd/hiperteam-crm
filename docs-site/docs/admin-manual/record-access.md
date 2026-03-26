@@ -1,7 +1,7 @@
 ---
 sidebar_position: 9
 title: "Record Access & Scoping"
-description: "Configure record-level access scoping in HiperTeam CRM — control which records users can see based on ownership, teams, departments, and reporting lines."
+description: "Configure record-level access scoping in IntelliSales CRM — control which records users can see based on ownership, teams, departments, and reporting lines."
 ---
 
 # Record Access & Scoping

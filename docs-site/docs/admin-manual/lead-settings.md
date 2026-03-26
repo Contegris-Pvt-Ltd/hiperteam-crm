@@ -1,7 +1,7 @@
 ---
 sidebar_position: 18
 title: "Lead Settings"
-description: "Configure lead management in HiperTeam CRM — scoring templates, routing rules, qualification frameworks, sources, reasons, and team roles across 7 settings tabs."
+description: "Configure lead management in IntelliSales CRM — scoring templates, routing rules, qualification frameworks, sources, reasons, and team roles across 7 settings tabs."
 ---
 
 # Lead Settings

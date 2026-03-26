@@ -1,7 +1,7 @@
 ---
 sidebar_position: 12
 title: "Managing Accounts"
-description: "Create, search, filter, edit, and delete accounts in HiperTeam CRM."
+description: "Create, search, filter, edit, and delete accounts in IntelliSales CRM."
 ---
 
 # Managing Accounts

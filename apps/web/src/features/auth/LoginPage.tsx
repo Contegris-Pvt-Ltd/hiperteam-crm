@@ -45,7 +45,7 @@ export function LoginPage() {
               <Building2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white">HiperTeam</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-white">IntelliSales</h1>
               <p className="text-blue-200 text-sm">CRM Platform</p>
             </div>
           </div>
@@ -81,7 +81,7 @@ export function LoginPage() {
         </div>
 
         <div className="relative text-blue-200 text-sm">
-          © 2026 HiperTeam. All rights reserved.
+          © 2026 IntelliSales. All rights reserved.
         </div>
       </div>
 
@@ -94,7 +94,7 @@ export function LoginPage() {
               <Building2 className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">HiperTeam</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">IntelliSales</h1>
               <p className="text-gray-500 dark:text-slate-400 text-xs">CRM Platform</p>
             </div>
           </div>

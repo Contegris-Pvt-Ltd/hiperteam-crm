@@ -1,12 +1,12 @@
 ---
 sidebar_position: 3
 title: "Navigating the Interface"
-description: "Understand the HiperTeam CRM layout including the sidebar, header bar, dark mode, and navigation patterns."
+description: "Understand the IntelliSales CRM layout including the sidebar, header bar, dark mode, and navigation patterns."
 ---
 
 # Navigating the Interface
 
-HiperTeam CRM uses a clean, consistent layout across all modules. Once you understand the main navigation elements, you can move efficiently through the entire platform.
+IntelliSales CRM uses a clean, consistent layout across all modules. Once you understand the main navigation elements, you can move efficiently through the entire platform.
 
 ## Main Layout
 
@@ -79,7 +79,7 @@ Your avatar or initials displayed on the right side of the header. Click to open
 
 ## Dark Mode Toggle
 
-HiperTeam CRM supports both light and dark themes.
+IntelliSales CRM supports both light and dark themes.
 
 To switch between themes:
 

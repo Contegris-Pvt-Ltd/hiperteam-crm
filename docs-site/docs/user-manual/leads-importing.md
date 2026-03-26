@@ -6,7 +6,7 @@ description: "Bulk import leads from CSV and Excel files using the step-by-step 
 
 # Importing Leads
 
-HiperTeam CRM supports bulk import of leads from spreadsheet files. The import wizard guides you through uploading, previewing, mapping columns, and executing the import.
+IntelliSales CRM supports bulk import of leads from spreadsheet files. The import wizard guides you through uploading, previewing, mapping columns, and executing the import.
 
 ## Import Wizard Overview
 

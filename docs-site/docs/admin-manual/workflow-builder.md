@@ -1,7 +1,7 @@
 ---
 sidebar_position: 26
 title: "Workflow Builder"
-description: "Create automated workflows in HiperTeam CRM — configure triggers, conditions, and actions to automate email, task creation, field changes, and more."
+description: "Create automated workflows in IntelliSales CRM — configure triggers, conditions, and actions to automate email, task creation, field changes, and more."
 ---
 
 # Workflow Builder

@@ -67,7 +67,7 @@ Pre-built reports may be read-only. To customize them, duplicate a report and mo
 
 ## Account Forecast
 
-In addition to the report builder, HiperTeam CRM includes a dedicated **Account Forecast** report accessible from **Reports → Account Forecast** in the sidebar.
+In addition to the report builder, IntelliSales CRM includes a dedicated **Account Forecast** report accessible from **Reports → Account Forecast** in the sidebar.
 
 The Account Forecast provides a comprehensive view of your sales pipeline grouped by account, with forecast category breakdowns (Commit, Best Case, Pipeline, Upside) for revenue planning. It includes:
 

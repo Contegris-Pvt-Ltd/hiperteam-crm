@@ -1,12 +1,12 @@
 ---
 sidebar_position: 29
 title: "Xero Integration"
-description: "Set up and manage the Xero accounting integration in HiperTeam CRM — OAuth setup, contact matching, invoice sync, and troubleshooting."
+description: "Set up and manage the Xero accounting integration in IntelliSales CRM — OAuth setup, contact matching, invoice sync, and troubleshooting."
 ---
 
 # Xero Integration
 
-The Xero integration connects HiperTeam CRM to your Xero accounting platform, enabling bi-directional sync of contacts, accounts, and invoices. This eliminates double data entry and keeps your sales and accounting data aligned.
+The Xero integration connects IntelliSales CRM to your Xero accounting platform, enabling bi-directional sync of contacts, accounts, and invoices. This eliminates double data entry and keeps your sales and accounting data aligned.
 
 Navigate to **Admin > Integrations > Xero**.
 
@@ -20,17 +20,17 @@ Navigate to **Admin > Integrations > Xero**.
 2. You are redirected to Xero's login page.
 3. Sign in with your Xero admin account.
 4. Select the **Xero organization** you want to connect.
-5. Review the permissions HiperTeam CRM is requesting:
+5. Review the permissions IntelliSales CRM is requesting:
    - Read and write Contacts
    - Read and write Invoices
    - Read Chart of Accounts
 6. Click **Allow Access**.
-7. You are redirected back to HiperTeam CRM with a success message.
+7. You are redirected back to IntelliSales CRM with a success message.
 
 ![Screenshot: Xero OAuth consent screen](../../static/img/screenshots/admin/xero-oauth.png)
 
 :::info
-The OAuth token expires periodically. HiperTeam CRM automatically refreshes it. If the refresh fails (e.g., Xero credentials changed), you will need to reconnect.
+The OAuth token expires periodically. IntelliSales CRM automatically refreshes it. If the refresh fails (e.g., Xero credentials changed), you will need to reconnect.
 :::
 
 ## Contact/Account Matching
@@ -93,7 +93,7 @@ Manual syncs process all records, not just changes. For large datasets, this can
 
 ## Pushing Invoices to Xero
 
-When invoices are created in HiperTeam CRM, they can be pushed to Xero:
+When invoices are created in IntelliSales CRM, they can be pushed to Xero:
 
 1. Ensure invoice sync is enabled in Sync Settings.
 2. When an invoice is created or finalized in the CRM, it is queued for Xero sync.

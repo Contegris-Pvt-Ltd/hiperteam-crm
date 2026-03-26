@@ -69,7 +69,7 @@ When a visitor books a meeting:
    - Visitor's name and email
    - Any notes they provided
    - Calendar invite attachment (.ics file)
-3. **CRM record** — a task or calendar entry is created in HiperTeam CRM linked to the visitor's contact record (if one exists).
+3. **CRM record** — a task or calendar entry is created in IntelliSales CRM linked to the visitor's contact record (if one exists).
 
 ## Integration with Tasks and Calendar
 

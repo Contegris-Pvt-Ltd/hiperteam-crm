@@ -1,7 +1,7 @@
 ---
 sidebar_position: 9
 title: "Managing Contacts"
-description: "Create, search, filter, edit, and delete contacts in HiperTeam CRM."
+description: "Create, search, filter, edit, and delete contacts in IntelliSales CRM."
 ---
 
 # Managing Contacts

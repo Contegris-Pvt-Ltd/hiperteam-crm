@@ -6,7 +6,7 @@ description: "Bull + Redis queue architecture for background job processing, lea
 
 # Queue System
 
-HiperTeam CRM uses **Bull** (backed by Redis) for background job processing. This enables long-running operations like CSV imports, report generation, and email sending to run asynchronously without blocking API responses.
+IntelliSales CRM uses **Bull** (backed by Redis) for background job processing. This enables long-running operations like CSV imports, report generation, and email sending to run asynchronously without blocking API responses.
 
 ## Architecture
 

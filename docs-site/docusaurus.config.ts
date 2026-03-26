@@ -3,7 +3,7 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'HiperTeam CRM',
+  title: 'IntelliSales CRM',
   tagline: 'Complete Business & People Operating System',
   favicon: 'img/favicon.ico',
 
@@ -73,9 +73,9 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'HiperTeam CRM',
+      title: 'IntelliSales CRM',
       logo: {
-        alt: 'HiperTeam CRM Logo',
+        alt: 'IntelliSales CRM Logo',
         src: 'img/logo.png',
         srcDark: 'img/logo-transparent.png',
       },
@@ -103,7 +103,7 @@ const config: Config = {
     footer: {
       style: 'dark',
       logo: {
-        alt: 'HiperTeam CRM',
+        alt: 'IntelliSales CRM',
         src: 'img/logo-transparent.png',
         width: 60,
         height: 60,
@@ -126,7 +126,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} HiperTeam CRM. All rights reserved.`,
+      copyright: `Copyright © ${new Date().getFullYear()} IntelliSales CRM. All rights reserved.`,
     },
     prism: {
       theme: prismThemes.github,

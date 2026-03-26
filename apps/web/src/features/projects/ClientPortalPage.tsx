@@ -179,7 +179,7 @@ export function ClientPortalPage() {
 
       {/* Footer */}
       <div className="max-w-4xl mx-auto px-6 py-6 text-center">
-        <p className="text-xs text-gray-400 dark:text-slate-600">Powered by HiperTeam CRM</p>
+        <p className="text-xs text-gray-400 dark:text-slate-600">Powered by IntelliSales CRM</p>
       </div>
     </div>
   );

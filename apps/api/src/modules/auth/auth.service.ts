@@ -519,11 +519,11 @@ export class AuthService {
     try {
       await this.emailService.sendEmail({
         to: user.email,
-        subject: 'Reset Your Password - HiperTeam CRM',
+        subject: 'Reset Your Password - IntelliSales CRM',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #4F46E5; margin: 0;">HiperTeam CRM</h1>
+              <h1 style="color: #4F46E5; margin: 0;">IntelliSales CRM</h1>
             </div>
             <h2 style="color: #1F2937;">Reset Your Password</h2>
             <p style="color: #6B7280; line-height: 1.6;">

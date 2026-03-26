@@ -1,7 +1,7 @@
 ---
 sidebar_position: 11
 title: "Custom Fields"
-description: "Add and manage custom fields per module in HiperTeam CRM — support for 13 field types, ordering, grouping, and data model extension."
+description: "Add and manage custom fields per module in IntelliSales CRM — support for 13 field types, ordering, grouping, and data model extension."
 ---
 
 # Custom Fields

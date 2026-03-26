@@ -6,7 +6,7 @@ description: "Stay informed with the notification center — manage notification
 
 # Notifications
 
-The **Notifications** system keeps you informed about important events across HiperTeam CRM. Receive alerts when records are assigned to you, when deadlines approach, when approvals need your attention, and more.
+The **Notifications** system keeps you informed about important events across IntelliSales CRM. Receive alerts when records are assigned to you, when deadlines approach, when approvals need your attention, and more.
 
 ## Notification Center
 

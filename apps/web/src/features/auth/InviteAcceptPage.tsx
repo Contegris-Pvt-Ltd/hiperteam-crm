@@ -141,7 +141,7 @@ export function InviteAcceptPage() {
               <Building2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white">HiperTeam</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-white">IntelliSales</h1>
               <p className="text-emerald-200 text-sm">CRM Platform</p>
             </div>
           </div>
@@ -157,7 +157,7 @@ export function InviteAcceptPage() {
         </div>
 
         <div className="relative text-emerald-200/60 text-sm">
-          © {new Date().getFullYear()} HiperTeam. All rights reserved.
+          © {new Date().getFullYear()} IntelliSales. All rights reserved.
         </div>
       </div>
 
@@ -169,7 +169,7 @@ export function InviteAcceptPage() {
             <div className="w-10 h-10 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl flex items-center justify-center">
               <Building2 className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-gray-900 dark:text-white">HiperTeam</span>
+            <span className="text-xl font-bold text-gray-900 dark:text-white">IntelliSales</span>
           </div>
 
           {/* Loading */}

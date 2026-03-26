@@ -361,7 +361,7 @@ function RecommendationsTab() {
       setLoading(true);
       const [recs, prodData] = await Promise.all([
         customer360Api.getRecommendations(),
-        productsApi.getAll({ limit: 500 }),
+        productsApi.getAll({ limit: 100 }),
       ]);
       setRecommendations(recs);
       setProducts(prodData.data.map((p: any) => ({ id: p.id, name: p.name, code: p.code })));

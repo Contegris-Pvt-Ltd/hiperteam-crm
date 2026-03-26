@@ -1,12 +1,12 @@
 ---
 sidebar_position: 3
 title: "User Management"
-description: "Create, edit, deactivate, and manage user accounts in HiperTeam CRM — including role assignment, department placement, and activity tracking."
+description: "Create, edit, deactivate, and manage user accounts in IntelliSales CRM — including role assignment, department placement, and activity tracking."
 ---
 
 # User Management
 
-The Users page is where you manage every person who has access to your HiperTeam CRM instance. From here you can create accounts, assign roles and departments, deactivate departing employees, and monitor user activity.
+The Users page is where you manage every person who has access to your IntelliSales CRM instance. From here you can create accounts, assign roles and departments, deactivate departing employees, and monitor user activity.
 
 ## Users List
 
@@ -75,7 +75,7 @@ Role and department changes affect the user's permissions immediately after thei
 
 ## Deactivating vs. Deleting Users
 
-HiperTeam CRM uses **soft deactivation** rather than hard deletion for user accounts.
+IntelliSales CRM uses **soft deactivation** rather than hard deletion for user accounts.
 
 | Action | What Happens |
 |--------|-------------|

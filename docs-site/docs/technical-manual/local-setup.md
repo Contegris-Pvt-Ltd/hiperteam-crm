@@ -1,12 +1,12 @@
 ---
 sidebar_position: 4
 title: "Local Development Setup"
-description: "Step-by-step guide to setting up the HiperTeam CRM development environment"
+description: "Step-by-step guide to setting up the IntelliSales CRM development environment"
 ---
 
 # Local Development Setup
 
-This guide walks through setting up HiperTeam CRM for local development.
+This guide walks through setting up IntelliSales CRM for local development.
 
 ## Prerequisites
 

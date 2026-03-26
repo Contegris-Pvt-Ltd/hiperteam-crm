@@ -35,7 +35,7 @@ export class EmailChannel {
       if (config.host) {
         const transporter = await this.getTransporter(schemaName, config);
         const result = await transporter.sendMail({
-          from: `"${config.fromName || 'HiperTeam CRM'}" <${config.from || 'noreply@hiperteam.com'}>`,
+          from: `"${config.fromName || 'IntelliSales CRM'}" <${config.from || 'noreply@hiperteam.com'}>`,
           to: payload.to,
           cc: payload.cc || undefined,
           bcc: payload.bcc || undefined,
@@ -146,7 +146,7 @@ export class EmailChannel {
   // WRAP IN LAYOUT (consistent email wrapper)
   // ============================================================
   private wrapInLayout(bodyHtml: string, config: Record<string, any>): string {
-    const brandName = config.fromName || 'HiperTeam CRM';
+    const brandName = config.fromName || 'IntelliSales CRM';
     return `<!DOCTYPE html>
 <html>
 <head>

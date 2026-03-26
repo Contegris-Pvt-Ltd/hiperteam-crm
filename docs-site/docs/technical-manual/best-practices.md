@@ -6,7 +6,7 @@ description: "Code organization, SQL queries, API design, frontend patterns, sec
 
 # Best Practices
 
-This guide consolidates the coding standards and best practices for HiperTeam CRM development.
+This guide consolidates the coding standards and best practices for IntelliSales CRM development.
 
 ## Code Organization
 

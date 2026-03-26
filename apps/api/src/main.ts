@@ -45,7 +45,7 @@ async function bootstrap() {
 
   // Swagger
   const config = new DocumentBuilder()
-    .setTitle('HiperTeam CRM API')
+    .setTitle('IntelliSales CRM API')
     .setDescription('Multi-tenant CRM API')
     .setVersion('1.0')
     .addBearerAuth()

@@ -1,12 +1,12 @@
 ---
 sidebar_position: 2
 title: "Admin Panel Overview"
-description: "Navigate the HiperTeam CRM admin panel — understand the sidebar structure, find settings quickly, and follow the recommended setup sequence."
+description: "Navigate the IntelliSales CRM admin panel — understand the sidebar structure, find settings quickly, and follow the recommended setup sequence."
 ---
 
 # Admin Panel Overview
 
-The Admin Panel is your central command center for configuring every aspect of HiperTeam CRM. This chapter provides a map of the interface so you can find any setting quickly.
+The Admin Panel is your central command center for configuring every aspect of IntelliSales CRM. This chapter provides a map of the interface so you can find any setting quickly.
 
 ## Accessing the Admin Panel
 
@@ -94,7 +94,7 @@ Use this table when you know what you want to configure but are not sure where t
 
 ## Best Practices for Admin Setup Sequence
 
-When setting up a new HiperTeam CRM instance, follow this order to avoid dependency issues:
+When setting up a new IntelliSales CRM instance, follow this order to avoid dependency issues:
 
 ```
 1. Roles & Permissions   ← Define access before creating users

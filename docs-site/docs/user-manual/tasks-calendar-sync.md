@@ -1,12 +1,12 @@
 ---
 sidebar_position: 31
 title: "Calendar Sync"
-description: "Connect Google Calendar for two-way sync between HiperTeam CRM tasks and calendar events."
+description: "Connect Google Calendar for two-way sync between IntelliSales CRM tasks and calendar events."
 ---
 
 # Calendar Sync
 
-HiperTeam CRM integrates with **Google Calendar** to provide two-way synchronization between your CRM tasks and your calendar events. This ensures your schedule stays consistent across both platforms.
+IntelliSales CRM integrates with **Google Calendar** to provide two-way synchronization between your CRM tasks and your calendar events. This ensures your schedule stays consistent across both platforms.
 
 ## Google Calendar Integration Overview
 
@@ -27,11 +27,11 @@ To set up the integration:
 2. Click **Connect Google Calendar**.
 3. You will be redirected to Google's authorization page.
 4. Sign in to your Google account (if not already signed in).
-5. Grant HiperTeam CRM permission to access your calendar.
-6. You will be redirected back to HiperTeam CRM with the connection confirmed.
+5. Grant IntelliSales CRM permission to access your calendar.
+6. You will be redirected back to IntelliSales CRM with the connection confirmed.
 
 :::info
-The integration requires permission to read and write calendar events. HiperTeam CRM only accesses the calendars you authorize — it does not access your email, contacts, or other Google services.
+The integration requires permission to read and write calendar events. IntelliSales CRM only accesses the calendars you authorize — it does not access your email, contacts, or other Google services.
 :::
 
 ## Two-Way Sync
@@ -39,14 +39,14 @@ The integration requires permission to read and write calendar events. HiperTeam
 Once connected, synchronization works in both directions:
 
 ### CRM to Google Calendar
-When you create or update a task in HiperTeam CRM that has a due date and time:
+When you create or update a task in IntelliSales CRM that has a due date and time:
 - A corresponding event is created in your Google Calendar
 - Updates to the task (title, date, time, description) sync to the calendar event
 - Completing or deleting the task updates or removes the calendar event
 
 ### Google Calendar to CRM
 When you create or update an event in Google Calendar:
-- A corresponding task may be created in HiperTeam CRM
+- A corresponding task may be created in IntelliSales CRM
 - Changes to the event (title, time, description) sync to the CRM task
 - Deleting the event updates the linked CRM task
 
@@ -92,7 +92,7 @@ If you need an immediate sync:
 - Reconnect by clicking **Connect Google Calendar** again in settings
 
 :::warning
-If you revoke HiperTeam CRM's access in your Google account security settings, the sync will stop working. Reconnect from within HiperTeam CRM to re-authorize.
+If you revoke IntelliSales CRM's access in your Google account security settings, the sync will stop working. Reconnect from within IntelliSales CRM to re-authorize.
 :::
 
 ![Screenshot: Calendar sync troubleshooting showing connection status and sync history](../../static/img/screenshots/tasks/calendar-sync-status.png)

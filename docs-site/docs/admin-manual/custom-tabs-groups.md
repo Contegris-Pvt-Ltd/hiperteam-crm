@@ -1,7 +1,7 @@
 ---
 sidebar_position: 14
 title: "Custom Tabs & Groups"
-description: "Create custom tabs and field groups on record detail pages in HiperTeam CRM — organize fields into logical sections and manage profile completion tracking."
+description: "Create custom tabs and field groups on record detail pages in IntelliSales CRM — organize fields into logical sections and manage profile completion tracking."
 ---
 
 # Custom Tabs & Groups
