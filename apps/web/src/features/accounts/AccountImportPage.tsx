@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Upload, FileSpreadsheet, ArrowRight, ArrowLeft, CheckCircle2,
   AlertCircle, AlertTriangle, XCircle, Loader2, Download,
-  Building2, Users, CreditCard, X, FileText, Info,
+  Building2, Users, CreditCard, X, Info,
   Save, BookmarkPlus, ChevronDown, Trash2,
 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
