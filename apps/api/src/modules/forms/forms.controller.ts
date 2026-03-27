@@ -11,6 +11,7 @@ import {
   UseGuards,
   Req,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -226,6 +227,41 @@ export class FormsPublicController {
       userAgent: req.headers['user-agent'] || '',
     };
     return this.formsService.processSubmission(tenantSlug, token, body, metadata);
+  }
+
+  // Get form details by access token (module-linked, no auth)
+  @Get('form/:token')
+  async getPublicFormByToken(
+    @Param('token') token: string,
+    @Query('tenant') tenantSchema: string,
+  ) {
+    let schema: string = tenantSchema;
+    if (!schema) {
+      const resolved = await this.formsService.resolveTokenTenant(token);
+      if (!resolved) throw new NotFoundException('Invalid or expired form link');
+      schema = resolved;
+    }
+    // Look up the submission + form details
+    const [submission] = await this.formsService['dataSource'].query(
+      `SELECT fs.id, fs.form_id, fs.status, fs.token_expires_at,
+              f.name as form_name, f.description, f.fields as form_fields, f.settings, f.branding
+       FROM "${schema}".form_submissions fs
+       JOIN "${schema}".forms f ON f.id = fs.form_id
+       WHERE fs.access_token = $1 AND fs.deleted_at IS NULL`,
+      [token],
+    );
+    if (!submission) throw new NotFoundException('Invalid or expired form link');
+    if (submission.status !== 'pending') throw new BadRequestException('This form has already been submitted');
+    if (submission.token_expires_at && new Date(submission.token_expires_at) < new Date()) {
+      throw new BadRequestException('This form link has expired');
+    }
+    return {
+      formName: submission.form_name,
+      description: submission.description,
+      formFields: submission.form_fields,
+      settings: submission.settings,
+      branding: submission.branding,
+    };
   }
 
   // Public form submission via access token (module-linked, no auth)

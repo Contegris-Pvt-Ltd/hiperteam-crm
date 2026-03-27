@@ -55,6 +55,7 @@ import { ProjectsPage } from './features/projects/ProjectsPage';
 import { ProjectDetailPage } from './features/projects/ProjectDetailPage';
 import { ClientPortalPage } from './features/projects/ClientPortalPage';
 import { FormBuilderPage, FormSubmissionsPage, FormPublicPage, LandingPagePublicPage, EngagementHubPage } from './features/forms';
+import { EntityFormPublicPage } from './features/forms/EntityFormPublicPage';
 import { PublicBookingPage } from './features/scheduling/PublicBookingPage';
 import { BookingCancelPage } from './features/scheduling/BookingCancelPage';
 import { InboxPage, EmailSettingsPage, InboxRulesPage } from './features/email';
@@ -112,6 +113,7 @@ function App() {
         <Route path="/proposals/public/:tenantId/:token" element={<ProposalPublicPage />} />
         <Route path="/contracts/sign/:token" element={<ContractSignPage />} />
         <Route path="/portal/:tenantSlug/:token" element={<ClientPortalPage />} />
+        <Route path="/public/form/:token" element={<EntityFormPublicPage />} />
         <Route path="/f/:tenantSlug/:token" element={<FormPublicPage />} />
         <Route path="/lp/:tenantSlug/:token" element={<LandingPagePublicPage />} />
         <Route path="/book/:tenantSlug/:token" element={<PublicBookingPage />} />

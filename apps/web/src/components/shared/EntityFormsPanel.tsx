@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
-  ExternalLink,
   AlertCircle,
 } from 'lucide-react';
 import { formsApi } from '../../api/forms.api';
