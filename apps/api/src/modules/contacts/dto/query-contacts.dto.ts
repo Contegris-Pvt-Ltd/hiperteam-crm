@@ -33,6 +33,11 @@ export class QueryContactsDto {
   @IsOptional()
   accountId?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by product subscription' })
+  @IsUUID()
+  @IsOptional()
+  productId?: string;
+
   @ApiPropertyOptional({ example: 1, default: 1 })
   @Type(() => Number)
   @IsInt()

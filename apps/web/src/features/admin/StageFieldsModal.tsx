@@ -116,6 +116,7 @@ export function StageFieldsModal({ isOpen, stage, onClose, onSave }: StageFields
     setFields(prev => [...prev, {
       fieldKey: key,
       fieldLabel: meta.label,
+      fieldType: meta.type || 'text',
       isRequired: true,
       displayOrder: prev.length + 1,
     }]);

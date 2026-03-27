@@ -568,17 +568,43 @@ export class LeadSettingsService {
        ORDER BY sf.sort_order ASC`,
       [stageId],
     );
-    return fields.map((f: any) => ({
-      id: f.id,
-      stageId: f.stage_id,
-      fieldKey: f.field_key,
-      fieldLabel: f.field_label,
-      fieldType: f.field_type,
-      fieldOptions: f.field_options || [],
-      isRequired: f.is_required,
-      isVisible: f.is_visible,
-      sortOrder: f.sort_order,
-    }));
+    // For custom fields, resolve actual field type from custom_field_definitions
+    // if stored as default 'text'
+    const customFieldKeys = fields
+      .filter((f: any) => f.field_key.startsWith('custom.') && (!f.field_type || f.field_type === 'text'))
+      .map((f: any) => f.field_key.replace('custom.', ''));
+
+    let customFieldTypes: Record<string, string> = {};
+    if (customFieldKeys.length > 0) {
+      try {
+        const cfRows = await this.dataSource.query(
+          `SELECT field_key, field_type FROM "${schemaName}".custom_field_definitions
+           WHERE field_key = ANY($1)`,
+          [customFieldKeys],
+        );
+        customFieldTypes = Object.fromEntries(cfRows.map((r: any) => [r.field_key, r.field_type]));
+      } catch { /* ignore */ }
+    }
+
+    return fields.map((f: any) => {
+      let fieldType = f.field_type || 'text';
+      // Resolve custom field type if stored as default 'text'
+      if (f.field_key.startsWith('custom.') && fieldType === 'text') {
+        const cfKey = f.field_key.replace('custom.', '');
+        if (customFieldTypes[cfKey]) fieldType = customFieldTypes[cfKey];
+      }
+      return {
+        id: f.id,
+        stageId: f.stage_id,
+        fieldKey: f.field_key,
+        fieldLabel: f.field_label,
+        fieldType,
+        fieldOptions: f.field_options || [],
+        isRequired: f.is_required,
+        isVisible: f.is_visible,
+        sortOrder: f.sort_order,
+      };
+    });
   }
 
   async upsertStageFields(schemaName: string, stageId: string, fields: any[]) {

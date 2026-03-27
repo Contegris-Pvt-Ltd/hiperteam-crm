@@ -3941,6 +3941,17 @@ async function runTenantMigrations() {
                 ON "${schema}".forms USING GIN(available_modules);
             `,
           },
+          {
+            name: '060_form_builder_field_fixes',
+            sql: `
+              -- Contacts: add department and fax columns
+              ALTER TABLE "${schema}".contacts ADD COLUMN IF NOT EXISTS department VARCHAR(100);
+              ALTER TABLE "${schema}".contacts ADD COLUMN IF NOT EXISTS fax VARCHAR(50);
+
+              -- Accounts: add fax column
+              ALTER TABLE "${schema}".accounts ADD COLUMN IF NOT EXISTS fax VARCHAR(50);
+            `,
+          },
 
         ];
 

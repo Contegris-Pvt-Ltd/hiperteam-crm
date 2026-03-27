@@ -33,9 +33,9 @@ export class OpportunitiesService {
   private readonly logger = new Logger(OpportunitiesService.name);
 
   private readonly trackedFields = [
-    'name', 'pipeline_id', 'stage_id', 'amount', 'currency', 'close_date',
-    'probability', 'forecast_category', 'owner_id', 'account_id',
-    'primary_contact_id', 'priority_id', 'type', 'source', 'next_step',
+    'name', 'pipelineId', 'stageId', 'amount', 'currency', 'closeDate',
+    'probability', 'forecastCategory', 'ownerId', 'accountId',
+    'primaryContactId', 'priorityId', 'type', 'source', 'nextStep',
     'description', 'tags', 'competitor',
   ];
 
@@ -892,8 +892,14 @@ export class OpportunitiesService {
     if (targetStage.is_won) throw new BadRequestException('Use the Close Won endpoint instead');
     if (targetStage.is_lost) throw new BadRequestException('Use the Close Lost endpoint instead');
 
-    // Validate required fields
-    const requiredFields = targetStage.required_fields || [];
+    // Get required fields from pipeline_stage_fields table (same as leads)
+    const stageFields = await this.dataSource.query(
+      `SELECT field_key FROM "${schemaName}".pipeline_stage_fields
+       WHERE stage_id = $1 AND is_required = true`,
+      [targetStage.id],
+    );
+    const requiredFields = stageFields.map((f: any) => f.field_key);
+
     if (requiredFields.length > 0) {
       const missing = this.validateStageRequirements(opp, requiredFields, dto.fieldValues);
       if (missing.length > 0) {

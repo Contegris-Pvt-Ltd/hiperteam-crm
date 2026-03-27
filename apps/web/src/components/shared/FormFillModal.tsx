@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { X, Loader2, FileText, Save } from 'lucide-react';
 import { formsApi } from '../../api/forms.api';
 import type { FormField } from '../../api/forms.api';
@@ -26,6 +26,19 @@ export function FormFillModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Pre-populate hidden field default values on mount
+  useEffect(() => {
+    const hiddenDefaults: Record<string, any> = {};
+    form.fields.forEach((f: any) => {
+      if (f.visibility === 'hidden' && f.defaultValue) {
+        hiddenDefaults[f.name] = f.defaultValue;
+      }
+    });
+    if (Object.keys(hiddenDefaults).length) {
+      setFormData((prev) => ({ ...hiddenDefaults, ...prev }));
+    }
+  }, [form.fields]);
+
   const handleChange = useCallback((fieldName: string, value: any) => {
     setFormData((prev) => ({ ...prev, [fieldName]: value }));
   }, []);
@@ -33,7 +46,7 @@ export function FormFillModal({
   const handleSubmit = async () => {
     // Validate required fields
     const missing = form.fields.filter(
-      (f) => f.required && !['heading', 'paragraph', 'divider'].includes(f.type) && !formData[f.name],
+      (f) => f.required && !['heading', 'paragraph', 'divider'].includes(f.type) && (f as any).visibility !== 'hidden' && !formData[f.name],
     );
     if (missing.length > 0) {
       setError(`Please fill in required fields: ${missing.map((f) => f.label).join(', ')}`);
@@ -58,6 +71,9 @@ export function FormFillModal({
   };
 
   const renderField = (field: FormField) => {
+    // Skip hidden fields — their defaults are already in formData
+    if ((field as any).visibility === 'hidden') return null;
+
     const value = formData[field.name] ?? '';
     const baseInputClass =
       'w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent';

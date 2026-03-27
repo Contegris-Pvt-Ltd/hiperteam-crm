@@ -15,7 +15,7 @@ import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
 export class ContactsService {
   private readonly trackedFields = [
     'firstName', 'lastName', 'email', 'phone', 'mobile', 'avatarUrl',
-    'company', 'jobTitle', 'website', 'emails', 'phones', 'addresses',
+    'company', 'jobTitle', 'department', 'website', 'fax', 'emails', 'phones', 'addresses',
     'socialProfiles', 'status', 'tags', 'customFields', 'ownerId',
     'doNotContact', 'doNotEmail', 'doNotCall',
   ];
@@ -64,14 +64,14 @@ export class ContactsService {
     const [contact] = await this.dataSource.query(
       `INSERT INTO "${schemaName}".contacts
        (first_name, last_name, email, phone, mobile, avatar_url,
-        company, job_title, website,
+        company, job_title, department, website, fax,
         address_line1, address_line2, city, state, postal_code, country,
         country_code, phone_country_code, mobile_country_code,
         emails, phones, addresses,
         source, lead_source_details, tags, notes, custom_fields, social_profiles,
         do_not_contact, do_not_email, do_not_call, account_id, owner_id, created_by,
         industry)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)
        RETURNING *`,
       [
         dto.firstName,
@@ -82,7 +82,9 @@ export class ContactsService {
         dto.avatarUrl || null,
         dto.company || null,
         dto.jobTitle || null,
+        (dto as any).department || null,
         dto.website || null,
+        (dto as any).fax || null,
         dto.addressLine1 || null,
         dto.addressLine2 || null,
         dto.city || null,
@@ -138,7 +140,7 @@ export class ContactsService {
   }
 
   async findAll(schemaName: string, query: QueryContactsDto, userId?: string) {
-    const { search, status, company, tag, ownerId, accountId, page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC' } = query;
+    const { search, status, company, tag, ownerId, accountId, productId, page = 1, limit = 20, sortBy = 'created_at', sortOrder = 'DESC' } = query as any;
     const offset = (page - 1) * limit;
 
     let whereClause = 'c.deleted_at IS NULL';
@@ -196,19 +198,30 @@ export class ContactsService {
       paramIndex++;
     }
 
+    // Product/subscription filter — contacts whose account has an active subscription to this product
+    let productJoin = '';
+    if (productId) {
+      productJoin = `INNER JOIN "${schemaName}".contact_accounts ca_prod ON ca_prod.contact_id = c.id
+        INNER JOIN "${schemaName}".account_subscriptions asub ON asub.account_id = ca_prod.account_id
+          AND asub.product_id = $${paramIndex} AND asub.status = 'active' AND asub.deleted_at IS NULL`;
+      params.push(productId);
+      paramIndex++;
+    }
+
     const allowedSortFields = ['created_at', 'updated_at', 'first_name', 'last_name', 'email', 'company'];
     const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
     const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
 
-    const countQuery = `SELECT COUNT(*) FROM "${schemaName}".contacts c WHERE ${whereClause}`;
+    const countQuery = `SELECT COUNT(DISTINCT c.id) FROM "${schemaName}".contacts c ${productJoin} WHERE ${whereClause}`;
     const [{ count }] = await this.dataSource.query(countQuery, params);
 
     const dataQuery = `
-      SELECT c.*, 
-             u.first_name as owner_first_name, 
+      SELECT DISTINCT c.*,
+             u.first_name as owner_first_name,
              u.last_name as owner_last_name,
              a.name as account_name
       FROM "${schemaName}".contacts c
+      ${productJoin}
       LEFT JOIN "${schemaName}".users u ON c.owner_id = u.id
       LEFT JOIN "${schemaName}".accounts a ON c.account_id = a.id
       WHERE ${whereClause}
@@ -306,7 +319,9 @@ export class ContactsService {
       avatarUrl: 'avatar_url',
       company: 'company',
       jobTitle: 'job_title',
+      department: 'department',
       website: 'website',
+      fax: 'fax',
       addressLine1: 'address_line1',
       addressLine2: 'address_line2',
       city: 'city',
@@ -513,7 +528,9 @@ export class ContactsService {
       avatarUrl: contact.avatar_url,
       company: contact.company,
       jobTitle: contact.job_title,
+      department: contact.department,
       website: contact.website,
+      fax: contact.fax,
       addressLine1: contact.address_line1,
       addressLine2: contact.address_line2,
       city: contact.city,

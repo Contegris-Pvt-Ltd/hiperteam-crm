@@ -46,9 +46,9 @@ export class AccountsService {
        (name, logo_url, website, industry, company_size, annual_revenue, description,
         emails, phones, addresses, social_profiles, parent_account_id, account_type,
         tags, custom_fields, source, owner_id, created_by,
-        account_classification, first_name, last_name, date_of_birth, gender, national_id)
+        account_classification, first_name, last_name, date_of_birth, gender, national_id, fax)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-               $19, $20, $21, $22, $23, $24)
+               $19, $20, $21, $22, $23, $24, $25)
        RETURNING *`,
       [
         accountName,
@@ -75,6 +75,7 @@ export class AccountsService {
         dto.dateOfBirth || null,
         dto.gender || null,
         dto.nationalId || null,
+        (dto as any).fax || null,
       ],
     );
 
@@ -307,6 +308,7 @@ export class AccountsService {
       customFields: 'custom_fields',
       source: 'source',
       ownerId: 'owner_id',
+      fax: 'fax',
       // B2C fields
       accountClassification: 'account_classification',
       firstName: 'first_name',
@@ -531,6 +533,7 @@ export class AccountsService {
       countryCode: account.country_code || null,
       phoneCountryCode: account.phone_country_code || null,
       mobileCountryCode: account.mobile_country_code || null,
+      fax: account.fax,
       socialProfiles: account.social_profiles,
       parentAccountId: account.parent_account_id,
       parentAccount: account.parent_account_name

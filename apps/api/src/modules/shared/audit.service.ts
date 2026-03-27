@@ -184,12 +184,30 @@ export class AuditService {
       const prevValue = previous[field];
       const currValue = current[field];
 
-      if (JSON.stringify(prevValue) !== JSON.stringify(currValue)) {
+      // Normalize values for comparison to avoid false diffs
+      const normPrev = this.normalizeForComparison(prevValue);
+      const normCurr = this.normalizeForComparison(currValue);
+
+      if (normPrev !== normCurr) {
         changes[field] = { from: prevValue, to: currValue };
       }
     }
 
     return changes;
+  }
+
+  private normalizeForComparison(value: unknown): string {
+    if (value === null || value === undefined || value === '') return '';
+    if (Array.isArray(value) && value.length === 0) return '[]';
+    if (typeof value === 'object') {
+      try {
+        // Sort keys for consistent comparison
+        return JSON.stringify(value, Object.keys(value as object).sort());
+      } catch {
+        return JSON.stringify(value);
+      }
+    }
+    return String(value);
   }
 
   // ============================================================

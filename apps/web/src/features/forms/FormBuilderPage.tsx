@@ -20,6 +20,7 @@ import {
   FileText,
   Minus,
   Eye,
+  EyeOff,
   Wand2,
   Copy,
   Code2,
@@ -327,6 +328,11 @@ export function FormBuilderPage() {
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             {field.label}
                             {field.required && <span className="text-red-500 ml-1">*</span>}
+                            {(field as any).visibility === 'hidden' && (
+                              <span className="inline-flex items-center gap-1 ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 rounded-full">
+                                <EyeOff className="w-3 h-3" /> Hidden
+                              </span>
+                            )}
                           </label>
                           {field.type === 'textarea' ? (
                             <div className="w-full h-16 border border-gray-200 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-900" />
@@ -527,6 +533,37 @@ function FieldSettingsPanel({ field, onChange }: { field: FormField; onChange: (
               <option value="half">Half Width</option>
             </select>
           </div>
+          {['text', 'email', 'phone', 'number', 'select'].includes(field.type) && (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Visibility</label>
+                <select
+                  value={(field as any).visibility || 'visible'}
+                  onChange={(e) => onChange({ visibility: e.target.value } as any)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white"
+                >
+                  <option value="visible">Visible</option>
+                  <option value="hidden">Hidden (submitted with default value)</option>
+                </select>
+                {(field as any).visibility === 'hidden' && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    Hidden fields are not shown to the form filler but their default value is always included in submissions.
+                  </p>
+                )}
+              </div>
+              {(field as any).visibility === 'hidden' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Default Value</label>
+                  <input
+                    value={(field as any).defaultValue || ''}
+                    onChange={(e) => onChange({ defaultValue: e.target.value } as any)}
+                    placeholder="Value submitted for this hidden field"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white"
+                  />
+                </div>
+              )}
+            </>
+          )}
         </>
       )}
       {/* Options editor for select/radio/checkbox */}
@@ -749,6 +786,19 @@ function SettingsPanel({ settings, onChange, form, updateForm }: {
           className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white"
         />
         <p className="text-xs text-gray-400 mt-1">Comma-separated email addresses</p>
+      </div>
+
+      {/* Notes / Terms & Conditions */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Notes / Terms &amp; Conditions</label>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Shown above the submit button on the form</p>
+        <textarea
+          value={(settings as any).notes || ''}
+          onChange={(e) => onChange({ ...settings, notes: e.target.value } as any)}
+          rows={4}
+          placeholder="Enter terms, conditions, or any notes to display on the form..."
+          className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm dark:text-white resize-none"
+        />
       </div>
 
       {/* Module Integration */}

@@ -96,6 +96,7 @@ const MODULE_DEFS: Record<string, ModuleDef> = {
           { key: 'email', label: 'Email' },
           { key: 'phone', label: 'Phone' },
           { key: 'mobile', label: 'Mobile' },
+          { key: 'company', label: 'Company' },
           { key: 'jobTitle', label: 'Job Title' },
           { key: 'department', label: 'Department' },
           { key: 'accountId', label: 'Account' },
@@ -111,11 +112,12 @@ const MODULE_DEFS: Record<string, ModuleDef> = {
       },
       {
         id: 'address', label: 'Address', fields: [
-          { key: 'mailingStreet', label: 'Street' },
-          { key: 'mailingCity', label: 'City' },
-          { key: 'mailingState', label: 'State' },
-          { key: 'mailingPostalCode', label: 'Postal Code' },
-          { key: 'mailingCountry', label: 'Country' },
+          { key: 'addressLine1', label: 'Address Line 1' },
+          { key: 'addressLine2', label: 'Address Line 2' },
+          { key: 'city', label: 'City' },
+          { key: 'state', label: 'State' },
+          { key: 'postalCode', label: 'Postal Code' },
+          { key: 'country', label: 'Country' },
         ],
       },
       {
@@ -163,17 +165,13 @@ const MODULE_DEFS: Record<string, ModuleDef> = {
         ],
       },
       {
-        id: 'address', label: 'Addresses', fields: [
-          { key: 'billingCountry', label: 'Billing Country' },
-          { key: 'billingStreet', label: 'Billing Street' },
-          { key: 'billingCity', label: 'Billing City' },
-          { key: 'billingState', label: 'Billing State' },
-          { key: 'billingPostalCode', label: 'Billing Postal Code' },
-          { key: 'shippingCountry', label: 'Shipping Country' },
-          { key: 'shippingStreet', label: 'Shipping Street' },
-          { key: 'shippingCity', label: 'Shipping City' },
-          { key: 'shippingState', label: 'Shipping State' },
-          { key: 'shippingPostalCode', label: 'Shipping Postal Code' },
+        id: 'address', label: 'Address', fields: [
+          { key: 'addressLine1', label: 'Address Line 1' },
+          { key: 'addressLine2', label: 'Address Line 2' },
+          { key: 'city', label: 'City' },
+          { key: 'state', label: 'State' },
+          { key: 'postalCode', label: 'Postal Code' },
+          { key: 'country', label: 'Country' },
         ],
       },
       {

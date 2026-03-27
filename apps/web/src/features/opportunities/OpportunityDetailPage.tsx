@@ -3,6 +3,7 @@
 // ============================================================
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import {
   ArrowLeft, Pencil, Trash2, DollarSign, Building2,
   Trophy, XCircle, RotateCcw, Loader2, CheckSquare,
@@ -10,12 +11,13 @@ import {
   UserPlus, X, Search, Copy, Send, Plus, Download, Mail, CheckCircle,
   FileSignature, Link2, ChevronDown, RefreshCw, Receipt,
 } from 'lucide-react';
-import { opportunitiesApi } from '../../api/opportunities.api';
+import { opportunitiesApi, opportunitySettingsApi } from '../../api/opportunities.api';
 import { proposalsApi } from '../../api/proposals.api';
 import { api } from '../../api/contacts.api';
 import type { Proposal, ProposalLineItem, CreateProposalData } from '../../api/proposals.api';
 import type { Opportunity, OpportunityContact, OpportunityLineItem } from '../../api/opportunities.api';
 import { StageJourneyBar } from '../leads/components/StageJourneyBar';
+import { StageFieldInput } from '../../components/shared/StageFieldInput';
 import { CloseWonModal } from './components/CloseWonModal';
 import { CloseLostModal } from './components/CloseLostModal';
 import { ReopenModal } from './components/ReopenModal';
@@ -26,6 +28,7 @@ import { ForecastView } from './components/ForecastView';
 import { usePermissions } from '../../hooks/usePermissions';
 //import { AuditLogViewer } from '../../components/shared/AuditLogViewer';
 import { DocumentsPanel } from '../../components/shared/DocumentsPanel';
+import { Timeline } from '../../components/shared/Timeline';
 import { OwnerCard } from '../../components/shared/OwnerCard';
 import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 import { EntityEmailsTab } from '../email/EntityEmailsTab';
@@ -68,6 +71,16 @@ export function OpportunityDetailPage() {
   const [showCloseLost, setShowCloseLost] = useState(false);
   const [showReopen, setShowReopen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Required fields modal for stage change
+  const [requiredFieldsModal, setRequiredFieldsModal] = useState<{
+    stageId: string;
+    stageName: string;
+    missingFields: { fieldKey: string; fieldLabel: string; fieldType: string; sortOrder: number }[];
+  } | null>(null);
+  const [stageFieldValues, setStageFieldValues] = useState<Record<string, any>>({});
+  const [stageFieldErrors, setStageFieldErrors] = useState<Record<string, string>>({});
+  const [stageFieldSubmitting, setStageFieldSubmitting] = useState(false);
 
   // Related data
   const [contacts, setContacts] = useState<OpportunityContact[]>([]);
@@ -176,8 +189,75 @@ export function OpportunityDetailPage() {
 
   const handleStageChange = async (stageId: string, stageFields?: Record<string, any>, unlockReason?: string) => {
     if (!id) return;
-    await opportunitiesApi.changeStage(id, stageId, stageFields, unlockReason);
-    await fetchOpportunity();
+    try {
+      // Pre-check required fields from pipeline_stage_fields
+      const allStageFields = await opportunitySettingsApi.getStageFields(stageId);
+      const requiredFields = (Array.isArray(allStageFields) ? allStageFields : []).filter((f: any) => f.isRequired);
+
+      if (requiredFields.length > 0 && !stageFields) {
+        // Check which fields are already filled on the opportunity
+        const missing = requiredFields.filter((f: any) => {
+          let val: any;
+          if (f.fieldKey.startsWith('custom.')) {
+            val = (opp?.customFields as Record<string, any>)?.[f.fieldKey.replace('custom.', '')];
+          } else {
+            val = (opp as any)?.[f.fieldKey];
+          }
+          return val === undefined || val === null || (typeof val === 'string' && val.trim() === '');
+        });
+
+        if (missing.length > 0) {
+          const targetStage = opp?.allStages?.find(s => s.id === stageId);
+          setRequiredFieldsModal({
+            stageId,
+            stageName: targetStage?.name || 'Stage',
+            missingFields: missing,
+          });
+          setStageFieldValues({});
+          setStageFieldErrors({});
+          return;
+        }
+      }
+
+      await opportunitiesApi.changeStage(id, stageId, stageFields, unlockReason);
+      await fetchOpportunity();
+    } catch (err: any) {
+      const msg = err.response?.data?.message;
+      const missing = err.response?.data?.missingFields;
+      if (missing?.length) {
+        // Fallback: if backend returns missingFields and we didn't pre-catch them
+        toast.error(`Missing required fields: ${missing.join(', ')}`);
+      } else if (msg) {
+        toast.error(typeof msg === 'string' ? msg : Array.isArray(msg) ? msg.join(', ') : 'Stage change failed');
+      } else {
+        toast.error('Failed to change stage');
+      }
+    }
+  };
+
+  const handleRequiredFieldsSubmit = async () => {
+    if (!requiredFieldsModal || !id) return;
+    const errors: Record<string, string> = {};
+    requiredFieldsModal.missingFields.forEach(f => {
+      const val = stageFieldValues[f.fieldKey];
+      if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) {
+        errors[f.fieldKey] = `${f.fieldLabel} is required`;
+      }
+    });
+    if (Object.keys(errors).length > 0) {
+      setStageFieldErrors(errors);
+      return;
+    }
+    setStageFieldSubmitting(true);
+    try {
+      await opportunitiesApi.changeStage(id, requiredFieldsModal.stageId, stageFieldValues);
+      setRequiredFieldsModal(null);
+      await fetchOpportunity();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to change stage');
+    } finally {
+      setStageFieldSubmitting(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -560,23 +640,7 @@ export function OpportunityDetailPage() {
 
         {/* Activity Tab */}
         {activeTab === 'activity' && (
-          <div className="space-y-3">
-            {activities.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">No activity yet</p>
-            ) : (
-              activities.map((a: any, idx: number) => (
-                <div key={a.id || idx} className="flex gap-3 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg">
-                  <Activity size={14} className="text-gray-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">{a.title || a.description}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+          <Timeline activities={activities} />
         )}
 
         {/* Notes Tab */}
@@ -732,6 +796,52 @@ export function OpportunityDetailPage() {
       {showCloseWon && <CloseWonModal opportunityId={opp.id} opportunityName={opp.name} currentAmount={opp.amount} onClose={() => setShowCloseWon(false)} onClosed={(projectId) => { if (projectId) setCreatedProjectId(projectId); fetchOpportunity(); }} />}
       {showCloseLost && <CloseLostModal opportunityId={opp.id} onClose={() => setShowCloseLost(false)} onClosed={fetchOpportunity} />}
       {showReopen && <ReopenModal opportunityId={opp.id} stages={opp.allStages || []} onClose={() => setShowReopen(false)} onReopened={fetchOpportunity} />}
+
+      {/* Required Fields Modal for Stage Change */}
+      {requiredFieldsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Required Fields</h3>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+              Please fill in the following fields to move to <span className="font-medium">{requiredFieldsModal.stageName}</span>:
+            </p>
+            <div className="space-y-3">
+              {requiredFieldsModal.missingFields.sort((a, b) => a.sortOrder - b.sortOrder).map(field => (
+                <div key={field.fieldKey}>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {field.fieldLabel} <span className="text-red-500">*</span>
+                  </label>
+                  <StageFieldInput
+                    fieldKey={field.fieldKey}
+                    fieldLabel={field.fieldLabel}
+                    fieldType={field.fieldType}
+                    value={stageFieldValues[field.fieldKey]}
+                    error={stageFieldErrors[field.fieldKey]}
+                    onChange={(val) => setStageFieldValues(prev => ({ ...prev, [field.fieldKey]: val }))}
+                    onClearError={() => setStageFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; })}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => setRequiredFieldsModal(null)}
+                className="flex-1 px-4 py-2 border border-gray-200 dark:border-slate-600 rounded-xl text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRequiredFieldsSubmit}
+                disabled={stageFieldSubmitting}
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {stageFieldSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation */}
       {showDeleteConfirm && (

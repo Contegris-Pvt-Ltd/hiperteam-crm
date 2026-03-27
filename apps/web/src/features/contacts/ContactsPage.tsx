@@ -10,6 +10,7 @@ import type { Contact, ContactsQuery } from '../../api/contacts.api';
 import { contactsApi } from '../../api/contacts.api';
 import { accountsApi } from '../../api/accounts.api';
 import { usersApi } from '../../api/users.api';
+import { productsApi } from '../../api/products.api';
 import type { Account } from '../../api/accounts.api';
 import type { User as UserType } from '../../api/users.api';
 import { DataTable, useTableColumns, useTablePreferences } from '../../components/shared/data-table';
@@ -19,6 +20,7 @@ interface Filters {
   status?: string;
   accountId?: string;
   ownerId?: string;
+  productId?: string;
   tag?: string;
 }
 
@@ -70,6 +72,7 @@ export function ContactsPage() {
   // Data for filter dropdowns
   const [users, setUsers] = useState<UserType[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
 
   const activeFilterCount = Object.values(filters).filter(v => v && v !== '').length;
 
@@ -77,6 +80,7 @@ export function ContactsPage() {
   useEffect(() => {
     usersApi.getAll({ limit: 100 }).then(res => setUsers(res.data)).catch(() => {});
     accountsApi.getAll({ limit: 100 }).then(res => setAccounts(res.data)).catch(() => {});
+    productsApi.getAll({ limit: 100 }).then(res => setProducts(res.data)).catch(() => {});
   }, []);
 
   // Close filter panel on outside click
@@ -149,6 +153,7 @@ export function ContactsPage() {
       status: newFilters.status || undefined,
       accountId: newFilters.accountId || undefined,
       ownerId: newFilters.ownerId || undefined,
+      productId: newFilters.productId || undefined,
       tag: newFilters.tag || undefined,
       page: 1,
     }));
@@ -163,6 +168,7 @@ export function ContactsPage() {
       status: undefined,
       accountId: undefined,
       ownerId: undefined,
+      productId: undefined,
       tag: undefined,
       page: 1,
     }));
@@ -357,6 +363,21 @@ export function ContactsPage() {
                     </select>
                   </div>
 
+                  {/* Product/Service */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Product / Service</label>
+                    <select
+                      value={pendingFilters.productId || ''}
+                      onChange={(e) => setPendingFilters(prev => ({ ...prev, productId: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">All Products</option>
+                      {products.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
                   {/* Tag */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Tag</label>
@@ -439,6 +460,14 @@ export function ContactsPage() {
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs rounded-lg">
                 Owner: {users.find(u => u.id === filters.ownerId)?.firstName || 'Selected'}
                 <button onClick={() => { const f = { ...filters, ownerId: undefined }; setFilters(f); setQuery(prev => ({ ...prev, ownerId: undefined, page: 1 })); }} className="hover:text-blue-900 dark:hover:text-blue-200">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {filters.productId && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs rounded-lg">
+                Product: {products.find(p => p.id === filters.productId)?.name || 'Selected'}
+                <button onClick={() => { const f = { ...filters, productId: undefined }; setFilters(f); setQuery(prev => ({ ...prev, productId: undefined, page: 1 })); }} className="hover:text-blue-900 dark:hover:text-blue-200">
                   <X className="w-3 h-3" />
                 </button>
               </span>

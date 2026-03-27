@@ -18,6 +18,7 @@ import type { OpportunityCloseReason, OpportunityStage, Pipeline } from '../../a
 import { leadSettingsApi } from '../../api/leads.api';
 import { usersApi } from '../../api/users.api';
 import { teamsApi } from '../../api/teams.api';
+import { StageFieldsModal } from './StageFieldsModal';
 
 // ============================================================
 // TYPES
@@ -434,6 +435,21 @@ function StagesTab({
   const [formData, setFormData] = useState({ name: '', color: '#3B82F6' });
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
+  // Stage fields modal
+  const [showFieldsModal, setShowFieldsModal] = useState(false);
+  const [selectedStage, setSelectedStage] = useState<OpportunityStage | null>(null);
+
+  const openFieldsModal = (stage: OpportunityStage) => {
+    setSelectedStage(stage);
+    setShowFieldsModal(true);
+  };
+
+  const handleSaveStageFields = async (stageId: string, fields: any[], lockPreviousFields: boolean) => {
+    await opportunitySettingsApi.upsertStageFields(stageId, fields);
+    await opportunitySettingsApi.updateStage(stageId, { lockPreviousFields });
+    onReload();
+  };
+
   const sorted = [...stages].sort((a, b) => a.sortOrder - b.sortOrder);
   const openStages = sorted.filter(s => !s.isWon && !s.isLost);
   const terminalStages = sorted.filter(s => s.isWon || s.isLost);
@@ -590,6 +606,16 @@ function StagesTab({
             <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
             <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">{stage.name}</span>
             <span className="text-xs text-gray-400 dark:text-slate-500">{stage.probability}%</span>
+
+            {/* Configure Fields button */}
+            <button
+              onClick={() => openFieldsModal(stage)}
+              className="px-2.5 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded-lg border border-indigo-200 dark:border-indigo-800 transition-colors"
+              title="Configure required fields for this stage"
+            >
+              Fields
+            </button>
+
             {!stage.isWon && !stage.isLost && (
               <button onClick={() => handleDelete(stage.id)} className="p-1 text-gray-400 hover:text-red-600">
                 <Trash2 className="w-4 h-4" />
@@ -622,6 +648,14 @@ function StagesTab({
           <div className="px-4 py-8 text-center text-gray-400 dark:text-slate-500">No terminal stages configured</div>
         )}
       </div>
+
+      {/* Stage Fields Modal */}
+      <StageFieldsModal
+        isOpen={showFieldsModal}
+        stage={selectedStage}
+        onClose={() => { setShowFieldsModal(false); setSelectedStage(null); }}
+        onSave={handleSaveStageFields}
+      />
     </div>
   );
 }

@@ -19,7 +19,20 @@ export function FormPublicPage() {
   useEffect(() => {
     if (!tenantSlug || !token) return;
     formsApi.getPublicForm(tenantSlug, token)
-      .then((f) => { setForm(f); setLoading(false); })
+      .then((f) => {
+        setForm(f);
+        // Pre-populate hidden field default values
+        const hiddenDefaults: Record<string, any> = {};
+        (f.fields || []).forEach((field: any) => {
+          if (field.visibility === 'hidden' && field.defaultValue) {
+            hiddenDefaults[field.name] = field.defaultValue;
+          }
+        });
+        if (Object.keys(hiddenDefaults).length) {
+          setValues((prev) => ({ ...hiddenDefaults, ...prev }));
+        }
+        setLoading(false);
+      })
       .catch(() => { setError('Form not found or no longer active'); setLoading(false); });
   }, [tenantSlug, token]);
 
@@ -49,6 +62,8 @@ export function FormPublicPage() {
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
     for (const field of (form?.fields || [])) {
+      // Skip hidden fields for validation
+      if ((field as any).visibility === 'hidden' || (field as any).hidden) continue;
       if (field.required && !values[field.name]) {
         errors[field.name] = `${field.label} is required`;
       }
@@ -152,22 +167,33 @@ export function FormPublicPage() {
             )}
 
             <div className="space-y-5">
-              {(form.fields || []).map((field: FormField) => (
-                <PublicField
-                  key={field.id}
-                  field={field}
-                  value={values[field.name]}
-                  error={fieldErrors[field.name]}
-                  onChange={(val) => setValues((prev) => ({ ...prev, [field.name]: val }))}
-                  primaryColor={primaryColor}
-                />
-              ))}
+              {(form.fields || []).map((field: FormField) => {
+                // Skip hidden fields — their defaults are already in values
+                if ((field as any).visibility === 'hidden' || (field as any).hidden) return null;
+                return (
+                  <PublicField
+                    key={field.id}
+                    field={field}
+                    value={values[field.name]}
+                    error={fieldErrors[field.name]}
+                    onChange={(val) => setValues((prev) => ({ ...prev, [field.name]: val }))}
+                    primaryColor={primaryColor}
+                  />
+                );
+              })}
             </div>
 
             {form.settings?.requireCaptcha && (
               <p className="pt-2 text-xs text-gray-400">
                 This form is protected by reCAPTCHA.
               </p>
+            )}
+
+            {/* Notes / Terms & Conditions */}
+            {form.settings?.notes && (
+              <div className="mt-5 bg-gray-50 border border-gray-200 rounded-xl p-4">
+                <p className="text-sm text-gray-600 whitespace-pre-wrap">{form.settings.notes}</p>
+              </div>
             )}
 
             <button

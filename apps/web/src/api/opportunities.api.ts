@@ -506,6 +506,11 @@ export const opportunitySettingsApi = {
     return data;
   },
 
+  upsertStageFields: async (stageId: string, fields: any[]) => {
+    const { data } = await api.put(`/lead-settings/stages/${stageId}/fields`, { fields });
+    return data;
+  },
+
   // Priorities (opportunities-specific)
   getPriorities: async (): Promise<OpportunityPriority[]> => {
     const { data } = await api.get('/opportunity-settings/priorities');

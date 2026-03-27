@@ -137,6 +137,7 @@ export interface ContactsQuery {
   tag?: string;
   ownerId?: string;
   accountId?: string;
+  productId?: string;
   page?: number;
   limit?: number;
   sortBy?: string;

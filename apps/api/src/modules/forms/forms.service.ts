@@ -799,6 +799,9 @@ export class FormsService {
           : r.action_results,
       ipAddress: r.ip_address,
       userAgent: r.user_agent,
+      entityType: r.entity_type || null,
+      entityId: r.entity_id || null,
+      status: r.status || null,
       createdAt: r.created_at,
     };
   }

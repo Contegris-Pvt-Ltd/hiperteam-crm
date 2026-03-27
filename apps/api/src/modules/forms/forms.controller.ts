@@ -211,7 +211,7 @@ export class FormsPublicController {
       schema = resolved;
     }
     const [submission] = await this.formsService['dataSource'].query(
-      `SELECT fs.id, fs.form_id, fs.status, fs.token_expires_at,
+      `SELECT fs.id, fs.form_id, fs.entity_type, fs.entity_id, fs.status, fs.token_expires_at,
               f.name as form_name, f.description, f.fields as form_fields, f.settings, f.branding
        FROM "${schema}".form_submissions fs
        JOIN "${schema}".forms f ON f.id = fs.form_id
@@ -223,12 +223,38 @@ export class FormsPublicController {
     if (submission.token_expires_at && new Date(submission.token_expires_at) < new Date()) {
       throw new BadRequestException('This form link has expired');
     }
+
+    // Get entity name for context
+    let entityName = '';
+    if (submission.entity_type && submission.entity_id) {
+      try {
+        if (submission.entity_type === 'accounts') {
+          const [entity] = await this.formsService['dataSource'].query(
+            `SELECT name FROM "${schema}".accounts WHERE id = $1`, [submission.entity_id],
+          );
+          entityName = entity?.name || '';
+        } else if (submission.entity_type === 'contacts') {
+          const [entity] = await this.formsService['dataSource'].query(
+            `SELECT first_name, last_name FROM "${schema}".contacts WHERE id = $1`, [submission.entity_id],
+          );
+          entityName = entity ? `${entity.first_name || ''} ${entity.last_name || ''}`.trim() : '';
+        } else if (submission.entity_type === 'leads') {
+          const [entity] = await this.formsService['dataSource'].query(
+            `SELECT first_name, last_name, company FROM "${schema}".leads WHERE id = $1`, [submission.entity_id],
+          );
+          entityName = entity ? `${entity.first_name || ''} ${entity.last_name || ''} ${entity.company ? `(${entity.company})` : ''}`.trim() : '';
+        }
+      } catch { /* ignore — entity may have been deleted */ }
+    }
+
     return {
       formName: submission.form_name,
       description: submission.description,
       formFields: submission.form_fields,
       settings: submission.settings,
       branding: submission.branding,
+      entityName,
+      entityType: submission.entity_type || null,
     };
   }
 

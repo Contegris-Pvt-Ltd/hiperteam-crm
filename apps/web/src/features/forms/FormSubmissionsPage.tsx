@@ -456,6 +456,11 @@ export function FormSubmissionsPage() {
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {new Date(sub.createdAt).toLocaleString()}
                           {sub.ipAddress && <span className="ml-2">IP: {sub.ipAddress}</span>}
+                          {(sub as any).entityType && (
+                            <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded text-[10px] font-medium capitalize">
+                              {(sub as any).entityType}
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>

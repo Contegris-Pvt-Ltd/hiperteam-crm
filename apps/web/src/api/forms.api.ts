@@ -11,6 +11,8 @@ export interface FormField {
   options?: { label: string; value: string }[];
   validation?: Record<string, any>;
   width?: 'full' | 'half';
+  visibility?: 'visible' | 'hidden';
+  defaultValue?: string;
 }
 
 export interface FormSubmitAction {
@@ -49,6 +51,7 @@ export interface FormSettings {
   allowMultiple?: boolean;
   requireCaptcha?: boolean;
   notifyEmails?: string[];
+  notes?: string;
 }
 
 export interface FormBranding {
