@@ -833,6 +833,7 @@ export class FormsService {
       JOIN "${schemaName}".forms f ON f.id = fs.form_id
       LEFT JOIN "${schemaName}".users u ON u.id = fs.submitted_by
       WHERE fs.entity_type = $1 AND fs.entity_id = $2 AND fs.deleted_at IS NULL
+        AND fs.status != 'pending'
     `;
     const params: any[] = [entityType, entityId];
     if (formId) {
@@ -1031,7 +1032,7 @@ export class FormsService {
 
       // Get the tenant's frontend URL from config
       const frontendUrl = process.env.FRONTEND_URL || 'https://hiperteam.intellicon.io';
-      const formUrl = `${frontendUrl}/public/form/${link.accessToken}`;
+      const formUrl = `${frontendUrl}/public/form/${link.accessToken}?tenant=${schemaName}`;
 
       // Replace {form_link} in body with actual URL
       const emailBody = dto.body.replace(/\{form_link\}/g, formUrl);
