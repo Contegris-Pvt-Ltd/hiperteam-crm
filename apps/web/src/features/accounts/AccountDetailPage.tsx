@@ -12,7 +12,7 @@ import {
   Plus, Zap,
   BarChart3, Loader2, AlertCircle,
   Briefcase, FolderKanban, Receipt, GitBranch, Copy, Settings2,
-  ChevronLeft, X, Send,
+  ChevronLeft, X,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { accountsApi } from '../../api/accounts.api';

@@ -30,7 +30,7 @@ interface IntegrationsTabProps {
   children: ReactNode; // Email marketing panel
 }
 
-export function IntegrationsTab({ moduleName, record, recordId, children }: IntegrationsTabProps) {
+export function IntegrationsTab({ moduleName, record, children }: IntegrationsTabProps) {
   const [embeddedApps, setEmbeddedApps] = useState<EmbeddedApp[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState('email_marketing');

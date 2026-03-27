@@ -6,7 +6,7 @@ import {
   Calendar, Tag, Linkedin, Twitter, 
   Facebook, Instagram, PhoneOff, MailX, BellOff,
   History, MessageSquare, FileText, Activity,
-  ChevronDown, ChevronRight, CheckSquare, Send
+  ChevronDown, ChevronRight, CheckSquare
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { contactsApi } from '../../api/contacts.api';
