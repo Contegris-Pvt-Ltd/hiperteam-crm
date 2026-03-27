@@ -38,6 +38,7 @@ import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 import { EntityEmailsTab } from '../email/EntityEmailsTab';
 import { AccountEmailMarketingPanel } from '../email-marketing/AccountEmailMarketingPanel';
 import { IntegrationsTab } from '../../components/shared/IntegrationsTab';
+import { EntityFormsPanel } from '../../components/shared/EntityFormsPanel';
 import { Plug } from 'lucide-react';
 
 // ============ PAGE DESIGNER IMPORTS ============
@@ -2907,16 +2908,19 @@ export function AccountDetailPage() {
               )}
 
               {activeTab === 'documents' && (
-                <DocumentsPanel
-                  documents={documents}
-                  loading={tabLoading}
-                  entityType="accounts"
-                  entityId={id!}
-                  onDocumentUploaded={(doc) => setDocuments(prev => [doc, ...prev])}
-                  onDocumentDeleted={async (docId) => {
-                    setDocuments(prev => prev.filter(d => d.id !== docId));
-                  }}
-                />
+                <div className="space-y-6">
+                  <EntityFormsPanel entityType="accounts" entityId={id!} entityData={account as Record<string, any> || {}} />
+                  <DocumentsPanel
+                    documents={documents}
+                    loading={tabLoading}
+                    entityType="accounts"
+                    entityId={id!}
+                    onDocumentUploaded={(doc) => setDocuments(prev => [doc, ...prev])}
+                    onDocumentDeleted={async (docId) => {
+                      setDocuments(prev => prev.filter(d => d.id !== docId));
+                    }}
+                  />
+                </div>
               )}
 
               {activeTab === 'history' && (

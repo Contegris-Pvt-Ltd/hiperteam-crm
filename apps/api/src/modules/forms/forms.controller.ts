@@ -10,6 +10,7 @@ import {
   Request,
   UseGuards,
   Req,
+  NotFoundException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -41,6 +42,79 @@ export class FormsController {
       limit: limit ? parseInt(limit, 10) : undefined,
     });
   }
+
+  // ── Module-linked form endpoints (named routes BEFORE :id) ──
+
+  @Get('module/:moduleName')
+  @RequirePermission('forms', 'view')
+  async getFormsForModule(
+    @Request() req: { user: JwtPayload },
+    @Param('moduleName') moduleName: string,
+  ) {
+    return this.formsService.getFormsForModule(req.user.tenantSchema, moduleName);
+  }
+
+  @Get('entity/:entityType/:entityId/submissions')
+  @RequirePermission('forms', 'view')
+  async getEntitySubmissions(
+    @Request() req: { user: JwtPayload },
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
+    @Query('formId') formId?: string,
+  ) {
+    return this.formsService.getEntitySubmissions(
+      req.user.tenantSchema,
+      entityType,
+      entityId,
+      formId,
+    );
+  }
+
+  @Post('entity/submit')
+  @RequirePermission('forms', 'create')
+  async submitEntityForm(
+    @Request() req: { user: JwtPayload },
+    @Body() body: { formId: string; entityType: string; entityId: string; data: Record<string, any> },
+  ) {
+    return this.formsService.submitEntityForm(req.user.tenantSchema, req.user.sub, body);
+  }
+
+  @Post('entity/send-email')
+  @RequirePermission('forms', 'create')
+  async sendFormEmail(
+    @Request() req: { user: JwtPayload },
+    @Body() body: {
+      formId: string;
+      entityType: string;
+      entityId: string;
+      recipients: string[];
+      subject: string;
+      body: string;
+      expiresInHours?: number;
+    },
+  ) {
+    return this.formsService.sendFormEmail(req.user.tenantSchema, req.user.sub, body);
+  }
+
+  @Post('entity/generate-link')
+  @RequirePermission('forms', 'create')
+  async generateFormLink(
+    @Request() req: { user: JwtPayload },
+    @Body() body: { formId: string; entityType: string; entityId: string; expiresInHours?: number },
+  ) {
+    return this.formsService.generateFormLink(req.user.tenantSchema, req.user.sub, body);
+  }
+
+  @Delete('entity/submissions/:submissionId')
+  @RequirePermission('forms', 'delete')
+  async deleteEntitySubmission(
+    @Request() req: { user: JwtPayload },
+    @Param('submissionId') submissionId: string,
+  ) {
+    return this.formsService.deleteEntitySubmission(req.user.tenantSchema, req.user.sub, submissionId);
+  }
+
+  // ── Existing :id routes ───────────────────────────────────
 
   @Get(':id')
   @RequirePermission('forms', 'view')
@@ -152,5 +226,22 @@ export class FormsPublicController {
       userAgent: req.headers['user-agent'] || '',
     };
     return this.formsService.processSubmission(tenantSlug, token, body, metadata);
+  }
+
+  // Public form submission via access token (module-linked, no auth)
+  @Post('submit/:token')
+  async submitPublicFormByToken(
+    @Param('token') token: string,
+    @Query('tenant') tenantSchema: string,
+    @Body() body: { data: Record<string, any>; email?: string },
+  ) {
+    // Resolve tenant schema from query param or by scanning tenants
+    let schema: string = tenantSchema;
+    if (!schema) {
+      const resolved = await this.formsService.resolveTokenTenant(token);
+      if (!resolved) throw new NotFoundException('Invalid or expired form link');
+      schema = resolved;
+    }
+    return this.formsService.submitPublicFormByToken(schema, token, body.data, body.email);
   }
 }

@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AuditService } from '../shared/audit.service';
+import { ActivityService } from '../shared/activity.service';
 import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
 import { EmailService } from '../email/email.service';
 import { randomBytes } from 'crypto';
@@ -12,6 +13,7 @@ export class FormsService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly auditService: AuditService,
+    private readonly activityService: ActivityService,
     private readonly workflowRunner: WorkflowRunnerService,
     private readonly emailService: EmailService,
   ) {}
@@ -91,8 +93,9 @@ export class FormsService {
       `INSERT INTO "${schemaName}".forms
         (name, description, slug, status, fields, settings, submit_actions, branding,
          token, tenant_slug, is_landing_page, landing_page_config,
-         type, meeting_config, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
+         type, meeting_config, available_modules, allow_multiple_submissions,
+         created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)
        RETURNING *`,
       [
         data.name,
@@ -109,6 +112,8 @@ export class FormsService {
         JSON.stringify(data.landingPageConfig || {}),
         data.type || 'standard',
         JSON.stringify(data.meetingConfig || {}),
+        data.availableModules || [],
+        data.allowMultipleSubmissions ?? true,
         userId,
       ],
     );
@@ -143,7 +148,9 @@ export class FormsService {
         landing_page_config = COALESCE($11, landing_page_config),
         type = COALESCE($12, type),
         meeting_config = COALESCE($13, meeting_config),
-        updated_by = $14,
+        available_modules = COALESCE($14, available_modules),
+        allow_multiple_submissions = COALESCE($15, allow_multiple_submissions),
+        updated_by = $16,
         updated_at = NOW()
        WHERE id = $1 AND deleted_at IS NULL
        RETURNING *`,
@@ -161,6 +168,8 @@ export class FormsService {
         data.landingPageConfig ? JSON.stringify(data.landingPageConfig) : null,
         data.type ?? null,
         data.meetingConfig ? JSON.stringify(data.meetingConfig) : null,
+        data.availableModules !== undefined ? data.availableModules : null,
+        data.allowMultipleSubmissions ?? null,
         userId,
       ],
     );
@@ -767,6 +776,8 @@ export class FormsService {
       isLandingPage: r.is_landing_page ?? false,
       landingPageConfig: typeof r.landing_page_config === 'string'
         ? JSON.parse(r.landing_page_config) : (r.landing_page_config ?? {}),
+      availableModules: r.available_modules || [],
+      allowMultipleSubmissions: r.allow_multiple_submissions ?? true,
       createdBy: r.created_by,
       createdByName: r.created_by_name || null,
       updatedBy: r.updated_by,
@@ -789,6 +800,294 @@ export class FormsService {
       ipAddress: r.ip_address,
       userAgent: r.user_agent,
       createdAt: r.created_at,
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // MODULE-LINKED FORMS
+  // ══════════════════════════════════════════════════════════════
+
+  // Get forms available for a specific module (e.g., 'accounts')
+  async getFormsForModule(schemaName: string, moduleName: string) {
+    const rows = await this.dataSource.query(
+      `SELECT id, name, description, fields, settings, allow_multiple_submissions, status
+       FROM "${schemaName}".forms
+       WHERE $1 = ANY(available_modules) AND status = 'active' AND deleted_at IS NULL
+       ORDER BY name ASC`,
+      [moduleName],
+    );
+    return rows.map((r: any) => this.formatForm(r));
+  }
+
+  // Get submissions for a specific entity (e.g., account with id X)
+  async getEntitySubmissions(
+    schemaName: string,
+    entityType: string,
+    entityId: string,
+    formId?: string,
+  ) {
+    let query = `
+      SELECT fs.*, f.name as form_name, f.fields as form_fields,
+             u.first_name as submitter_first_name, u.last_name as submitter_last_name
+      FROM "${schemaName}".form_submissions fs
+      JOIN "${schemaName}".forms f ON f.id = fs.form_id
+      LEFT JOIN "${schemaName}".users u ON u.id = fs.submitted_by
+      WHERE fs.entity_type = $1 AND fs.entity_id = $2 AND fs.deleted_at IS NULL
+    `;
+    const params: any[] = [entityType, entityId];
+    if (formId) {
+      query += ` AND fs.form_id = $3`;
+      params.push(formId);
+    }
+    query += ` ORDER BY fs.created_at DESC`;
+
+    const rows = await this.dataSource.query(query, params);
+    return rows.map((r: any) => ({
+      id: r.id,
+      formId: r.form_id,
+      formName: r.form_name,
+      formFields: typeof r.form_fields === 'string' ? JSON.parse(r.form_fields) : r.form_fields,
+      data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data,
+      metadata: typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata,
+      entityType: r.entity_type,
+      entityId: r.entity_id,
+      submittedBy: r.submitted_by,
+      submitterName: r.submitter_first_name
+        ? `${r.submitter_first_name} ${r.submitter_last_name || ''}`.trim()
+        : null,
+      filledByEmail: r.filled_by_email,
+      status: r.status,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  }
+
+  // Submit a form linked to an entity
+  async submitEntityForm(
+    schemaName: string,
+    userId: string,
+    dto: {
+      formId: string;
+      entityType: string;
+      entityId: string;
+      data: Record<string, any>;
+    },
+  ) {
+    // Check if form exists and is available for this module
+    const [form] = await this.dataSource.query(
+      `SELECT id, name, allow_multiple_submissions, fields
+       FROM "${schemaName}".forms
+       WHERE id = $1 AND $2 = ANY(available_modules) AND status = 'active' AND deleted_at IS NULL`,
+      [dto.formId, dto.entityType],
+    );
+    if (!form) throw new NotFoundException('Form not found or not available for this module');
+
+    // Check allow_multiple
+    if (!form.allow_multiple_submissions) {
+      const [existing] = await this.dataSource.query(
+        `SELECT id FROM "${schemaName}".form_submissions
+         WHERE form_id = $1 AND entity_type = $2 AND entity_id = $3 AND deleted_at IS NULL LIMIT 1`,
+        [dto.formId, dto.entityType, dto.entityId],
+      );
+      if (existing) throw new BadRequestException('This form has already been submitted for this record');
+    }
+
+    const [row] = await this.dataSource.query(
+      `INSERT INTO "${schemaName}".form_submissions
+       (form_id, entity_type, entity_id, data, submitted_by, status)
+       VALUES ($1, $2, $3, $4::jsonb, $5, 'submitted')
+       RETURNING *`,
+      [dto.formId, dto.entityType, dto.entityId, JSON.stringify(dto.data), userId],
+    );
+
+    // Update submission count
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".forms SET submission_count = submission_count + 1 WHERE id = $1`,
+      [dto.formId],
+    );
+
+    // Audit log
+    await this.auditService.log(schemaName, {
+      entityType: 'form_submissions',
+      entityId: row.id,
+      action: 'create',
+      changes: {},
+      newValues: row,
+      performedBy: userId,
+    });
+
+    return { id: row.id, formId: row.form_id, status: row.status, createdAt: row.created_at };
+  }
+
+  // Generate a public access token for external form filling
+  async generateFormLink(
+    schemaName: string,
+    userId: string,
+    dto: {
+      formId: string;
+      entityType: string;
+      entityId: string;
+      expiresInHours?: number;
+    },
+  ) {
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + (dto.expiresInHours || 168)); // 7 days default
+
+    const [row] = await this.dataSource.query(
+      `INSERT INTO "${schemaName}".form_submissions
+       (form_id, entity_type, entity_id, data, status, access_token, token_expires_at)
+       VALUES ($1, $2, $3, '{}'::jsonb, 'pending', $4, $5)
+       RETURNING id, access_token`,
+      [dto.formId, dto.entityType, dto.entityId, token, expiresAt.toISOString()],
+    );
+
+    return {
+      submissionId: row.id,
+      accessToken: row.access_token,
+      expiresAt,
+    };
+  }
+
+  // Submit form via public token (no auth required)
+  async submitPublicFormByToken(
+    tenantSchema: string,
+    token: string,
+    data: Record<string, any>,
+    email?: string,
+  ) {
+    const [submission] = await this.dataSource.query(
+      `SELECT fs.id, fs.form_id, fs.entity_type, fs.entity_id, fs.status, fs.token_expires_at,
+              f.name as form_name, f.fields as form_fields
+       FROM "${tenantSchema}".form_submissions fs
+       JOIN "${tenantSchema}".forms f ON f.id = fs.form_id
+       WHERE fs.access_token = $1 AND fs.deleted_at IS NULL`,
+      [token],
+    );
+
+    if (!submission) throw new NotFoundException('Invalid or expired form link');
+    if (submission.status !== 'pending') throw new BadRequestException('This form has already been submitted');
+    if (submission.token_expires_at && new Date(submission.token_expires_at) < new Date()) {
+      throw new BadRequestException('This form link has expired');
+    }
+
+    await this.dataSource.query(
+      `UPDATE "${tenantSchema}".form_submissions
+       SET data = $1::jsonb, status = 'submitted', filled_by_email = $2,
+           access_token = NULL, updated_at = NOW()
+       WHERE id = $3`,
+      [JSON.stringify(data), email || null, submission.id],
+    );
+
+    // Update submission count
+    await this.dataSource.query(
+      `UPDATE "${tenantSchema}".forms SET submission_count = submission_count + 1 WHERE id = $1`,
+      [submission.form_id],
+    );
+
+    return { success: true, submissionId: submission.id };
+  }
+
+  // Resolve tenant schema from a public form token
+  async resolveTokenTenant(token: string): Promise<string | null> {
+    // Get all tenant schemas
+    const tenants = await this.dataSource.query(
+      `SELECT schema_name FROM master.tenants WHERE is_active = true`,
+    );
+    for (const t of tenants) {
+      const [row] = await this.dataSource.query(
+        `SELECT id FROM "${t.schema_name}".form_submissions
+         WHERE access_token = $1 AND deleted_at IS NULL LIMIT 1`,
+        [token],
+      ).catch(() => []);
+      if (row) return t.schema_name;
+    }
+    return null;
+  }
+
+  // Send form via email
+  async sendFormEmail(
+    schemaName: string,
+    userId: string,
+    dto: {
+      formId: string;
+      entityType: string;
+      entityId: string;
+      recipients: string[];
+      subject: string;
+      body: string;
+      expiresInHours?: number;
+    },
+  ) {
+    // Generate link for each recipient
+    const results = [];
+    for (const email of dto.recipients) {
+      const link = await this.generateFormLink(schemaName, userId, {
+        formId: dto.formId,
+        entityType: dto.entityType,
+        entityId: dto.entityId,
+        expiresInHours: dto.expiresInHours,
+      });
+
+      // Get the tenant's frontend URL from config
+      const frontendUrl = process.env.FRONTEND_URL || 'https://hiperteam.intellicon.io';
+      const formUrl = `${frontendUrl}/public/form/${link.accessToken}`;
+
+      // Replace {form_link} in body with actual URL
+      const emailBody = dto.body.replace(/\{form_link\}/g, formUrl);
+
+      // Send email via email service
+      try {
+        await this.emailService.sendEmail({
+          to: email,
+          subject: dto.subject,
+          html: emailBody,
+        });
+        results.push({ email, status: 'sent', token: link.accessToken });
+      } catch (err: any) {
+        results.push({ email, status: 'failed', error: err.message });
+      }
+    }
+
+    // Log activity
+    await this.activityService.create(schemaName, {
+      entityType: dto.entityType,
+      entityId: dto.entityId,
+      activityType: 'form_sent',
+      title: `Form sent to ${dto.recipients.length} recipient(s)`,
+      performedBy: userId,
+    });
+
+    return results;
+  }
+
+  // Delete a submission (soft delete)
+  async deleteEntitySubmission(schemaName: string, userId: string, submissionId: string) {
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".form_submissions SET deleted_at = NOW() WHERE id = $1`,
+      [submissionId],
+    );
+    await this.auditService.log(schemaName, {
+      entityType: 'form_submissions',
+      entityId: submissionId,
+      action: 'delete',
+      changes: {},
+      newValues: {},
+      performedBy: userId,
+    });
+    return { success: true };
+  }
+
+  // Lightweight formatter for module-linked form listing
+  private formatForm(r: any) {
+    return {
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      fields: typeof r.fields === 'string' ? JSON.parse(r.fields) : r.fields,
+      settings: typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings,
+      allowMultipleSubmissions: r.allow_multiple_submissions ?? true,
+      status: r.status,
     };
   }
 }

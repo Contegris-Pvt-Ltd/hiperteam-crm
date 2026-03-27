@@ -30,6 +30,7 @@ import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 import { EntityEmailsTab } from '../email/EntityEmailsTab';
 import { ContactEmailMarketingPanel } from '../email-marketing/ContactEmailMarketingPanel';
 import { IntegrationsTab } from '../../components/shared/IntegrationsTab';
+import { EntityFormsPanel } from '../../components/shared/EntityFormsPanel';
 import { Plug } from 'lucide-react';
 
 type TabType = 'activity' | 'emails' | 'notes' | 'accounts' | 'tasks' | 'documents' | 'history' | 'integrations';
@@ -834,14 +835,17 @@ export function ContactDetailPage() {
                   {activeTab === 'activity' && <Timeline activities={activities} loading={tabLoading} />}
                   {activeTab === 'notes' && <NotesPanel notes={notes} loading={tabLoading} onAddNote={handleAddNote} />}
                   {activeTab === 'documents' && (
-                    <DocumentsPanel
-                      documents={documents}
-                      loading={tabLoading}
-                      entityType="contacts"
-                      entityId={id!}
-                      onDocumentUploaded={(doc) => setDocuments(prev => [doc, ...prev])}
-                      onDocumentDeleted={async (docId) => setDocuments(prev => prev.filter(d => d.id !== docId))}
-                    />
+                    <div className="space-y-6">
+                      <EntityFormsPanel entityType="contacts" entityId={id!} entityData={contact as Record<string, any> || {}} />
+                      <DocumentsPanel
+                        documents={documents}
+                        loading={tabLoading}
+                        entityType="contacts"
+                        entityId={id!}
+                        onDocumentUploaded={(doc) => setDocuments(prev => [doc, ...prev])}
+                        onDocumentDeleted={async (docId) => setDocuments(prev => prev.filter(d => d.id !== docId))}
+                      />
+                    </div>
                   )}
                   {activeTab === 'accounts' && (
                     <div>

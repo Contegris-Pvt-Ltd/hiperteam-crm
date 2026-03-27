@@ -76,6 +76,8 @@ export interface FormRecord {
   meetingConfig?: MeetingConfig;
   isLandingPage?: boolean;
   landingPageConfig?: FormLandingPageConfig;
+  availableModules?: string[];
+  allowMultipleSubmissions?: boolean;
   createdBy: string;
   createdByName?: string;
   updatedBy?: string;
@@ -92,6 +94,33 @@ export interface FormSubmission {
   ipAddress?: string;
   userAgent?: string;
   createdAt: string;
+}
+
+export interface EntityFormSubmission {
+  id: string;
+  formId: string;
+  formName: string;
+  formFields: FormField[];
+  data: Record<string, any>;
+  metadata?: Record<string, any>;
+  entityType: string;
+  entityId: string;
+  submittedBy?: string;
+  submitterName?: string;
+  filledByEmail?: string;
+  status: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ModuleForm {
+  id: string;
+  name: string;
+  description?: string;
+  fields: FormField[];
+  settings: FormSettings;
+  allowMultipleSubmissions: boolean;
+  status: string;
 }
 
 export const formsApi = {
@@ -137,6 +166,33 @@ export const formsApi = {
   },
   getAnalytics: async (formId: string) => {
     const { data } = await api.get(`/forms/${formId}/analytics`);
+    return data;
+  },
+  // Module-linked form methods
+  getFormsForModule: async (moduleName: string): Promise<ModuleForm[]> => {
+    const { data } = await api.get(`/forms/module/${moduleName}`);
+    return data;
+  },
+  getEntitySubmissions: async (entityType: string, entityId: string, formId?: string): Promise<EntityFormSubmission[]> => {
+    const { data } = await api.get(`/forms/entity/${entityType}/${entityId}/submissions`, {
+      params: formId ? { formId } : undefined,
+    });
+    return data;
+  },
+  submitEntityForm: async (body: { formId: string; entityType: string; entityId: string; data: any }) => {
+    const { data } = await api.post('/forms/entity/submit', body);
+    return data;
+  },
+  sendFormEmail: async (body: { formId: string; entityType: string; entityId: string; recipients: string[]; subject: string; body: string }) => {
+    const { data } = await api.post('/forms/entity/send-email', body);
+    return data;
+  },
+  generateFormLink: async (body: { formId: string; entityType: string; entityId: string }) => {
+    const { data } = await api.post('/forms/entity/generate-link', body);
+    return data;
+  },
+  deleteSubmission: async (submissionId: string) => {
+    const { data } = await api.delete(`/forms/entity/submissions/${submissionId}`);
     return data;
   },
   // Public (no auth)

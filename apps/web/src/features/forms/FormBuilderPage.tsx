@@ -110,6 +110,8 @@ export function FormBuilderPage() {
         landingPageConfig: form.landingPageConfig,
         type: form.type,
         meetingConfig: form.meetingConfig,
+        availableModules: form.availableModules,
+        allowMultipleSubmissions: form.allowMultipleSubmissions,
       });
       // Reload from server to ensure complete form state
       const reloaded = await formsApi.getById(id);
@@ -748,6 +750,46 @@ function SettingsPanel({ settings, onChange, form, updateForm }: {
         />
         <p className="text-xs text-gray-400 mt-1">Comma-separated email addresses</p>
       </div>
+
+      {/* Module Integration */}
+      <div className="border-t border-gray-200 dark:border-slate-600 pt-4">
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Available In Modules</label>
+        <div className="space-y-1.5">
+          {[
+            { value: 'accounts', label: 'Accounts' },
+            { value: 'contacts', label: 'Contacts' },
+            { value: 'leads', label: 'Leads' },
+            { value: 'opportunities', label: 'Opportunities' },
+            { value: 'projects', label: 'Projects' },
+          ].map((mod) => (
+            <label key={mod.value} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={(form?.availableModules || []).includes(mod.value)}
+                onChange={(e) => {
+                  const current = form?.availableModules || [];
+                  const next = e.target.checked
+                    ? [...current, mod.value]
+                    : current.filter((m: string) => m !== mod.value);
+                  updateForm({ availableModules: next });
+                }}
+                className="rounded text-purple-600"
+              />
+              {mod.label}
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-gray-400 mt-1">Form will appear in selected module detail pages</p>
+      </div>
+      <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <input
+          type="checkbox"
+          checked={form?.allowMultipleSubmissions ?? true}
+          onChange={(e) => updateForm({ allowMultipleSubmissions: e.target.checked })}
+          className="rounded text-purple-600"
+        />
+        Allow multiple submissions per record
+      </label>
 
       {/* Landing Page Mode */}
       <div className="border-t border-gray-200 dark:border-slate-600 pt-4">

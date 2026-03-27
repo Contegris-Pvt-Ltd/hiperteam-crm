@@ -3911,6 +3911,37 @@ async function runTenantMigrations() {
             `,
           },
 
+          {
+            name: '059_module_forms',
+            sql: `
+              -- Add module-linkable fields to forms
+              ALTER TABLE "${schema}".forms
+                ADD COLUMN IF NOT EXISTS available_modules TEXT[] DEFAULT '{}',
+                ADD COLUMN IF NOT EXISTS allow_multiple_submissions BOOLEAN DEFAULT true;
+
+              -- Extend form_submissions with entity linking + access token
+              ALTER TABLE "${schema}".form_submissions
+                ADD COLUMN IF NOT EXISTS entity_type VARCHAR(50),
+                ADD COLUMN IF NOT EXISTS entity_id UUID,
+                ADD COLUMN IF NOT EXISTS submitted_by UUID,
+                ADD COLUMN IF NOT EXISTS filled_by_email VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'submitted',
+                ADD COLUMN IF NOT EXISTS access_token VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
+                ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+              CREATE INDEX IF NOT EXISTS idx_form_sub_entity
+                ON "${schema}".form_submissions(entity_type, entity_id);
+              CREATE INDEX IF NOT EXISTS idx_form_sub_token
+                ON "${schema}".form_submissions(access_token) WHERE access_token IS NOT NULL;
+              CREATE INDEX IF NOT EXISTS idx_form_sub_status
+                ON "${schema}".form_submissions(status);
+              CREATE INDEX IF NOT EXISTS idx_forms_modules
+                ON "${schema}".forms USING GIN(available_modules);
+            `,
+          },
+
         ];
 
         // ── Execute pending migrations ────────────────────────────
