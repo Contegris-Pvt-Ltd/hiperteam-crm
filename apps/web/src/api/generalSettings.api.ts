@@ -31,6 +31,24 @@ export const generalSettingsApi = {
     return data;
   },
 
+  // Embedded Apps
+  getEmbeddedApps: async () => {
+    const { data } = await api.get('/general-settings/embedded-apps');
+    return data;
+  },
+  saveEmbeddedApps: async (apps: any[]) => {
+    const { data } = await api.put('/general-settings/embedded-apps', apps);
+    return data;
+  },
+  getEmbeddedAppsForModule: async (moduleName: string) => {
+    const { data } = await api.get(`/general-settings/embedded-apps/module/${moduleName}`);
+    return data;
+  },
+  getModuleVariables: async (moduleName: string) => {
+    const { data } = await api.get(`/general-settings/embedded-apps/variables/${moduleName}`);
+    return data;
+  },
+
   // Data Management
   exportAllData: async () => {
     const response = await api.get('/general-settings/export-data', { responseType: 'blob' });

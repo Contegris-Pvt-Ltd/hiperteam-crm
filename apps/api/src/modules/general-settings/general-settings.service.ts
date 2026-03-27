@@ -249,6 +249,118 @@ export class GeneralSettingsService {
     return settings;
   }
 
+  // ── Embedded Apps Settings ──────────────────────────────────
+
+  async getEmbeddedApps(schemaName: string) {
+    const [row] = await this.dataSource.query(
+      `SELECT setting_value FROM "${schemaName}".module_settings
+       WHERE module = 'integrations' AND setting_key = 'embedded_apps'`,
+    );
+    return row?.setting_value || [];
+  }
+
+  async saveEmbeddedApps(schemaName: string, apps: any[]) {
+    await this.dataSource.query(
+      `INSERT INTO "${schemaName}".module_settings (module, setting_key, setting_value, updated_at)
+       VALUES ('integrations', 'embedded_apps', $1::jsonb, NOW())
+       ON CONFLICT (module, setting_key)
+       DO UPDATE SET setting_value = $1::jsonb, updated_at = NOW()`,
+      [JSON.stringify(apps)],
+    );
+    return apps;
+  }
+
+  // Get embedded apps for a specific module (used by detail pages)
+  async getEmbeddedAppsForModule(schemaName: string, moduleName: string) {
+    const apps = await this.getEmbeddedApps(schemaName);
+    return apps.filter((app: any) => app.isActive && app.modules?.includes(moduleName));
+  }
+
+  // Get available variables for a module (field names from table columns + custom fields)
+  async getModuleVariables(schemaName: string, moduleName: string) {
+    // System fields per module
+    const systemFields: Record<string, Array<{ key: string; label: string }>> = {
+      accounts: [
+        { key: 'id', label: 'Account ID' },
+        { key: 'name', label: 'Account Name' },
+        { key: 'account_type', label: 'Account Type' },
+        { key: 'industry', label: 'Industry' },
+        { key: 'website', label: 'Website' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'email', label: 'Email' },
+        { key: 'city', label: 'City' },
+        { key: 'state', label: 'State' },
+        { key: 'country', label: 'Country' },
+        { key: 'postal_code', label: 'Postal Code' },
+        { key: 'status', label: 'Status' },
+        { key: 'annual_revenue', label: 'Annual Revenue' },
+        { key: 'employee_count', label: 'Employee Count' },
+        { key: 'owner_id', label: 'Owner ID' },
+      ],
+      contacts: [
+        { key: 'id', label: 'Contact ID' },
+        { key: 'first_name', label: 'First Name' },
+        { key: 'last_name', label: 'Last Name' },
+        { key: 'email', label: 'Email' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'mobile', label: 'Mobile' },
+        { key: 'company', label: 'Company' },
+        { key: 'job_title', label: 'Job Title' },
+        { key: 'city', label: 'City' },
+        { key: 'state', label: 'State' },
+        { key: 'country', label: 'Country' },
+        { key: 'account_id', label: 'Account ID' },
+        { key: 'status', label: 'Status' },
+        { key: 'owner_id', label: 'Owner ID' },
+      ],
+      leads: [
+        { key: 'id', label: 'Lead ID' },
+        { key: 'first_name', label: 'First Name' },
+        { key: 'last_name', label: 'Last Name' },
+        { key: 'email', label: 'Email' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'company', label: 'Company' },
+        { key: 'source', label: 'Source' },
+        { key: 'stage_id', label: 'Stage ID' },
+        { key: 'pipeline_id', label: 'Pipeline ID' },
+        { key: 'owner_id', label: 'Owner ID' },
+        { key: 'account_id', label: 'Account ID' },
+      ],
+      opportunities: [
+        { key: 'id', label: 'Opportunity ID' },
+        { key: 'name', label: 'Name' },
+        { key: 'amount', label: 'Amount' },
+        { key: 'currency', label: 'Currency' },
+        { key: 'probability', label: 'Probability' },
+        { key: 'stage_id', label: 'Stage ID' },
+        { key: 'pipeline_id', label: 'Pipeline ID' },
+        { key: 'account_id', label: 'Account ID' },
+        { key: 'owner_id', label: 'Owner ID' },
+      ],
+    };
+
+    const fields = systemFields[moduleName] || [];
+
+    // Also load custom fields for this module
+    try {
+      const customFields = await this.dataSource.query(
+        `SELECT field_key, field_label FROM "${schemaName}".custom_field_definitions
+         WHERE module = $1 AND is_active = true ORDER BY display_order`,
+        [moduleName],
+      );
+      for (const cf of customFields) {
+        fields.push({ key: `custom_fields.${cf.field_key}`, label: `${cf.field_label} (Custom)` });
+      }
+    } catch {
+      /* table may not exist */
+    }
+
+    // Add auth token as a special variable
+    fields.push({ key: 'auth_token', label: 'Auth Token (from app config)' });
+
+    return fields;
+  }
+
   // ══════════════════════════════════════════════════════════════
   // DATA EXPORT — Download all system data as XLSX
   // ══════════════════════════════════════════════════════════════

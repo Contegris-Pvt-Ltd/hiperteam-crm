@@ -1,14 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Loader2, Save, Plug, Eye, EyeOff,
   ToggleLeft, ToggleRight, AlertTriangle, CheckCircle2,
-  ExternalLink, Link2, Copy, Check,
+  ExternalLink, Link2, Copy, Check, Plus, Pencil, Trash2, X, AppWindow,
 } from 'lucide-react';
 import { adminApi } from '../../api/admin.api';
 import { api } from '../../api/contacts.api';
 import { emailMarketingApi } from '../../api/email-marketing.api';
+import { generalSettingsApi } from '../../api/generalSettings.api';
 import { useAuthStore } from '../../stores/auth.store';
+
+// ============================================================
+// EMBEDDED APP TYPES
+// ============================================================
+
+interface EmbeddedApp {
+  id: string;
+  name: string;
+  description: string;
+  modules: string[];
+  url: string;
+  authToken?: string;
+  isActive: boolean;
+}
+
+interface ModuleVariable {
+  key: string;
+  label: string;
+}
+
+const AVAILABLE_MODULES = [
+  { key: 'accounts', label: 'Accounts' },
+  { key: 'contacts', label: 'Contacts' },
+  { key: 'leads', label: 'Leads' },
+  { key: 'opportunities', label: 'Opportunities' },
+];
 
 // ============================================================
 // PROVIDER DEFINITIONS
@@ -509,6 +536,483 @@ export function IntegrationsPage() {
           })}
         </div>
       )}
+
+      {/* ════════════════════════════════════════════════════════════ */}
+      {/* EMBEDDED APPS SECTION                                       */}
+      {/* ════════════════════════════════════════════════════════════ */}
+      {!loading && <EmbeddedAppsSection />}
+    </div>
+  );
+}
+
+// ============================================================
+// EMBEDDED APPS SECTION COMPONENT
+// ============================================================
+
+function EmbeddedAppsSection() {
+  const [apps, setApps] = useState<EmbeddedApp[]>([]);
+  const [loadingApps, setLoadingApps] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingApp, setEditingApp] = useState<EmbeddedApp | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadApps();
+  }, []);
+
+  const loadApps = async () => {
+    setLoadingApps(true);
+    try {
+      const data = await generalSettingsApi.getEmbeddedApps();
+      setApps(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load embedded apps:', err);
+    } finally {
+      setLoadingApps(false);
+    }
+  };
+
+  const handleSaveApps = async (updatedApps: EmbeddedApp[]) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await generalSettingsApi.saveEmbeddedApps(updatedApps);
+      setApps(updatedApps);
+      setSuccessMsg('Embedded apps saved');
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to save embedded apps');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleActive = async (appId: string) => {
+    const updated = apps.map(a => a.id === appId ? { ...a, isActive: !a.isActive } : a);
+    await handleSaveApps(updated);
+  };
+
+  const handleDelete = async (appId: string) => {
+    if (!confirm('Delete this embedded app?')) return;
+    const updated = apps.filter(a => a.id !== appId);
+    await handleSaveApps(updated);
+  };
+
+  const handleSaveApp = async (app: EmbeddedApp) => {
+    let updated: EmbeddedApp[];
+    if (isCreating) {
+      updated = [...apps, app];
+    } else {
+      updated = apps.map(a => a.id === app.id ? app : a);
+    }
+    await handleSaveApps(updated);
+    setEditingApp(null);
+    setIsCreating(false);
+  };
+
+  const handleCreate = () => {
+    setIsCreating(true);
+    setEditingApp({
+      id: crypto.randomUUID(),
+      name: '',
+      description: '',
+      modules: [],
+      url: '',
+      authToken: '',
+      isActive: true,
+    });
+  };
+
+  return (
+    <div className="mt-8">
+      {/* Section Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+            <AppWindow className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Embedded Apps</h2>
+            <p className="text-sm text-gray-600 dark:text-slate-400">Embed external applications as iframes in record detail pages</p>
+          </div>
+        </div>
+        <button
+          onClick={handleCreate}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-colors text-sm"
+        >
+          <Plus className="w-4 h-4" />
+          Add Embedded App
+        </button>
+      </div>
+
+      {/* Error / Success */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          {error}
+        </div>
+      )}
+      {successMsg && (
+        <div className="flex items-center gap-2 p-3 mb-4 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg text-sm">
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+          {successMsg}
+        </div>
+      )}
+
+      {/* Loading */}
+      {loadingApps ? (
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
+        </div>
+      ) : (
+        <>
+          {/* App Cards */}
+          {apps.length === 0 && !editingApp ? (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center">
+              <AppWindow className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-slate-400">No embedded apps configured</p>
+              <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">Click "Add Embedded App" to create one</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {apps.map(app => (
+                <div
+                  key={app.id}
+                  className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-medium text-gray-900 dark:text-white">{app.name}</h3>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${
+                          app.isActive
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${app.isActive ? 'bg-green-500' : 'bg-gray-400'}`} />
+                          {app.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      {app.description && (
+                        <p className="text-sm text-gray-500 dark:text-slate-400 mb-2">{app.description}</p>
+                      )}
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {app.modules.map(mod => (
+                          <span
+                            key={mod}
+                            className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                          >
+                            {mod}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-400 dark:text-slate-500 font-mono truncate max-w-lg">
+                        {app.url}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                      <button
+                        onClick={() => handleToggleActive(app.id)}
+                        className="flex-shrink-0"
+                        title={app.isActive ? 'Deactivate' : 'Activate'}
+                      >
+                        {app.isActive
+                          ? <ToggleRight className="w-7 h-7 text-green-500" />
+                          : <ToggleLeft className="w-7 h-7 text-gray-400" />}
+                      </button>
+                      <button
+                        onClick={() => { setIsCreating(false); setEditingApp({ ...app }); }}
+                        className="p-2 text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+                        title="Edit"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(app.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Edit/Create Modal */}
+      {editingApp && (
+        <EmbeddedAppModal
+          app={editingApp}
+          isCreating={isCreating}
+          saving={saving}
+          onSave={handleSaveApp}
+          onClose={() => { setEditingApp(null); setIsCreating(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// EMBEDDED APP MODAL
+// ============================================================
+
+function EmbeddedAppModal({
+  app,
+  isCreating,
+  saving,
+  onSave,
+  onClose,
+}: {
+  app: EmbeddedApp;
+  isCreating: boolean;
+  saving: boolean;
+  onSave: (app: EmbeddedApp) => void;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState<EmbeddedApp>({ ...app });
+  const [showAuthToken, setShowAuthToken] = useState(false);
+  const [variables, setVariables] = useState<ModuleVariable[]>([]);
+  const [loadingVars, setLoadingVars] = useState(false);
+  const urlInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch variables when modules change
+  useEffect(() => {
+    if (form.modules.length === 0) {
+      setVariables([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingVars(true);
+    Promise.all(form.modules.map(m => generalSettingsApi.getModuleVariables(m)))
+      .then(results => {
+        if (cancelled) return;
+        // Combine and deduplicate
+        const seen = new Set<string>();
+        const combined: ModuleVariable[] = [];
+        results.flat().forEach((v: ModuleVariable) => {
+          if (!seen.has(v.key)) {
+            seen.add(v.key);
+            combined.push(v);
+          }
+        });
+        // Always add auth_token
+        if (!seen.has('auth_token')) {
+          combined.push({ key: 'auth_token', label: 'Auth Token' });
+        }
+        setVariables(combined);
+      })
+      .catch(err => console.error('Failed to load variables:', err))
+      .finally(() => { if (!cancelled) setLoadingVars(false); });
+    return () => { cancelled = true; };
+  }, [form.modules]);
+
+  const toggleModule = (mod: string) => {
+    setForm(prev => ({
+      ...prev,
+      modules: prev.modules.includes(mod)
+        ? prev.modules.filter(m => m !== mod)
+        : [...prev.modules, mod],
+    }));
+  };
+
+  const insertVariable = (varKey: string) => {
+    const input = urlInputRef.current;
+    if (!input) return;
+    const start = input.selectionStart ?? form.url.length;
+    const end = input.selectionEnd ?? start;
+    const token = `{${varKey}}`;
+    const newUrl = form.url.slice(0, start) + token + form.url.slice(end);
+    setForm(prev => ({ ...prev, url: newUrl }));
+    // Re-focus and position cursor after inserted variable
+    setTimeout(() => {
+      input.focus();
+      const pos = start + token.length;
+      input.setSelectionRange(pos, pos);
+    }, 0);
+  };
+
+  const variableIsInUrl = (key: string) => form.url.includes(`{${key}}`);
+
+  const handleSubmit = () => {
+    if (!form.name.trim()) return;
+    if (!form.url.trim()) return;
+    if (form.modules.length === 0) return;
+    onSave(form);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-slate-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {isCreating ? 'Add Embedded App' : 'Edit Embedded App'}
+          </h3>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Name</label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
+              placeholder="License Information"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Description</label>
+            <input
+              type="text"
+              value={form.description}
+              onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Client license lookup"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Modules */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Modules</label>
+            <div className="flex flex-wrap gap-2">
+              {AVAILABLE_MODULES.map(mod => (
+                <button
+                  key={mod.key}
+                  type="button"
+                  onClick={() => toggleModule(mod.key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                    form.modules.includes(mod.key)
+                      ? 'border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
+                      : 'border-gray-200 bg-white text-gray-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:border-gray-300 dark:hover:border-slate-500'
+                  }`}
+                >
+                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[10px] ${
+                    form.modules.includes(mod.key)
+                      ? 'bg-purple-600 border-purple-600 text-white'
+                      : 'border-gray-300 dark:border-slate-500'
+                  }`}>
+                    {form.modules.includes(mod.key) && <Check className="w-2.5 h-2.5" />}
+                  </span>
+                  {mod.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* URL Template */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">URL Template</label>
+            <input
+              ref={urlInputRef}
+              type="text"
+              value={form.url}
+              onChange={e => setForm(prev => ({ ...prev, url: e.target.value }))}
+              placeholder="https://app.example.com/client/{id}?t={auth_token}"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm"
+            />
+          </div>
+
+          {/* Variable Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              Insert Variable
+            </label>
+            {form.modules.length === 0 ? (
+              <p className="text-xs text-gray-400 dark:text-slate-500">Select modules first to see available variables</p>
+            ) : loadingVars ? (
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Loading variables...
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                {variables.map(v => (
+                  <button
+                    key={v.key}
+                    type="button"
+                    onClick={() => insertVariable(v.key)}
+                    title={`Insert {${v.key}}`}
+                    className={`px-2 py-0.5 text-xs rounded-full cursor-pointer transition-colors ${
+                      variableIsInUrl(v.key)
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 ring-1 ring-purple-300 dark:ring-purple-600'
+                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+                    }`}
+                  >
+                    {v.label} <span className="opacity-60">({v.key})</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Click a variable to insert it at cursor position in the URL</p>
+          </div>
+
+          {/* Auth Token */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Auth Token (optional)</label>
+            <div className="relative">
+              <input
+                type={showAuthToken ? 'text' : 'password'}
+                value={form.authToken || ''}
+                onChange={e => setForm(prev => ({ ...prev, authToken: e.target.value }))}
+                placeholder="sk-xxx-yyy-zzz"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowAuthToken(!showAuthToken)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300"
+              >
+                {showAuthToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Used to replace the {'{auth_token}'} variable in the URL</p>
+          </div>
+
+          {/* Active Toggle */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setForm(prev => ({ ...prev, isActive: !prev.isActive }))}
+            >
+              {form.isActive
+                ? <ToggleRight className="w-7 h-7 text-green-500" />
+                : <ToggleLeft className="w-7 h-7 text-gray-400" />}
+            </button>
+            <span className="text-sm text-gray-700 dark:text-slate-300">Active</span>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-slate-700">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving || !form.name.trim() || !form.url.trim() || form.modules.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-colors disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Save
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

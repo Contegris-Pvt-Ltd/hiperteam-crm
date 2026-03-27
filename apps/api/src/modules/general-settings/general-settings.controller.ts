@@ -101,6 +101,38 @@ export class GeneralSettingsController {
     );
   }
 
+  // ── Embedded Apps ────────────────────────────────────────────
+
+  @Get('embedded-apps')
+  @RequirePermission('settings', 'view')
+  async getEmbeddedApps(@Request() req: { user: JwtPayload }) {
+    return this.settingsService.getEmbeddedApps(req.user.tenantSchema);
+  }
+
+  @Put('embedded-apps')
+  @AdminOnly()
+  async saveEmbeddedApps(@Request() req: { user: JwtPayload }, @Body() body: any[]) {
+    return this.settingsService.saveEmbeddedApps(req.user.tenantSchema, body);
+  }
+
+  @Get('embedded-apps/module/:moduleName')
+  @RequirePermission('settings', 'view')
+  async getEmbeddedAppsForModule(
+    @Request() req: { user: JwtPayload },
+    @Param('moduleName') moduleName: string,
+  ) {
+    return this.settingsService.getEmbeddedAppsForModule(req.user.tenantSchema, moduleName);
+  }
+
+  @Get('embedded-apps/variables/:moduleName')
+  @RequirePermission('settings', 'view')
+  async getModuleVariables(
+    @Request() req: { user: JwtPayload },
+    @Param('moduleName') moduleName: string,
+  ) {
+    return this.settingsService.getModuleVariables(req.user.tenantSchema, moduleName);
+  }
+
   // ── CURRENCIES ────────────────────────────────────────────────
 
   @Get('currencies')

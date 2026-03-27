@@ -29,8 +29,10 @@ import { DynamicPageRenderer } from '../../components/shared/DynamicPageRenderer
 import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 import { EntityEmailsTab } from '../email/EntityEmailsTab';
 import { ContactEmailMarketingPanel } from '../email-marketing/ContactEmailMarketingPanel';
+import { IntegrationsTab } from '../../components/shared/IntegrationsTab';
+import { Plug } from 'lucide-react';
 
-type TabType = 'activity' | 'emails' | 'notes' | 'accounts' | 'tasks' | 'documents' | 'history' | 'email_marketing';
+type TabType = 'activity' | 'emails' | 'notes' | 'accounts' | 'tasks' | 'documents' | 'history' | 'integrations';
 
 export function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -497,7 +499,7 @@ export function ContactDetailPage() {
     { id: 'accounts', label: 'Accounts', icon: <Building2 className="w-4 h-4" /> },
     { id: 'tasks', label: 'Tasks', icon: <CheckSquare className="w-4 h-4" /> },
     { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
-    { id: 'email_marketing', label: 'Email Marketing', icon: <Send className="w-4 h-4" /> },
+    { id: 'integrations', label: 'Integrations', icon: <Plug className="w-4 h-4" /> },
   ];
 
   const primaryEmail = contact.emails?.find(e => e.primary) || contact.emails?.[0];
@@ -901,8 +903,10 @@ export function ContactDetailPage() {
                       entityName={`${contact.firstName} ${contact.lastName}`}
                     />
                   )}
-                  {activeTab === 'email_marketing' && (
-                    <ContactEmailMarketingPanel contactId={id!} />
+                  {activeTab === 'integrations' && (
+                    <IntegrationsTab moduleName="contacts" record={contact} recordId={id!}>
+                      <ContactEmailMarketingPanel contactId={id!} />
+                    </IntegrationsTab>
                   )}
                 </div>
               </div>

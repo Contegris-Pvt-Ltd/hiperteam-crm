@@ -37,6 +37,8 @@ import { QuickCreateContactModal } from '../../components/shared/QuickCreateCont
 import { EntityTasksPanel } from '../tasks/components/EntityTasksPanel';
 import { EntityEmailsTab } from '../email/EntityEmailsTab';
 import { AccountEmailMarketingPanel } from '../email-marketing/AccountEmailMarketingPanel';
+import { IntegrationsTab } from '../../components/shared/IntegrationsTab';
+import { Plug } from 'lucide-react';
 
 // ============ PAGE DESIGNER IMPORTS ============
 import { useModuleLayout } from '../../hooks/useModuleLayout';
@@ -1834,7 +1836,7 @@ function TimelineTabContent({ accountId }: { accountId: string }) {
 // Tab Type Definition
 // ════════════════════════════════════════════════════════════
 
-type TabType = 'overview' | 'subscriptions' | 'leads' | 'opportunities' | 'projects' | 'financials' | 'contacts' | 'emails' | 'tasks' | 'notes' | 'documents' | 'timeline' | 'history' | 'children' | 'email_marketing';
+type TabType = 'overview' | 'subscriptions' | 'leads' | 'opportunities' | 'projects' | 'financials' | 'contacts' | 'emails' | 'tasks' | 'notes' | 'documents' | 'timeline' | 'history' | 'children' | 'integrations';
 
 // ════════════════════════════════════════════════════════════
 // Main Page Component
@@ -2334,7 +2336,7 @@ export function AccountDetailPage() {
     { id: 'timeline', label: 'Timeline', icon: <GitBranch className="w-4 h-4" /> },
     { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
     { id: 'children', label: 'Sub-accounts', icon: <Network className="w-4 h-4" /> },
-    { id: 'email_marketing', label: 'Email Marketing', icon: <Send className="w-4 h-4" /> },
+    { id: 'integrations', label: 'Integrations', icon: <Plug className="w-4 h-4" /> },
   ];
 
   const primaryEmail = account.emails?.find(e => e.primary) || account.emails?.[0];
@@ -2960,8 +2962,10 @@ export function AccountDetailPage() {
                 </div>
               )}
 
-              {activeTab === 'email_marketing' && (
-                <AccountEmailMarketingPanel accountId={id!} />
+              {activeTab === 'integrations' && (
+                <IntegrationsTab moduleName="accounts" record={account} recordId={id!}>
+                  <AccountEmailMarketingPanel accountId={id!} />
+                </IntegrationsTab>
               )}
             </div>
           </div>
