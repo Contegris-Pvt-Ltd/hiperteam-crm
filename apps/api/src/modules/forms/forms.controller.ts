@@ -197,6 +197,57 @@ export class FormsController {
 export class FormsPublicController {
   constructor(private readonly formsService: FormsService) {}
 
+  // IMPORTANT: Named routes BEFORE parameterized :tenantSlug/:token
+  // Get form details by access token (module-linked, no auth)
+  @Get('form/:token')
+  async getPublicFormByToken(
+    @Param('token') token: string,
+    @Query('tenant') tenantSchema: string,
+  ) {
+    let schema: string = tenantSchema;
+    if (!schema) {
+      const resolved = await this.formsService.resolveTokenTenant(token);
+      if (!resolved) throw new NotFoundException('Invalid or expired form link');
+      schema = resolved;
+    }
+    const [submission] = await this.formsService['dataSource'].query(
+      `SELECT fs.id, fs.form_id, fs.status, fs.token_expires_at,
+              f.name as form_name, f.description, f.fields as form_fields, f.settings, f.branding
+       FROM "${schema}".form_submissions fs
+       JOIN "${schema}".forms f ON f.id = fs.form_id
+       WHERE fs.access_token = $1 AND fs.deleted_at IS NULL`,
+      [token],
+    );
+    if (!submission) throw new NotFoundException('Invalid or expired form link');
+    if (submission.status !== 'pending') throw new BadRequestException('This form has already been submitted');
+    if (submission.token_expires_at && new Date(submission.token_expires_at) < new Date()) {
+      throw new BadRequestException('This form link has expired');
+    }
+    return {
+      formName: submission.form_name,
+      description: submission.description,
+      formFields: submission.form_fields,
+      settings: submission.settings,
+      branding: submission.branding,
+    };
+  }
+
+  // Submit form via public access token (module-linked, no auth)
+  @Post('submit/:token')
+  async submitPublicFormByToken(
+    @Param('token') token: string,
+    @Query('tenant') tenantSchema: string,
+    @Body() body: { data: Record<string, any>; email?: string; tenant?: string },
+  ) {
+    let schema: string = tenantSchema || body.tenant || '';
+    if (!schema) {
+      const resolved = await this.formsService.resolveTokenTenant(token);
+      if (!resolved) throw new NotFoundException('Invalid or expired form link');
+      schema = resolved;
+    }
+    return this.formsService.submitPublicFormByToken(schema, token, body.data, body.email);
+  }
+
   @Get(':tenantSlug/:token')
   async getPublicForm(
     @Param('tenantSlug') tenantSlug: string,
@@ -229,55 +280,4 @@ export class FormsPublicController {
     return this.formsService.processSubmission(tenantSlug, token, body, metadata);
   }
 
-  // Get form details by access token (module-linked, no auth)
-  @Get('form/:token')
-  async getPublicFormByToken(
-    @Param('token') token: string,
-    @Query('tenant') tenantSchema: string,
-  ) {
-    let schema: string = tenantSchema;
-    if (!schema) {
-      const resolved = await this.formsService.resolveTokenTenant(token);
-      if (!resolved) throw new NotFoundException('Invalid or expired form link');
-      schema = resolved;
-    }
-    // Look up the submission + form details
-    const [submission] = await this.formsService['dataSource'].query(
-      `SELECT fs.id, fs.form_id, fs.status, fs.token_expires_at,
-              f.name as form_name, f.description, f.fields as form_fields, f.settings, f.branding
-       FROM "${schema}".form_submissions fs
-       JOIN "${schema}".forms f ON f.id = fs.form_id
-       WHERE fs.access_token = $1 AND fs.deleted_at IS NULL`,
-      [token],
-    );
-    if (!submission) throw new NotFoundException('Invalid or expired form link');
-    if (submission.status !== 'pending') throw new BadRequestException('This form has already been submitted');
-    if (submission.token_expires_at && new Date(submission.token_expires_at) < new Date()) {
-      throw new BadRequestException('This form link has expired');
-    }
-    return {
-      formName: submission.form_name,
-      description: submission.description,
-      formFields: submission.form_fields,
-      settings: submission.settings,
-      branding: submission.branding,
-    };
-  }
-
-  // Public form submission via access token (module-linked, no auth)
-  @Post('submit/:token')
-  async submitPublicFormByToken(
-    @Param('token') token: string,
-    @Query('tenant') tenantSchema: string,
-    @Body() body: { data: Record<string, any>; email?: string },
-  ) {
-    // Resolve tenant schema from query param or by scanning tenants
-    let schema: string = tenantSchema;
-    if (!schema) {
-      const resolved = await this.formsService.resolveTokenTenant(token);
-      if (!resolved) throw new NotFoundException('Invalid or expired form link');
-      schema = resolved;
-    }
-    return this.formsService.submitPublicFormByToken(schema, token, body.data, body.email);
-  }
 }
