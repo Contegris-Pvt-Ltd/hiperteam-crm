@@ -109,7 +109,6 @@ const TABS = [
   { id: 'sources', label: 'Sources & Reasons', icon: Globe },
   { id: 'sla', label: 'SLA', icon: Timer },
   { id: 'general', label: 'General', icon: Settings },
-  { id: 'targets', label: 'Targets', icon: Target },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];

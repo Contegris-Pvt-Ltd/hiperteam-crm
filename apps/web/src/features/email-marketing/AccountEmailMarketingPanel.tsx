@@ -122,6 +122,19 @@ export function AccountEmailMarketingPanel({ accountId }: { accountId: string })
     );
   }
 
+  // Check if no integration is configured or no contacts with marketing data
+  if ((!loading && contacts.length === 0 && !error) || (error && (error.toLowerCase().includes('not configured') || error.toLowerCase().includes('no provider') || error.toLowerCase().includes('not connected')))) {
+    return (
+      <div className="text-center py-12">
+        <Send className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+        <p className="text-gray-500 dark:text-slate-400">Email marketing not connected</p>
+        <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">
+          Connect MailerLite or Mailchimp in <Link to="/admin/integrations" className="text-purple-600 dark:text-purple-400 hover:underline">Admin → Integrations</Link>
+        </p>
+      </div>
+    );
+  }
+
   if (error && contacts.length === 0) {
     return (
       <div className="text-center py-12">
