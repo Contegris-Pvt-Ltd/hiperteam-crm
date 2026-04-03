@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Bell, Mail, Smartphone, Globe, MessageCircle, ArrowLeft,
   Save, Loader2, CheckCircle, AlertCircle, Send, Key,
-  Eye, EyeOff, Hash, ExternalLink,
+  Hash, ExternalLink,
 } from 'lucide-react';
 import type {
   NotificationPreference,
@@ -38,10 +38,7 @@ export function NotificationPreferencesPage() {
   const [smtpConfig, setSmtpConfig] = useState<any>({});
   const [twilioConfig, setTwilioConfig] = useState<any>({});
   const [pushConfig, setPushConfig] = useState<any>({});
-  const [smtpVerified, setSmtpVerified] = useState<boolean | null>(null);
-  const [twilioVerified, setTwilioVerified] = useState<boolean | null>(null);
   const [pushSubscribed, setPushSubscribed] = useState(false);
-  const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
 
   // Channel provider selections
   const [channelProviders, setChannelProviders] = useState<Record<string, string>>({
@@ -145,48 +142,6 @@ export function NotificationPreferencesPage() {
   // ============================================================
   // SAVE CHANNEL CONFIG
   // ============================================================
-  const saveSmtp = async () => {
-    setSaving(true);
-    try {
-      await notificationsApi.updateSetting('smtp_config', smtpConfig);
-      setSmtpVerified(null);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveTwilio = async () => {
-    setSaving(true);
-    try {
-      await notificationsApi.updateSetting('twilio_config', twilioConfig);
-      setTwilioVerified(null);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // *** UPDATED: verifySmtp now shows error messages ***
-  const verifySmtp = async () => {
-    setSmtpMessage(null);
-    try {
-      const result = await notificationsApi.verifySmtp();
-      setSmtpVerified(result.success);
-      if (result.success) {
-        setSmtpMessage({ type: 'success', text: 'SMTP connection verified successfully!' });
-      } else {
-        setSmtpMessage({ type: 'error', text: result.error || 'SMTP verification failed' });
-      }
-    } catch (err: any) {
-      setSmtpVerified(false);
-      setSmtpMessage({ type: 'error', text: err?.response?.data?.message || err?.message || 'SMTP verification failed' });
-    }
-  };
-
-  const verifyTwilio = async () => {
-    const result = await notificationsApi.verifyTwilio();
-    setTwilioVerified(result.success);
-  };
-
   // *** UPDATED: handlePushToggle now shows error messages ***
   const handlePushToggle = async () => {
     setPushError(null);
@@ -387,7 +342,7 @@ export function NotificationPreferencesPage() {
                   setTestingProvider('email');
                   setProviderMessage(null);
                   try {
-                    const result = await notificationsApi.verifySmtp(channelProviders.email);
+                    const result = await notificationsApi.verifySmtp(channelProviders.email) as any;
                     setProviderMessage(result.success
                       ? { type: 'success', text: `Email provider verified (${result.source || channelProviders.email})` }
                       : { type: 'error', text: result.error || 'Verification failed' });
@@ -670,48 +625,6 @@ export function NotificationPreferencesPage() {
 // ============================================================
 // REUSABLE FORM FIELDS
 // ============================================================
-function InputField({ label, value, onChange, placeholder }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string;
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">{label}</label>
-      <input
-        type="text"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-      />
-    </div>
-  );
-}
-
-function PasswordField({ label, value, onChange, show, onToggle }: {
-  label: string; value: string; onChange: (v: string) => void; show: boolean; onToggle: () => void;
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">{label}</label>
-      <div className="relative">
-        <input
-          type={show ? 'text' : 'password'}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="w-full px-3 py-2 pr-9 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-        >
-          {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function ProviderSelector({ icon, iconBg, label, value, onChange, options, testLabel, testing, onTest }: {
   icon: React.ReactNode;
   iconBg: string;
