@@ -182,6 +182,73 @@ export class DocuSignService {
   }
 
   // ============================================================
+  // SEND ENVELOPE FOR CONTRACT — reads uploaded document
+  // ============================================================
+  async sendEnvelopeForContract(
+    schemaName: string,
+    contractId: string,
+    tenantId: string,
+  ): Promise<{ envelopeId: string }> {
+    const config = await this.getConfig(tenantId);
+    if (!config) {
+      throw new BadRequestException('DocuSign is not configured for this tenant');
+    }
+
+    // Fetch contract with document
+    const [contract] = await this.dataSource.query(
+      `SELECT * FROM "${schemaName}".contracts WHERE id = $1 AND deleted_at IS NULL`,
+      [contractId],
+    );
+    if (!contract) {
+      throw new BadRequestException('Contract not found');
+    }
+    if (!contract.document_url) {
+      throw new BadRequestException('Contract has no uploaded document. Please upload a document before sending via DocuSign.');
+    }
+
+    // Fetch the document from URL and convert to base64
+    let pdfBase64: string;
+    try {
+      pdfBase64 = await this.fetchDocumentAsBase64(contract.document_url);
+    } catch (error: any) {
+      this.logger.error('Failed to fetch contract document for DocuSign', error?.message);
+      throw new BadRequestException('Failed to read contract document. Please re-upload the document.');
+    }
+
+    // Fetch signatories
+    const signatories = await this.dataSource.query(
+      `SELECT name, email, sign_order FROM "${schemaName}".contract_signatories
+       WHERE contract_id = $1 ORDER BY sign_order ASC`,
+      [contractId],
+    );
+
+    const recipients: EnvelopeRecipient[] = signatories.map((s: any, idx: number) => ({
+      name: s.name,
+      email: s.email,
+      recipientId: String(idx + 1),
+      routingOrder: String(s.sign_order),
+    }));
+
+    // Create envelope
+    const result = await this.createEnvelope(
+      config,
+      contract.title,
+      pdfBase64,
+      recipients,
+    );
+
+    // Store envelope_id on contract
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".contracts
+       SET docusign_envelope_id = $1, docusign_status = 'sent', updated_at = NOW()
+       WHERE id = $2`,
+      [result.envelopeId, contractId],
+    );
+
+    return result;
+  }
+
+  // ============================================================
   // HANDLE WEBHOOK — DocuSign Connect callback
   // ============================================================
   async handleWebhook(
@@ -215,7 +282,37 @@ export class DocuSignService {
       return { processed: false };
     }
 
-    // Map DocuSign status to contract status
+    // Handle individual recipient status updates
+    const recipientStatuses =
+      payload?.EnvelopeStatus?.RecipientStatuses ||
+      payload?.recipientStatuses ||
+      [];
+
+    for (const recipient of recipientStatuses) {
+      const recipientEmail = recipient?.Email || recipient?.email;
+      const recipientStatus = (recipient?.Status || recipient?.status || '').toLowerCase();
+      const declineReason = recipient?.DeclineReason || recipient?.declineReason || null;
+
+      if (!recipientEmail) continue;
+
+      if (recipientStatus === 'completed' || recipientStatus === 'signed') {
+        await this.dataSource.query(
+          `UPDATE "${schemaName}".contract_signatories
+           SET status = 'signed', signed_at = NOW()
+           WHERE contract_id = $1 AND LOWER(email) = LOWER($2) AND status != 'signed'`,
+          [contract.id, recipientEmail],
+        );
+      } else if (recipientStatus === 'declined') {
+        await this.dataSource.query(
+          `UPDATE "${schemaName}".contract_signatories
+           SET status = 'declined', decline_reason = $3
+           WHERE contract_id = $1 AND LOWER(email) = LOWER($2)`,
+          [contract.id, recipientEmail, declineReason],
+        );
+      }
+    }
+
+    // Map DocuSign envelope-level status to contract status
     const statusMap: Record<string, string> = {
       completed: 'fully_signed',
       declined: 'terminated',
@@ -224,10 +321,19 @@ export class DocuSignService {
 
     const newStatus = statusMap[status?.toLowerCase()];
     if (!newStatus) {
+      // For partial updates (e.g. "sent", "delivered"), just update docusign_status
+      if (status) {
+        await this.dataSource.query(
+          `UPDATE "${schemaName}".contracts
+           SET docusign_status = $2, updated_at = NOW()
+           WHERE id = $1`,
+          [contract.id, status.toLowerCase()],
+        );
+      }
       this.logger.log(
-        `DocuSign webhook: unhandled status "${status}", skipping`,
+        `DocuSign webhook: status "${status}" noted, no contract status change`,
       );
-      return { processed: false };
+      return { processed: true };
     }
 
     // Update contract status
@@ -238,37 +344,41 @@ export class DocuSignService {
       [contract.id, newStatus, status?.toLowerCase()],
     );
 
-    // If completed, mark all signatories as signed
+    // If completed, mark all signatories as signed (fallback)
     if (newStatus === 'fully_signed') {
       await this.dataSource.query(
         `UPDATE "${schemaName}".contract_signatories
-         SET status = 'signed', signed_at = NOW()
+         SET status = 'signed', signed_at = COALESCE(signed_at, NOW())
          WHERE contract_id = $1 AND status != 'signed'`,
         [contract.id],
       );
-    }
-
-    // If declined/voided, find the decliner from payload and mark them
-    if (
-      newStatus === 'terminated' &&
-      payload?.EnvelopeStatus?.RecipientStatuses
-    ) {
-      const declinedRecipient = payload.EnvelopeStatus.RecipientStatuses.find(
-        (r: any) => r.Status === 'Declined',
-      );
-      if (declinedRecipient) {
-        await this.dataSource.query(
-          `UPDATE "${schemaName}".contract_signatories
-           SET status = 'declined'
-           WHERE contract_id = $1 AND email = $2`,
-          [contract.id, declinedRecipient.Email],
-        );
-      }
     }
 
     this.logger.log(
       `DocuSign webhook: contract ${contract.id} updated to ${newStatus}`,
     );
     return { processed: true };
+  }
+
+  // ============================================================
+  // HELPER — fetch a URL and return base64
+  // ============================================================
+  private fetchDocumentAsBase64(url: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const protocol = url.startsWith('https') ? require('https') : require('http');
+      protocol.get(url, (res: any) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          // Follow redirect
+          return this.fetchDocumentAsBase64(res.headers.location).then(resolve).catch(reject);
+        }
+        if (res.statusCode !== 200) {
+          return reject(new Error(`HTTP ${res.statusCode}`));
+        }
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => resolve(Buffer.concat(chunks).toString('base64')));
+        res.on('error', reject);
+      }).on('error', reject);
+    });
   }
 }

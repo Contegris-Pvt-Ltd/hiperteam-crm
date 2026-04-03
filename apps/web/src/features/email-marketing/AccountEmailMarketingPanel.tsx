@@ -122,8 +122,14 @@ export function AccountEmailMarketingPanel({ accountId }: { accountId: string })
     );
   }
 
-  // Check if no integration is configured or no contacts with marketing data
-  if ((!loading && contacts.length === 0 && !error) || (error && (error.toLowerCase().includes('not configured') || error.toLowerCase().includes('no provider') || error.toLowerCase().includes('not connected')))) {
+  // Check if no integration is configured — none of the contacts have marketing data
+  const hasAnyMarketingData = contacts.some((c: any) =>
+    (c.status && c.status !== 'none') ||
+    (c.marketingStatus && c.marketingStatus !== 'none') ||
+    (c.provider) ||
+    (c.lists && c.lists.length > 0)
+  );
+  if ((!loading && !hasAnyMarketingData && !error) || (error && (error.toLowerCase().includes('not configured') || error.toLowerCase().includes('no provider') || error.toLowerCase().includes('not connected')))) {
     return (
       <div className="text-center py-12">
         <Send className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto mb-3" />

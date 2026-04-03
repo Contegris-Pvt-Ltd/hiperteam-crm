@@ -232,6 +232,23 @@ export const notificationsApi = {
     return response.data;
   },
 
+  // ---- Channel Providers ----
+  getChannelProviders: async (): Promise<Record<string, string>> => {
+    const response = await api.get('/notifications/channel-providers');
+    return response.data;
+  },
+
+  updateChannelProviders: async (providers: Record<string, string>): Promise<Record<string, string>> => {
+    const response = await api.put('/notifications/channel-providers', providers);
+    return response.data;
+  },
+
+  // ---- Verification ----
+  verifyChat: async (): Promise<{ success: boolean; error?: string }> => {
+    const response = await api.post('/notifications/verify/chat');
+    return response.data;
+  },
+
   // ---- Test ----
   sendTest: async (channel?: string, testEmail?: string) => {
      const { data } = await api.post('/notifications/test', { channel, testEmail });

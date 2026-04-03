@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Loader2, CheckCircle, XCircle, PenLine,
-  FileText, Calendar, DollarSign, Users, AlertTriangle,
+  FileText, Calendar, DollarSign, Users, AlertTriangle, Paperclip,
 } from 'lucide-react';
 import { contractsApi } from '../../api/contracts.api';
 import { CompanyLetterhead } from '../../components/shared/CompanyLetterhead';
@@ -299,6 +299,53 @@ export function ContractSignPage() {
                 </div>
               </div>
 
+              {/* Contract Document */}
+              {contract.documentUrl && (
+                <div className="mt-6 pt-4 border-t border-gray-100">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                    <Paperclip className="w-4 h-4 text-gray-400" />
+                    Contract Document
+                    {contract.documentName && (
+                      <span className="text-xs font-normal text-gray-400">({contract.documentName})</span>
+                    )}
+                  </h3>
+                  {contract.documentUrl.toLowerCase().endsWith('.pdf') ? (
+                    <object
+                      data={contract.documentUrl}
+                      type="application/pdf"
+                      className="w-full rounded-lg border border-gray-200"
+                      style={{ minHeight: '500px' }}
+                    >
+                      <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                        <FileText className="w-8 h-8 mb-2 text-gray-300" />
+                        <p className="text-sm">Unable to display PDF inline.</p>
+                        <a
+                          href={contract.documentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 text-sm text-purple-600 hover:text-purple-700 underline"
+                        >
+                          Open document in new tab
+                        </a>
+                      </div>
+                    </object>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+                      <FileText className="w-8 h-8 mb-2 text-gray-300" />
+                      <p className="text-sm text-gray-500">Document preview not available for this file type.</p>
+                      <a
+                        href={contract.documentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 text-sm text-purple-600 hover:text-purple-700 underline"
+                      >
+                        Download document
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Terms */}
               {contract.terms && (
                 <div className="mt-6 pt-4 border-t border-gray-100">
@@ -337,22 +384,29 @@ export function ContractSignPage() {
                         <p className="text-xs text-gray-500">{sig.email}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        sig.signatoryType === 'internal'
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'bg-amber-50 text-amber-600'
-                      }`}>
-                        {sig.signatoryType === 'internal' ? 'Internal' : 'External'}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {SIG_STATUS_ICON[sig.status] || SIG_STATUS_ICON.pending}
-                        <span className="text-xs text-gray-500 capitalize">{sig.status}</span>
-                      </div>
-                      {sig.signedAt && (
-                        <span className="text-xs text-gray-400">
-                          {new Date(sig.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          sig.signatoryType === 'internal'
+                            ? 'bg-blue-50 text-blue-600'
+                            : 'bg-amber-50 text-amber-600'
+                        }`}>
+                          {sig.signatoryType === 'internal' ? 'Internal' : 'External'}
                         </span>
+                        <div className="flex items-center gap-1">
+                          {SIG_STATUS_ICON[sig.status] || SIG_STATUS_ICON.pending}
+                          <span className="text-xs text-gray-500 capitalize">{sig.status}</span>
+                        </div>
+                        {sig.signedAt && (
+                          <span className="text-xs text-gray-400">
+                            {new Date(sig.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                        )}
+                      </div>
+                      {sig.status === 'declined' && sig.declineReason && (
+                        <p className="text-[10px] text-red-500 italic max-w-[200px] text-right">
+                          &quot;{sig.declineReason}&quot;
+                        </p>
                       )}
                     </div>
                   </div>

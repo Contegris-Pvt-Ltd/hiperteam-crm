@@ -7,6 +7,7 @@ import { NotificationController } from './notification.controller';
 import { EmailChannel } from './channels/email.channel';
 import { BrowserPushChannel } from './channels/browser-push.channel';
 import { SmsWhatsAppChannel } from './channels/sms-whatsapp.channel';
+import { ChatChannel } from './channels/chat.channel';
 
 @Module({
   controllers: [NotificationController],
@@ -18,6 +19,7 @@ import { SmsWhatsAppChannel } from './channels/sms-whatsapp.channel';
     EmailChannel,
     BrowserPushChannel,
     SmsWhatsAppChannel,
+    ChatChannel,
   ],
   exports: [
     NotificationService,
@@ -25,6 +27,7 @@ import { SmsWhatsAppChannel } from './channels/sms-whatsapp.channel';
     EmailChannel,
     BrowserPushChannel,
     SmsWhatsAppChannel,
+    ChatChannel,
   ],
 })
 export class NotificationModule {}

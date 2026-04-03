@@ -41,7 +41,7 @@ const AVAILABLE_MODULES = [
 // PROVIDER DEFINITIONS
 // ============================================================
 
-type Provider = 'docusign' | 'xero' | 'twilio' | 'sendgrid' | 'stripe' | 'slack' | 'mailerlite' | 'mailchimp';
+type Provider = 'docusign' | 'xero' | 'twilio' | 'sendgrid' | 'stripe' | 'slack' | 'mattermost' | 'aws_ses' | 'custom_smtp' | 'mailerlite' | 'mailchimp';
 
 interface FieldDef {
   key: string;
@@ -59,6 +59,7 @@ interface ProviderDef {
   color: string;        // gradient from-to
   iconText: string;     // 2-letter abbreviation
   fields: FieldDef[];
+  comingSoon?: boolean;
 }
 
 const PROVIDERS: ProviderDef[] = [
@@ -119,6 +120,7 @@ const PROVIDERS: ProviderDef[] = [
     description: 'Payments & billing',
     color: 'from-violet-500 to-purple-600',
     iconText: 'ST',
+    comingSoon: true,
     fields: [
       { key: 'secretKey', label: 'Secret Key', type: 'secret', placeholder: 'sk_test_xxxxxxxxxx' },
       { key: 'publishableKey', label: 'Publishable Key', type: 'text', placeholder: 'pk_test_xxxxxxxxxx' },
@@ -128,13 +130,52 @@ const PROVIDERS: ProviderDef[] = [
   {
     provider: 'slack',
     label: 'Slack',
-    description: 'Team notifications',
+    description: 'Team chat notifications',
     color: 'from-emerald-500 to-green-600',
     iconText: 'SL',
     fields: [
-      { key: 'botToken', label: 'Bot Token', type: 'secret', placeholder: 'xoxb-xxxxxxxxxx' },
-      { key: 'channelId', label: 'Default Channel ID', type: 'text', placeholder: 'C0XXXXXXXXX' },
       { key: 'webhookUrl', label: 'Incoming Webhook URL', type: 'text', placeholder: 'https://hooks.slack.com/services/...' },
+      { key: 'channelName', label: 'Channel Name (optional)', type: 'text', placeholder: '#general', helpText: 'For display purposes only. The webhook determines the channel.' },
+    ],
+  },
+  {
+    provider: 'mattermost',
+    label: 'Mattermost',
+    description: 'Team chat notifications',
+    color: 'from-blue-500 to-sky-600',
+    iconText: 'MM',
+    fields: [
+      { key: 'webhookUrl', label: 'Incoming Webhook URL', type: 'text', placeholder: 'https://mattermost.example.com/hooks/...' },
+      { key: 'channelName', label: 'Channel Name (optional)', type: 'text', placeholder: 'town-square', helpText: 'For display purposes only. The webhook determines the channel.' },
+    ],
+  },
+  {
+    provider: 'aws_ses',
+    label: 'AWS SES',
+    description: 'Amazon email service',
+    color: 'from-orange-500 to-amber-600',
+    iconText: 'SE',
+    fields: [
+      { key: 'accessKeyId', label: 'Access Key ID', type: 'text', placeholder: 'AKIAxxxxxxxxxxxxxxxx' },
+      { key: 'secretAccessKey', label: 'Secret Access Key', type: 'secret', placeholder: 'Your AWS secret access key' },
+      { key: 'region', label: 'Region', type: 'text', placeholder: 'us-east-1', helpText: 'AWS region (e.g. us-east-1, us-west-2, eu-west-1, ap-southeast-1)' },
+      { key: 'fromEmail', label: 'From Email', type: 'text', placeholder: 'noreply@yourcompany.com' },
+      { key: 'fromName', label: 'From Name', type: 'text', placeholder: 'Your Company' },
+    ],
+  },
+  {
+    provider: 'custom_smtp',
+    label: 'Custom SMTP',
+    description: 'Custom SMTP email server',
+    color: 'from-slate-500 to-gray-600',
+    iconText: 'SM',
+    fields: [
+      { key: 'host', label: 'Host', type: 'text', placeholder: 'smtp.example.com' },
+      { key: 'port', label: 'Port', type: 'text', placeholder: '587' },
+      { key: 'user', label: 'Username', type: 'text', placeholder: 'user@example.com' },
+      { key: 'pass', label: 'Password', type: 'secret', placeholder: 'Your SMTP password' },
+      { key: 'fromEmail', label: 'From Email', type: 'text', placeholder: 'noreply@yourcompany.com' },
+      { key: 'fromName', label: 'From Name', type: 'text', placeholder: 'Your Company' },
     ],
   },
   {
@@ -350,12 +391,12 @@ export function IntegrationsPage() {
             return (
               <div
                 key={providerDef.provider}
-                className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden"
+                className={`bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden ${providerDef.comingSoon ? 'opacity-60' : ''}`}
               >
                 {/* Card Header */}
                 <div
-                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-750 transition-colors"
-                  onClick={() => setExpandedProvider(isExpanded ? null : providerDef.provider)}
+                  className={`flex items-center justify-between p-4 transition-colors ${providerDef.comingSoon ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-750'}`}
+                  onClick={() => !providerDef.comingSoon && setExpandedProvider(isExpanded ? null : providerDef.provider)}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 bg-gradient-to-br ${providerDef.color} rounded-lg flex items-center justify-center text-white text-sm font-bold`}>
@@ -364,7 +405,12 @@ export function IntegrationsPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-medium text-gray-900 dark:text-white">{providerDef.label}</h3>
-                        {isEnabled && (
+                        {providerDef.comingSoon && (
+                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                            Coming Soon
+                          </span>
+                        )}
+                        {!providerDef.comingSoon && isEnabled && (
                           <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
                             Connected
                           </span>
@@ -380,20 +426,22 @@ export function IntegrationsPage() {
                         Saved
                       </span>
                     )}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleEnabled(providerDef.provider); }}
-                      className="flex-shrink-0"
-                      title={isEnabled ? 'Disable' : 'Enable'}
-                    >
-                      {isEnabled
-                        ? <ToggleRight className="w-7 h-7 text-green-500" />
-                        : <ToggleLeft className="w-7 h-7 text-gray-400" />}
-                    </button>
+                    {!providerDef.comingSoon && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleEnabled(providerDef.provider); }}
+                        className="flex-shrink-0"
+                        title={isEnabled ? 'Disable' : 'Enable'}
+                      >
+                        {isEnabled
+                          ? <ToggleRight className="w-7 h-7 text-green-500" />
+                          : <ToggleLeft className="w-7 h-7 text-gray-400" />}
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 {/* Expanded Config */}
-                {isExpanded && (
+                {isExpanded && !providerDef.comingSoon && (
                   <div className="border-t border-gray-200 dark:border-slate-700 p-4">
                     <div className="space-y-4">
                       {providerDef.fields.map((field) => {
@@ -476,6 +524,56 @@ export function IntegrationsPage() {
                             Match Contacts
                           </button>
                         )}
+                      </div>
+                    )}
+
+                    {/* Chat provider actions (Slack / Mattermost) — Test Message */}
+                    {(providerDef.provider === 'slack' || providerDef.provider === 'mattermost') && isEnabled && (
+                      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={async () => {
+                              setTestingConnection(providerDef.provider);
+                              setError(null);
+                              try {
+                                const webhookUrl = config.webhookUrl;
+                                if (!webhookUrl) {
+                                  setError(`Please configure a webhook URL for ${providerDef.label}`);
+                                  return;
+                                }
+                                const res = await fetch(webhookUrl, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify(
+                                    providerDef.provider === 'slack'
+                                      ? { blocks: [
+                                          { type: 'header', text: { type: 'plain_text', text: 'Test Notification' } },
+                                          { type: 'section', text: { type: 'mrkdwn', text: 'This is a test message from IntelliSales CRM.' } },
+                                        ] }
+                                      : { text: '**Test Notification**\nThis is a test message from IntelliSales CRM.' }
+                                  ),
+                                });
+                                if (res.ok) {
+                                  setSuccess(providerDef.provider);
+                                  setTimeout(() => setSuccess((prev) => (prev === providerDef.provider ? null : prev)), 3000);
+                                } else {
+                                  setError(`${providerDef.label} webhook returned status ${res.status}`);
+                                }
+                              } catch (err: any) {
+                                setError(err?.message || `Failed to send test to ${providerDef.label}`);
+                              } finally {
+                                setTestingConnection(null);
+                              }
+                            }}
+                            disabled={testingConnection === providerDef.provider}
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-colors disabled:opacity-50"
+                          >
+                            {testingConnection === providerDef.provider
+                              ? <Loader2 className="w-4 h-4 animate-spin" />
+                              : <ExternalLink className="w-4 h-4" />}
+                            Send Test Message
+                          </button>
+                        </div>
                       </div>
                     )}
 

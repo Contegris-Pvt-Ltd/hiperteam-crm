@@ -12,6 +12,7 @@ import { NotificationTemplateService } from './notification-template.service';
 import { BrowserPushChannel } from './channels/browser-push.channel';
 import { EmailChannel } from './channels/email.channel';
 import { SmsWhatsAppChannel } from './channels/sms-whatsapp.channel';
+import { ChatChannel } from './channels/chat.channel';
 
 @ApiTags('Notifications')
 @ApiBearerAuth()
@@ -25,6 +26,7 @@ export class NotificationController {
     private browserPushChannel: BrowserPushChannel,
     private emailChannel: EmailChannel,
     private smsWhatsAppChannel: SmsWhatsAppChannel,
+    private chatChannel: ChatChannel,
   ) {}
 
   // ============================================================
@@ -232,17 +234,38 @@ export class NotificationController {
   }
 
   // ============================================================
+  // CHANNEL PROVIDERS (admin)
+  // ============================================================
+
+  @Get('channel-providers')
+  @RequirePermission('notifications', 'edit')
+  @ApiOperation({ summary: 'Get selected channel providers' })
+  async getChannelProviders(@Request() req: { user: JwtPayload }) {
+    return this.notificationService.getChannelProviders(req.user.tenantSchema);
+  }
+
+  @Put('channel-providers')
+  @RequirePermission('notifications', 'edit')
+  @ApiOperation({ summary: 'Update selected channel providers' })
+  async updateChannelProviders(
+    @Request() req: { user: JwtPayload },
+    @Body() body: { email?: string; sms?: string; whatsapp?: string; chat?: string },
+  ) {
+    return this.notificationService.updateChannelProviders(req.user.tenantSchema, body);
+  }
+
+  // ============================================================
   // VERIFICATION (admin)
   // ============================================================
 
   @Post('verify/smtp')
   @RequirePermission('notifications', 'edit')
-  @ApiOperation({ summary: 'Test SMTP connection' })
+  @ApiOperation({ summary: 'Test email connection (current provider)' })
   async verifySmtp(@Request() req: { user: JwtPayload }) {
     try {
       return await this.emailChannel.verify(req.user.tenantSchema);
     } catch (err: any) {
-      return { success: false, error: err.message || 'SMTP verification failed' };
+      return { success: false, error: err.message || 'Email verification failed' };
     }
   }
 
@@ -251,6 +274,13 @@ export class NotificationController {
   @ApiOperation({ summary: 'Test Twilio connection' })
   async verifyTwilio(@Request() req: { user: JwtPayload }) {
     return this.smsWhatsAppChannel.verify(req.user.tenantSchema);
+  }
+
+  @Post('verify/chat')
+  @RequirePermission('notifications', 'edit')
+  @ApiOperation({ summary: 'Test chat provider connection (Slack/Mattermost)' })
+  async verifyChat(@Request() req: { user: JwtPayload }) {
+    return this.chatChannel.verify(req.user.tenantSchema);
   }
 
   @Post('push/generate-vapid')

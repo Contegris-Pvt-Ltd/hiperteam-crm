@@ -18,6 +18,8 @@ import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { AuditService } from '../shared/audit.service';
 import { EmailService } from '../email/email.service';
+import { UploadService } from '../upload/upload.service';
+import { DocuSignService } from './docusign.service';
 
 @Injectable()
 export class ContractsService {
@@ -28,6 +30,8 @@ export class ContractsService {
     private readonly auditService: AuditService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
+    private readonly uploadService: UploadService,
+    private readonly docuSignService: DocuSignService,
   ) {}
 
   // ============================================================
@@ -52,7 +56,8 @@ export class ContractsService {
              'email', cs.email,
              'status', cs.status,
              'signedAt', cs.signed_at,
-             'token', cs.token
+             'token', cs.token,
+             'declineReason', cs.decline_reason
            ) ORDER BY cs.sign_order ASC
          ) FILTER (WHERE cs.id IS NOT NULL) AS signatories
        FROM "${schemaName}".contracts c
@@ -95,7 +100,8 @@ export class ContractsService {
              'email', cs.email,
              'status', cs.status,
              'signedAt', cs.signed_at,
-             'token', cs.token
+             'token', cs.token,
+             'declineReason', cs.decline_reason
            ) ORDER BY cs.sign_order ASC
          ) FILTER (WHERE cs.id IS NOT NULL) AS signatories
        FROM "${schemaName}".contracts c
@@ -242,6 +248,9 @@ export class ContractsService {
       autoRenewal?: boolean;
       terms?: string;
       signMode?: string;
+      documentUrl?: string;
+      documentName?: string;
+      documentSize?: number;
       signatories?: Array<{
         signatoryType: 'internal' | 'external';
         signOrder: number;
@@ -262,8 +271,8 @@ export class ContractsService {
       `INSERT INTO "${schemaName}".contracts
        (contract_number, opportunity_id, title, type, status,
         sign_mode, value, currency, start_date, end_date, renewal_date,
-        auto_renewal, terms, created_by)
-       VALUES ($1, $2, $3, $4, 'draft', $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        auto_renewal, terms, document_url, document_name, document_size, created_by)
+       VALUES ($1, $2, $3, $4, 'draft', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING *`,
       [
         seq.contract_number,
@@ -278,6 +287,9 @@ export class ContractsService {
         dto.renewalDate || null,
         dto.autoRenewal ?? false,
         dto.terms || null,
+        dto.documentUrl || null,
+        dto.documentName || null,
+        dto.documentSize || null,
         userId,
       ],
     );
@@ -442,21 +454,35 @@ export class ContractsService {
       [contractId, signMode],
     );
 
-    // TODO: If docusignEnabled, generate contract PDF and call
-    // DocuSignService.createEnvelope() to send via DocuSign.
-    // Store the returned envelopeId in contracts.docusign_envelope_id.
-    // For now, only internal signing flow is fully wired.
+    if (docusignEnabled) {
+      // Send via DocuSign
+      try {
+        const tenantId = docusignRows[0].tenant_id;
+        await this.docuSignService.sendEnvelopeForContract(
+          schemaName,
+          contractId,
+          tenantId,
+        );
+        this.logger.log(`Contract ${contractId} sent via DocuSign`);
+      } catch (err: any) {
+        this.logger.error(`DocuSign send failed for contract ${contractId}`, err?.message);
+        throw new BadRequestException(
+          err?.message || 'Failed to send contract via DocuSign. Check integration settings.',
+        );
+      }
+    } else {
+      // Internal signing flow
+      // Mark first signatory as sent
+      await this.dataSource.query(
+        `UPDATE "${schemaName}".contract_signatories
+         SET status = 'sent'
+         WHERE contract_id = $1 AND sign_order = 1`,
+        [contractId],
+      );
 
-    // Mark first signatory as sent (for internal flow)
-    await this.dataSource.query(
-      `UPDATE "${schemaName}".contract_signatories
-       SET status = 'sent'
-       WHERE contract_id = $1 AND sign_order = 1`,
-      [contractId],
-    );
-
-    // Send signing emails to all signatories
-    await this.sendSigningEmails(schemaName, contractId, contract);
+      // Send signing emails to all signatories
+      await this.sendSigningEmails(schemaName, contractId, contract);
+    }
 
     await this.auditService.log(schemaName, {
       entityType: 'contracts',
@@ -580,10 +606,10 @@ export class ContractsService {
     );
     if (!signatory) throw new NotFoundException('Signatory not found');
 
-    // Mark signatory as declined
+    // Mark signatory as declined with reason
     await this.dataSource.query(
-      `UPDATE "${schemaName}".contract_signatories SET status = 'declined' WHERE token = $1`,
-      [token],
+      `UPDATE "${schemaName}".contract_signatories SET status = 'declined', decline_reason = $2 WHERE token = $1`,
+      [token, reason || null],
     );
 
     // Terminate the contract
@@ -745,7 +771,8 @@ export class ContractsService {
              'email', cs.email,
              'status', cs.status,
              'signedAt', cs.signed_at,
-             'isCurrentUser', (cs.token = $2)
+             'isCurrentUser', (cs.token = $2),
+             'declineReason', cs.decline_reason
            ) ORDER BY cs.sign_order ASC
          ) FILTER (WHERE cs.id IS NOT NULL) AS signatories
        FROM "${schemaName}".contracts c
@@ -851,6 +878,67 @@ export class ContractsService {
     });
 
     return { message: 'Contract deleted' };
+  }
+
+  // ============================================================
+  // UPLOAD DOCUMENT (draft only)
+  // ============================================================
+  async uploadDocument(
+    schemaName: string,
+    contractId: string,
+    userId: string,
+    file: Express.Multer.File,
+    tenantSlug: string,
+  ): Promise<any> {
+    const [contract] = await this.dataSource.query(
+      `SELECT * FROM "${schemaName}".contracts WHERE id = $1 AND deleted_at IS NULL`,
+      [contractId],
+    );
+    if (!contract) throw new NotFoundException('Contract not found');
+    if (contract.status !== 'draft') {
+      throw new BadRequestException('Documents can only be uploaded to draft contracts');
+    }
+
+    // Validate file type
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    if (!allowedTypes.includes(file.mimetype)) {
+      throw new BadRequestException('Only PDF and DOCX files are allowed');
+    }
+
+    // Upload to S3/storage
+    const uploadResult = await this.uploadService.uploadFile(
+      file,
+      'contracts',
+      tenantSlug,
+    );
+
+    // Update contract with document info
+    await this.dataSource.query(
+      `UPDATE "${schemaName}".contracts
+       SET document_url = $1, document_name = $2, document_size = $3, updated_at = NOW()
+       WHERE id = $4`,
+      [uploadResult.url, file.originalname, file.size, contractId],
+    );
+
+    await this.auditService.log(schemaName, {
+      entityType: 'contracts',
+      entityId: contractId,
+      action: 'update',
+      changes: {
+        documentUrl: { from: contract.document_url || null, to: uploadResult.url },
+      },
+      newValues: {
+        documentUrl: uploadResult.url,
+        documentName: file.originalname,
+        documentSize: file.size,
+      },
+      performedBy: userId,
+    });
+
+    return this.findOne(schemaName, contractId);
   }
 
   // ============================================================
@@ -990,6 +1078,9 @@ export class ContractsService {
       renewalDate: r.renewal_date,
       autoRenewal: r.auto_renewal,
       terms: r.terms,
+      documentUrl: r.document_url || null,
+      documentName: r.document_name || null,
+      documentSize: r.document_size ? parseInt(r.document_size, 10) : null,
       docusignEnvelopeId: r.docusign_envelope_id,
       docusignStatus: r.docusign_status,
       createdBy: r.created_by,

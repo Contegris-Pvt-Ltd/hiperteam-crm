@@ -726,7 +726,7 @@ export class OpportunitiesService {
       allStages: (allStages || []).map((s: any) => ({
         id: s.id, name: s.name, slug: s.slug, color: s.color,
         sortOrder: s.sort_order, probability: s.probability,
-        isWon: s.is_won, isLost: s.is_lost,
+        isWon: s.is_won, isLost: s.is_lost, isActive: true,
       })),
     };
   }

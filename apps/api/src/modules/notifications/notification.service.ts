@@ -6,6 +6,7 @@ import { NotificationGateway } from './notification.gateway';
 import { EmailChannel } from './channels/email.channel';
 import { BrowserPushChannel } from './channels/browser-push.channel';
 import { SmsWhatsAppChannel } from './channels/sms-whatsapp.channel';
+import { ChatChannel } from './channels/chat.channel';
 
 // ============================================================
 // TYPES
@@ -23,7 +24,7 @@ export interface NotifyPayload {
   // Template variables for email/sms rendering
   variables?: Record<string, unknown>;
   // Override: force specific channels regardless of preferences
-  forceChannels?: ('in_app' | 'email' | 'browser_push' | 'sms' | 'whatsapp')[];
+  forceChannels?: ('in_app' | 'email' | 'browser_push' | 'sms' | 'whatsapp' | 'chat')[];
   // User contact info for external channels
   userEmail?: string;
   userPhone?: string;
@@ -74,6 +75,7 @@ export class NotificationService {
     private emailChannel: EmailChannel,
     private browserPushChannel: BrowserPushChannel,
     private smsWhatsAppChannel: SmsWhatsAppChannel,
+    private chatChannel: ChatChannel,
   ) {}
 
   // ============================================================
@@ -254,6 +256,19 @@ export class NotificationService {
         this.logger.error(`WhatsApp dispatch failed: ${err.message}`);
       }
     }
+
+    // --- Chat (Slack / Mattermost) ---
+    if (channels.includes('chat')) {
+      try {
+        await this.chatChannel.send(schemaName, {
+          title,
+          body: body || '',
+          actionUrl,
+        });
+      } catch (err: any) {
+        this.logger.error(`Chat dispatch failed: ${err.message}`);
+      }
+    }
   }
 
   // ============================================================
@@ -375,6 +390,60 @@ export class NotificationService {
     // Clear channel caches when config changes
     if (key === 'smtp_config') this.emailChannel.clearCache(schemaName);
     if (key === 'twilio_config') this.smsWhatsAppChannel.clearCache(schemaName);
+    // Clear email cache when provider selection changes (may switch from cached SMTP to SendGrid etc.)
+    if (key === 'email_provider') this.emailChannel.clearCache(schemaName);
+  }
+
+  // ============================================================
+  // CHANNEL PROVIDERS (get/set selected providers)
+  // ============================================================
+
+  async getChannelProviders(schemaName: string): Promise<Record<string, string>> {
+    const keys = ['email_provider', 'sms_provider', 'whatsapp_provider', 'chat_provider'];
+    const rows = await this.dataSource.query(
+      `SELECT setting_key, setting_value FROM "${schemaName}".notification_settings WHERE setting_key = ANY($1)`,
+      [keys],
+    );
+    const result: Record<string, string> = {
+      email: 'system_default',
+      sms: 'not_configured',
+      whatsapp: 'not_configured',
+      chat: 'none',
+    };
+    for (const row of rows) {
+      const val = typeof row.setting_value === 'string' ? row.setting_value : JSON.stringify(row.setting_value);
+      if (row.setting_key === 'email_provider') result.email = val.replace(/"/g, '');
+      if (row.setting_key === 'sms_provider') result.sms = val.replace(/"/g, '');
+      if (row.setting_key === 'whatsapp_provider') result.whatsapp = val.replace(/"/g, '');
+      if (row.setting_key === 'chat_provider') result.chat = val.replace(/"/g, '');
+    }
+    return result;
+  }
+
+  async updateChannelProviders(
+    schemaName: string,
+    providers: Record<string, string>,
+  ): Promise<Record<string, string>> {
+    const mapping: Record<string, string> = {
+      email: 'email_provider',
+      sms: 'sms_provider',
+      whatsapp: 'whatsapp_provider',
+      chat: 'chat_provider',
+    };
+    for (const [channel, provider] of Object.entries(providers)) {
+      const key = mapping[channel];
+      if (!key) continue;
+      await this.dataSource.query(
+        `INSERT INTO "${schemaName}".notification_settings (setting_key, setting_value)
+         VALUES ($1, $2)
+         ON CONFLICT (setting_key) DO UPDATE SET setting_value = $2, updated_at = NOW()`,
+        [key, JSON.stringify(provider)],
+      );
+    }
+    // Clear caches
+    this.emailChannel.clearCache(schemaName);
+    this.smsWhatsAppChannel.clearCache(schemaName);
+    return this.getChannelProviders(schemaName);
   }
 
   // ============================================================

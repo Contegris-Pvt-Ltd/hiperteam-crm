@@ -11,8 +11,10 @@
 import {
   Controller, Get, Post, Put, Delete,
   Body, Param, Request, Req, UseGuards,
+  UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionGuard, RequirePermission } from '../../common/guards/permissions.guard';
 import { ContractsService } from './contracts.service';
@@ -23,6 +25,7 @@ interface JwtPayload {
   tenantId: string;
   tenantSchema: string;
   tenantSlug: string;
+  [key: string]: any;
 }
 
 @ApiTags('Contracts')
@@ -140,6 +143,43 @@ export class ContractsController {
     @Param('id') id: string,
   ) {
     return this.contractsService.resendEmails(req.user.tenantSchema, id, req.user.sub);
+  }
+
+  @Post(':id/upload-document')
+  @RequirePermission('deals', 'edit')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+      fileFilter: (_req: any, file: any, cb: any) => {
+        const allowed = [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ];
+        if (!allowed.includes(file.mimetype)) {
+          return cb(new BadRequestException('Only PDF and DOCX files are allowed'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload a document to a draft contract' })
+  async uploadDocument(
+    @Param('opportunityId') oppId: string,
+    @Param('id') contractId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req: { user: JwtPayload },
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+    return this.contractsService.uploadDocument(
+      req.user.tenantSchema,
+      contractId,
+      req.user.sub,
+      file,
+      req.user.tenantSlug,
+    );
   }
 
   @Post(':id/terminate')

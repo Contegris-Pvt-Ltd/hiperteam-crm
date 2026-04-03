@@ -9,7 +9,7 @@ import {
   Trophy, XCircle, RotateCcw, Loader2, CheckSquare,
   Users, Package, History, BarChart3, MessageSquare, FileText, Activity,
   UserPlus, X, Search, Copy, Send, Plus, Download, Mail, CheckCircle,
-  FileSignature, Link2, ChevronDown, RefreshCw, Receipt,
+  FileSignature, Link2, ChevronDown, RefreshCw, Receipt, Upload, Paperclip, ExternalLink,
 } from 'lucide-react';
 import { opportunitiesApi, opportunitySettingsApi } from '../../api/opportunities.api';
 import { proposalsApi } from '../../api/proposals.api';
@@ -1952,6 +1952,8 @@ function ContractsTab({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [linkDropdown, setLinkDropdown] = useState<string | null>(null);
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   // Form state
   const [useProposal, setUseProposal] = useState(true);
@@ -2061,6 +2063,7 @@ function ContractsTab({
     setUseProposal(true);
     setEditingId(null);
     setShowForm(false);
+    setPendingFile(null);
   };
 
   const handleEdit = (contract: Contract) => {
@@ -2098,12 +2101,22 @@ function ContractsTab({
         signatories: form.signatories.filter(s => s.name.trim() && s.email.trim()),
       };
       if (!useProposal) delete dto.proposalId;
+      let result: Contract;
       if (editingId) {
-        await contractsApi.update(opportunityId, editingId, dto);
+        result = await contractsApi.update(opportunityId, editingId, dto);
       } else {
-        await contractsApi.create(opportunityId, dto);
+        result = await contractsApi.create(opportunityId, dto);
+      }
+      // Upload pending file if any
+      if (pendingFile && result?.id) {
+        try {
+          await contractsApi.uploadDocument(opportunityId, result.id, pendingFile);
+        } catch (uploadErr) {
+          console.error('Failed to upload document:', uploadErr);
+        }
       }
       resetForm();
+      setPendingFile(null);
       onRefresh();
     } catch (err) {
       console.error(`Failed to ${editingId ? 'update' : 'create'} contract:`, err);
@@ -2165,6 +2178,34 @@ function ContractsTab({
     navigator.clipboard.writeText(url);
     setCopiedId(signatoryToken);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleDocumentUpload = async (contractId: string, file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      toast?.error?.('File must be under 10MB') ?? alert('File must be under 10MB');
+      return;
+    }
+    const allowed = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!allowed.includes(file.type)) {
+      toast?.error?.('Only PDF and DOCX files are allowed') ?? alert('Only PDF and DOCX files are allowed');
+      return;
+    }
+    setUploadingDoc(contractId);
+    try {
+      await contractsApi.uploadDocument(opportunityId, contractId, file);
+      onRefresh();
+    } catch (err) {
+      console.error('Failed to upload document:', err);
+    } finally {
+      setUploadingDoc(null);
+    }
+  };
+
+  const formatFileSize = (bytes: number | null | undefined) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   if (loading) {
@@ -2369,6 +2410,43 @@ function ContractsTab({
             </>
           )}
 
+          {/* Document Upload */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Contract Document</label>
+            {pendingFile ? (
+              <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+                <Paperclip size={16} className="text-purple-500 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{pendingFile.name}</p>
+                  <p className="text-[10px] text-gray-400">{(pendingFile.size / (1024 * 1024)).toFixed(1)} MB</p>
+                </div>
+                <button
+                  onClick={() => setPendingFile(null)}
+                  className="text-gray-400 hover:text-red-500"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-purple-400 dark:hover:border-purple-500 transition-colors bg-white dark:bg-slate-800/50">
+                <Upload size={20} className="text-gray-400 mb-1" />
+                <span className="text-xs text-gray-500 dark:text-gray-400">Drag & drop or click to upload</span>
+                <span className="text-[10px] text-gray-400 mt-0.5">PDF, DOCX (max 10MB)</span>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setPendingFile(file);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            )}
+            <p className="text-[10px] text-gray-400 mt-1">Optional. Upload a contract document for signatories to review.</p>
+          </div>
+
           {/* Sign Mode (shared by both modes) */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Signing Method</label>
@@ -2524,25 +2602,73 @@ function ContractsTab({
                       )}
                     </div>
 
+                    {/* Document attachment */}
+                    <div className="flex items-center gap-2 mt-1.5">
+                      {c.documentUrl ? (
+                        <button
+                          onClick={() => contractsApi.downloadDocument(c.documentUrl!)}
+                          className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+                        >
+                          <Paperclip size={12} />
+                          {c.documentName || 'Document'}
+                          {c.documentSize ? ` (${formatFileSize(c.documentSize)})` : ''}
+                          <ExternalLink size={10} />
+                        </button>
+                      ) : (
+                        c.status === 'draft' && canEdit ? (
+                          <label className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-purple-500 cursor-pointer">
+                            {uploadingDoc === c.id ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <Upload size={12} />
+                            )}
+                            <span>{uploadingDoc === c.id ? 'Uploading...' : 'Upload document'}</span>
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept=".pdf,.docx"
+                              disabled={uploadingDoc === c.id}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleDocumentUpload(c.id, file);
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                        ) : (
+                          <span className="text-[10px] text-gray-400">No document</span>
+                        )
+                      )}
+                    </div>
+
                     {/* Signatories progress */}
                     {sigCount > 0 && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-[10px] text-gray-500">{signedCount} of {sigCount} signed</span>
-                        <div className="flex items-center gap-1">
-                          {(c.signatories || []).map((sig, idx) => (
-                            <div
-                              key={sig.id || idx}
-                              className="relative group"
-                              title={`${sig.name} (${sig.status})`}
-                            >
-                              <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-[9px] font-medium text-gray-500 dark:text-gray-400 border border-white dark:border-slate-900">
-                                {sig.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      <>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-[10px] text-gray-500">{signedCount} of {sigCount} signed</span>
+                          <div className="flex items-center gap-1">
+                            {(c.signatories || []).map((sig, idx) => (
+                              <div
+                                key={sig.id || idx}
+                                className="relative group"
+                                title={`${sig.name} (${sig.status})${sig.status === 'declined' && sig.declineReason ? ` — ${sig.declineReason}` : ''}`}
+                              >
+                                <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-[9px] font-medium text-gray-500 dark:text-gray-400 border border-white dark:border-slate-900">
+                                  {sig.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                </div>
+                                <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-slate-900 ${SIG_DOT_COLORS[sig.status] || SIG_DOT_COLORS.pending}`} />
                               </div>
-                              <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-slate-900 ${SIG_DOT_COLORS[sig.status] || SIG_DOT_COLORS.pending}`} />
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                        {(c.signatories || []).filter(s => s.status === 'declined' && s.declineReason).map((sig, idx) => (
+                          <div key={`decline-${sig.id || idx}`} className="mt-1">
+                            <p className="text-[10px] text-red-500 dark:text-red-400 italic">
+                              {sig.name} declined: &quot;{sig.declineReason}&quot;
+                            </p>
+                          </div>
+                        ))}
+                      </>
                     )}
                   </div>
 

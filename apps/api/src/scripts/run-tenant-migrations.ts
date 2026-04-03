@@ -3953,6 +3953,21 @@ async function runTenantMigrations() {
             `,
           },
 
+          {
+            name: '061_contract_document_upload',
+            sql: `
+              -- Contracts: add document fields for uploaded contract documents
+              ALTER TABLE "${schema}".contracts
+                ADD COLUMN IF NOT EXISTS document_url TEXT,
+                ADD COLUMN IF NOT EXISTS document_name VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS document_size INTEGER;
+
+              -- Contract signatories: add decline reason
+              ALTER TABLE "${schema}".contract_signatories
+                ADD COLUMN IF NOT EXISTS decline_reason TEXT;
+            `,
+          },
+
         ];
 
         // ── Execute pending migrations ────────────────────────────

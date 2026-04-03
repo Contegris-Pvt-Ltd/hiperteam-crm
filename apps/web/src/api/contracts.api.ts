@@ -21,6 +21,7 @@ export interface ContractSignatory {
   signedAt?: string | null;
   token?: string;
   isCurrentUser?: boolean;
+  declineReason?: string | null;
 }
 
 export interface Contract {
@@ -40,6 +41,9 @@ export interface Contract {
   renewalDate?: string | null;
   autoRenewal: boolean;
   terms?: string | null;
+  documentUrl?: string | null;
+  documentName?: string | null;
+  documentSize?: number | null;
   docusignEnvelopeId?: string | null;
   createdByName?: string | null;
   signatories: ContractSignatory[];
@@ -150,5 +154,20 @@ export const contractsApi = {
   decline: async (token: string, reason?: string): Promise<any> => {
     const { data } = await api.post(`/contracts/public/${token}/decline`, { reason });
     return data;
+  },
+
+  uploadDocument: async (opportunityId: string, contractId: string, file: File): Promise<Contract> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { data } = await api.post(
+      `/opportunities/${opportunityId}/contracts/${contractId}/upload-document`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return data;
+  },
+
+  downloadDocument: (url: string) => {
+    window.open(url, '_blank');
   },
 };
