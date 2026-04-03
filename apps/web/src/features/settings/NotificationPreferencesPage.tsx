@@ -77,8 +77,6 @@ export function NotificationPreferencesPage() {
 
       setPreferences(prefs);
       if (settings) {
-        setSmtpConfig(settings.smtp_config || {});
-        setTwilioConfig(settings.twilio_config || {});
         setPushConfig(settings.push_config || {});
       }
       if (providers) {
