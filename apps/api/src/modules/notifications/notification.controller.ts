@@ -260,10 +260,10 @@ export class NotificationController {
 
   @Post('verify/smtp')
   @RequirePermission('notifications', 'edit')
-  @ApiOperation({ summary: 'Test email connection (current provider)' })
-  async verifySmtp(@Request() req: { user: JwtPayload }) {
+  @ApiOperation({ summary: 'Test email connection (current or specified provider)' })
+  async verifySmtp(@Request() req: { user: JwtPayload }, @Query('provider') provider?: string) {
     try {
-      return await this.emailChannel.verify(req.user.tenantSchema);
+      return await this.emailChannel.verify(req.user.tenantSchema, provider);
     } catch (err: any) {
       return { success: false, error: err.message || 'Email verification failed' };
     }

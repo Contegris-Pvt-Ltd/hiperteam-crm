@@ -305,17 +305,17 @@ export class AdminController {
     @Param('provider') provider: string,
     @Body() body: { isEnabled: boolean; config: Record<string, string> },
   ) {
-    const allowedProviders = ['docusign', 'xero', 'twilio', 'sendgrid', 'stripe', 'slack', 'mailerlite', 'mailchimp'];
+    const allowedProviders = ['docusign', 'xero', 'twilio', 'sendgrid', 'stripe', 'slack', 'mailerlite', 'mailchimp', 'mattermost', 'custom_smtp', 'aws_ses'];
     if (!allowedProviders.includes(provider)) {
       throw new BadRequestException(`Invalid provider: ${provider}`);
     }
 
     await this.dataSource.query(
-      `INSERT INTO public.tenant_integrations (tenant_id, provider, is_enabled, config, updated_at)
-       VALUES ($1, $2, $3, $4, NOW())
+      `INSERT INTO public.tenant_integrations (tenant_id, tenant_schema, provider, is_enabled, config, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
        ON CONFLICT (tenant_id, provider)
-       DO UPDATE SET is_enabled = $3, config = $4, updated_at = NOW()`,
-      [req.user.tenantId, provider, body.isEnabled, JSON.stringify(body.config || {})],
+       DO UPDATE SET is_enabled = $4, config = $5, tenant_schema = $2, updated_at = NOW()`,
+      [req.user.tenantId, req.user.tenantSchema, provider, body.isEnabled, JSON.stringify(body.config || {})],
     );
 
     await this.auditService.log(req.user.tenantSchema, {

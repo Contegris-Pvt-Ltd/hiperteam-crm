@@ -4,6 +4,7 @@ import {
   ArrowLeft, Loader2, Save, Plug, Eye, EyeOff,
   ToggleLeft, ToggleRight, AlertTriangle, CheckCircle2,
   ExternalLink, Link2, Copy, Check, Plus, Pencil, Trash2, X, AppWindow,
+  Search,
 } from 'lucide-react';
 import { adminApi } from '../../api/admin.api';
 import { api } from '../../api/contacts.api';
@@ -43,6 +44,8 @@ const AVAILABLE_MODULES = [
 
 type Provider = 'docusign' | 'xero' | 'twilio' | 'sendgrid' | 'stripe' | 'slack' | 'mattermost' | 'aws_ses' | 'custom_smtp' | 'mailerlite' | 'mailchimp';
 
+type Category = 'email' | 'communication' | 'accounting' | 'marketing' | 'esignatures' | 'payments';
+
 interface FieldDef {
   key: string;
   label: string;
@@ -56,6 +59,7 @@ interface ProviderDef {
   provider: Provider;
   label: string;
   description: string;
+  category: Category;
   color: string;        // gradient from-to
   iconText: string;     // 2-letter abbreviation
   fields: FieldDef[];
@@ -64,109 +68,10 @@ interface ProviderDef {
 
 const PROVIDERS: ProviderDef[] = [
   {
-    provider: 'docusign',
-    label: 'DocuSign',
-    description: 'E-signature for contracts',
-    color: 'from-yellow-500 to-amber-600',
-    iconText: 'DS',
-    fields: [
-      { key: 'integrationKey', label: 'Integration Key', type: 'text', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
-      { key: 'userId', label: 'User ID (API User)', type: 'text', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
-      { key: 'accountId', label: 'Account ID', type: 'text', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
-      { key: 'privateKey', label: 'RSA Private Key', type: 'textarea', placeholder: '-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----' },
-      { key: 'basePath', label: 'Base Path', type: 'text', defaultValue: 'https://demo.docusign.net/restapi', helpText: 'Use https://na1.docusign.net/restapi for production' },
-      { key: 'oauthServer', label: 'OAuth Server', type: 'text', defaultValue: 'account-d.docusign.com', helpText: 'Use account.docusign.com for production' },
-    ],
-  },
-  {
-    provider: 'xero',
-    label: 'Xero',
-    description: 'Accounting & invoicing',
-    color: 'from-cyan-500 to-blue-600',
-    iconText: 'XR',
-    fields: [
-      { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'OAuth 2.0 Client ID' },
-      { key: 'clientSecret', label: 'Client Secret', type: 'secret', placeholder: 'OAuth 2.0 Client Secret' },
-      { key: 'tenantId', label: 'Xero Tenant ID', type: 'text', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
-    ],
-  },
-  {
-    provider: 'twilio',
-    label: 'Twilio',
-    description: 'SMS & voice communications',
-    color: 'from-red-500 to-rose-600',
-    iconText: 'TW',
-    fields: [
-      { key: 'accountSid', label: 'Account SID', type: 'text', placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
-      { key: 'authToken', label: 'Auth Token', type: 'secret', placeholder: 'Your Twilio auth token' },
-      { key: 'phoneNumber', label: 'Phone Number', type: 'text', placeholder: '+1234567890' },
-    ],
-  },
-  {
-    provider: 'sendgrid',
-    label: 'SendGrid',
-    description: 'Transactional email',
-    color: 'from-blue-500 to-indigo-600',
-    iconText: 'SG',
-    fields: [
-      { key: 'apiKey', label: 'API Key', type: 'secret', placeholder: 'SG.xxxxxxxxxxxxxxxxxx' },
-      { key: 'fromEmail', label: 'From Email', type: 'text', placeholder: 'noreply@yourcompany.com' },
-      { key: 'fromName', label: 'From Name', type: 'text', placeholder: 'Your Company' },
-    ],
-  },
-  {
-    provider: 'stripe',
-    label: 'Stripe',
-    description: 'Payments & billing',
-    color: 'from-violet-500 to-purple-600',
-    iconText: 'ST',
-    comingSoon: true,
-    fields: [
-      { key: 'secretKey', label: 'Secret Key', type: 'secret', placeholder: 'sk_test_xxxxxxxxxx' },
-      { key: 'publishableKey', label: 'Publishable Key', type: 'text', placeholder: 'pk_test_xxxxxxxxxx' },
-      { key: 'webhookSecret', label: 'Webhook Secret', type: 'secret', placeholder: 'whsec_xxxxxxxxxx' },
-    ],
-  },
-  {
-    provider: 'slack',
-    label: 'Slack',
-    description: 'Team chat notifications',
-    color: 'from-emerald-500 to-green-600',
-    iconText: 'SL',
-    fields: [
-      { key: 'webhookUrl', label: 'Incoming Webhook URL', type: 'text', placeholder: 'https://hooks.slack.com/services/...' },
-      { key: 'channelName', label: 'Channel Name (optional)', type: 'text', placeholder: '#general', helpText: 'For display purposes only. The webhook determines the channel.' },
-    ],
-  },
-  {
-    provider: 'mattermost',
-    label: 'Mattermost',
-    description: 'Team chat notifications',
-    color: 'from-blue-500 to-sky-600',
-    iconText: 'MM',
-    fields: [
-      { key: 'webhookUrl', label: 'Incoming Webhook URL', type: 'text', placeholder: 'https://mattermost.example.com/hooks/...' },
-      { key: 'channelName', label: 'Channel Name (optional)', type: 'text', placeholder: 'town-square', helpText: 'For display purposes only. The webhook determines the channel.' },
-    ],
-  },
-  {
-    provider: 'aws_ses',
-    label: 'AWS SES',
-    description: 'Amazon email service',
-    color: 'from-orange-500 to-amber-600',
-    iconText: 'SE',
-    fields: [
-      { key: 'accessKeyId', label: 'Access Key ID', type: 'text', placeholder: 'AKIAxxxxxxxxxxxxxxxx' },
-      { key: 'secretAccessKey', label: 'Secret Access Key', type: 'secret', placeholder: 'Your AWS secret access key' },
-      { key: 'region', label: 'Region', type: 'text', placeholder: 'us-east-1', helpText: 'AWS region (e.g. us-east-1, us-west-2, eu-west-1, ap-southeast-1)' },
-      { key: 'fromEmail', label: 'From Email', type: 'text', placeholder: 'noreply@yourcompany.com' },
-      { key: 'fromName', label: 'From Name', type: 'text', placeholder: 'Your Company' },
-    ],
-  },
-  {
     provider: 'custom_smtp',
     label: 'Custom SMTP',
-    description: 'Custom SMTP email server',
+    description: 'Use your own SMTP server',
+    category: 'email',
     color: 'from-slate-500 to-gray-600',
     iconText: 'SM',
     fields: [
@@ -179,9 +84,88 @@ const PROVIDERS: ProviderDef[] = [
     ],
   },
   {
+    provider: 'sendgrid',
+    label: 'SendGrid',
+    description: 'Transactional email via SendGrid API',
+    category: 'email',
+    color: 'from-blue-500 to-indigo-600',
+    iconText: 'SG',
+    fields: [
+      { key: 'apiKey', label: 'API Key', type: 'secret', placeholder: 'SG.xxxxxxxxxxxxxxxxxx' },
+      { key: 'fromEmail', label: 'From Email', type: 'text', placeholder: 'noreply@yourcompany.com' },
+      { key: 'fromName', label: 'From Name', type: 'text', placeholder: 'Your Company' },
+    ],
+  },
+  {
+    provider: 'aws_ses',
+    label: 'AWS SES',
+    description: 'Amazon Simple Email Service',
+    category: 'email',
+    color: 'from-orange-500 to-amber-600',
+    iconText: 'SE',
+    fields: [
+      { key: 'accessKeyId', label: 'Access Key ID', type: 'text', placeholder: 'AKIAxxxxxxxxxxxxxxxx' },
+      { key: 'secretAccessKey', label: 'Secret Access Key', type: 'secret', placeholder: 'Your AWS secret access key' },
+      { key: 'region', label: 'Region', type: 'text', placeholder: 'us-east-1', helpText: 'AWS region (e.g. us-east-1, us-west-2, eu-west-1, ap-southeast-1)' },
+      { key: 'fromEmail', label: 'From Email', type: 'text', placeholder: 'noreply@yourcompany.com' },
+      { key: 'fromName', label: 'From Name', type: 'text', placeholder: 'Your Company' },
+    ],
+  },
+  {
+    provider: 'twilio',
+    label: 'Twilio',
+    description: 'SMS & WhatsApp messaging',
+    category: 'communication',
+    color: 'from-red-500 to-rose-600',
+    iconText: 'TW',
+    fields: [
+      { key: 'accountSid', label: 'Account SID', type: 'text', placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+      { key: 'authToken', label: 'Auth Token', type: 'secret', placeholder: 'Your Twilio auth token' },
+      { key: 'phoneNumber', label: 'Phone Number', type: 'text', placeholder: '+1234567890' },
+    ],
+  },
+  {
+    provider: 'slack',
+    label: 'Slack',
+    description: 'Team notifications via webhook',
+    category: 'communication',
+    color: 'from-emerald-500 to-green-600',
+    iconText: 'SL',
+    fields: [
+      { key: 'webhookUrl', label: 'Incoming Webhook URL', type: 'text', placeholder: 'https://hooks.slack.com/services/...' },
+      { key: 'channelName', label: 'Channel Name (optional)', type: 'text', placeholder: '#general', helpText: 'For display purposes only. The webhook determines the channel.' },
+    ],
+  },
+  {
+    provider: 'mattermost',
+    label: 'Mattermost',
+    description: 'Open-source team messaging',
+    category: 'communication',
+    color: 'from-blue-500 to-sky-600',
+    iconText: 'MM',
+    fields: [
+      { key: 'webhookUrl', label: 'Incoming Webhook URL', type: 'text', placeholder: 'https://mattermost.example.com/hooks/...' },
+      { key: 'channelName', label: 'Channel Name (optional)', type: 'text', placeholder: 'town-square', helpText: 'For display purposes only. The webhook determines the channel.' },
+    ],
+  },
+  {
+    provider: 'xero',
+    label: 'Xero',
+    description: 'Accounting & invoicing sync',
+    category: 'accounting',
+    color: 'from-cyan-500 to-blue-600',
+    iconText: 'XR',
+    fields: [
+      { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'OAuth 2.0 Client ID' },
+      { key: 'clientSecret', label: 'Client Secret', type: 'secret', placeholder: 'OAuth 2.0 Client Secret' },
+      { key: 'tenantId', label: 'Xero Tenant ID', type: 'text', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
+    ],
+  },
+  {
     provider: 'mailerlite',
     label: 'MailerLite',
-    description: 'Email marketing & automation',
+    description: 'Email marketing automation',
+    category: 'marketing',
     color: 'from-green-500 to-emerald-600',
     iconText: 'ML',
     fields: [
@@ -191,7 +175,8 @@ const PROVIDERS: ProviderDef[] = [
   {
     provider: 'mailchimp',
     label: 'Mailchimp',
-    description: 'Email marketing & campaigns',
+    description: 'Email marketing platform',
+    category: 'marketing',
     color: 'from-yellow-500 to-orange-600',
     iconText: 'MC',
     fields: [
@@ -199,7 +184,54 @@ const PROVIDERS: ProviderDef[] = [
       { key: 'dataCenter', label: 'Data Center', type: 'text', placeholder: 'us14', helpText: 'Found at the end of your API key (e.g. us14)' },
     ],
   },
+  {
+    provider: 'docusign',
+    label: 'DocuSign',
+    description: 'Electronic signature platform',
+    category: 'esignatures',
+    color: 'from-yellow-500 to-amber-600',
+    iconText: 'DS',
+    fields: [
+      { key: 'integrationKey', label: 'Integration Key', type: 'text', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
+      { key: 'userId', label: 'User ID (API User)', type: 'text', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
+      { key: 'accountId', label: 'Account ID', type: 'text', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
+      { key: 'privateKey', label: 'RSA Private Key', type: 'textarea', placeholder: '-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----' },
+      { key: 'basePath', label: 'Base Path', type: 'text', defaultValue: 'https://demo.docusign.net/restapi', helpText: 'Use https://na1.docusign.net/restapi for production' },
+      { key: 'oauthServer', label: 'OAuth Server', type: 'text', defaultValue: 'account-d.docusign.com', helpText: 'Use account.docusign.com for production' },
+    ],
+  },
+  {
+    provider: 'stripe',
+    label: 'Stripe',
+    description: 'Payment processing',
+    category: 'payments',
+    color: 'from-violet-500 to-purple-600',
+    iconText: 'ST',
+    comingSoon: true,
+    fields: [
+      { key: 'secretKey', label: 'Secret Key', type: 'secret', placeholder: 'sk_test_xxxxxxxxxx' },
+      { key: 'publishableKey', label: 'Publishable Key', type: 'text', placeholder: 'pk_test_xxxxxxxxxx' },
+      { key: 'webhookSecret', label: 'Webhook Secret', type: 'secret', placeholder: 'whsec_xxxxxxxxxx' },
+    ],
+  },
 ];
+
+// ============================================================
+// CATEGORY TABS
+// ============================================================
+
+const CATEGORIES = [
+  { key: 'all', label: 'All' },
+  { key: 'email', label: 'Email' },
+  { key: 'communication', label: 'Communication' },
+  { key: 'accounting', label: 'Accounting' },
+  { key: 'marketing', label: 'Marketing' },
+  { key: 'esignatures', label: 'E-Signatures' },
+  { key: 'payments', label: 'Payments' },
+  { key: 'embedded', label: 'Embedded Apps' },
+] as const;
+
+type CategoryTab = typeof CATEGORIES[number]['key'];
 
 // ============================================================
 // TYPES
@@ -219,7 +251,6 @@ export function IntegrationsPage() {
   const navigate = useNavigate();
   const [integrations, setIntegrations] = useState<Record<Provider, IntegrationRow>>({} as any);
   const [loading, setLoading] = useState(true);
-  const [expandedProvider, setExpandedProvider] = useState<Provider | null>(null);
   const [saving, setSaving] = useState<Provider | null>(null);
   const [success, setSuccess] = useState<Provider | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -229,6 +260,11 @@ export function IntegrationsPage() {
   const [testResult, setTestResult] = useState<{ provider: Provider; listCount: number } | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState<string | null>(null);
   const tenant = useAuthStore((s) => s.tenant);
+
+  // New state for tabs, search, and modal
+  const [activeCategory, setActiveCategory] = useState<CategoryTab>('all');
+  const [search, setSearch] = useState('');
+  const [configModalProvider, setConfigModalProvider] = useState<ProviderDef | null>(null);
 
   // ── Load data ────────────────────────────────────────────────
   useEffect(() => {
@@ -335,6 +371,41 @@ export function IntegrationsPage() {
     }
   };
 
+  const handleTestChatWebhook = async (providerDef: ProviderDef) => {
+    setTestingConnection(providerDef.provider);
+    setError(null);
+    try {
+      const config = getConfig(providerDef.provider);
+      const webhookUrl = config.webhookUrl;
+      if (!webhookUrl) {
+        setError(`Please configure a webhook URL for ${providerDef.label}`);
+        return;
+      }
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          providerDef.provider === 'slack'
+            ? { blocks: [
+                { type: 'header', text: { type: 'plain_text', text: 'Test Notification' } },
+                { type: 'section', text: { type: 'mrkdwn', text: 'This is a test message from IntelliSales CRM.' } },
+              ] }
+            : { text: '**Test Notification**\nThis is a test message from IntelliSales CRM.' }
+        ),
+      });
+      if (res.ok) {
+        setSuccess(providerDef.provider);
+        setTimeout(() => setSuccess((prev) => (prev === providerDef.provider ? null : prev)), 3000);
+      } else {
+        setError(`${providerDef.label} webhook returned status ${res.status}`);
+      }
+    } catch (err: any) {
+      setError(err?.message || `Failed to send test to ${providerDef.label}`);
+    } finally {
+      setTestingConnection(null);
+    }
+  };
+
   const copyWebhookUrl = (provider: Provider) => {
     const tenantId = tenant?.id || 'YOUR_TENANT_ID';
     const url = `${window.location.origin}/api/webhooks/${provider}?tenant=${tenantId}`;
@@ -342,6 +413,13 @@ export function IntegrationsPage() {
     setCopiedWebhook(provider);
     setTimeout(() => setCopiedWebhook((prev) => (prev === provider ? null : prev)), 2000);
   };
+
+  // ── Filter logic ─────────────────────────────────────────────
+  const filteredProviders = PROVIDERS.filter((p) => {
+    if (activeCategory !== 'all' && activeCategory !== 'embedded' && p.category !== activeCategory) return false;
+    if (search && !p.label.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
 
   // ── Render ───────────────────────────────────────────────────
   return (
@@ -355,15 +433,44 @@ export function IntegrationsPage() {
           <ArrowLeft className="w-4 h-4" />
           Back to Admin
         </Link>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center">
-            <Plug className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center">
+              <Plug className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Integrations</h1>
+              <p className="text-gray-600 dark:text-slate-400">Connect third-party services</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Integrations</h1>
-            <p className="text-gray-600 dark:text-slate-400">Connect third-party services</p>
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search integrations..."
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
           </div>
         </div>
+      </div>
+
+      {/* Category Tabs */}
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
+        {CATEGORIES.map((cat) => (
+          <button
+            key={cat.key}
+            onClick={() => setActiveCategory(cat.key)}
+            className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              activeCategory === cat.key
+                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
       </div>
 
       {/* Error banner */}
@@ -371,6 +478,9 @@ export function IntegrationsPage() {
         <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           {error}
+          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600 dark:hover:text-red-200">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
@@ -379,266 +489,364 @@ export function IntegrationsPage() {
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
         </div>
+      ) : activeCategory === 'embedded' ? (
+        /* Embedded Apps Tab */
+        <EmbeddedAppsSection />
       ) : (
-        <div className="space-y-4">
-          {PROVIDERS.map((providerDef) => {
-            const isExpanded = expandedProvider === providerDef.provider;
-            const isEnabled = getEnabled(providerDef.provider);
-            const config = getConfig(providerDef.provider);
-            const isSaving = saving === providerDef.provider;
-            const isSuccess = success === providerDef.provider;
+        <>
+          {/* Provider Card Grid */}
+          {filteredProviders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-slate-500">
+              <Search className="w-10 h-10 mb-3" />
+              <p className="text-sm">No integrations found</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredProviders.map((providerDef) => {
+                const isEnabled = getEnabled(providerDef.provider);
+
+                return (
+                  <div
+                    key={providerDef.provider}
+                    className={`bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 flex flex-col justify-between ${
+                      providerDef.comingSoon ? 'opacity-60' : ''
+                    }`}
+                  >
+                    {/* Top: icon + name + description */}
+                    <div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className={`w-10 h-10 bg-gradient-to-br ${providerDef.color} rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0`}>
+                          {providerDef.iconText}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="font-medium text-gray-900 dark:text-white truncate">{providerDef.label}</h3>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-slate-400 mb-3">{providerDef.description}</p>
+                    </div>
+
+                    {/* Status + action */}
+                    <div className="flex items-center justify-between mt-auto pt-2">
+                      <div className="flex items-center gap-1.5">
+                        {providerDef.comingSoon ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-amber-500" />
+                            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Coming Soon</span>
+                          </>
+                        ) : isEnabled ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-green-500" />
+                            <span className="text-xs text-green-600 dark:text-green-400 font-medium">Connected</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-gray-400" />
+                            <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">Not Configured</span>
+                          </>
+                        )}
+                      </div>
+                      {!providerDef.comingSoon && (
+                        <button
+                          onClick={() => setConfigModalProvider(providerDef)}
+                          className="px-3 py-1.5 text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                        >
+                          Configure
+                        </button>
+                      )}
+                      {providerDef.comingSoon && (
+                        <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                          Coming Soon
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Configure Modal */}
+      {configModalProvider && (
+        <ConfigureModal
+          providerDef={configModalProvider}
+          config={getConfig(configModalProvider.provider)}
+          isEnabled={getEnabled(configModalProvider.provider)}
+          saving={saving === configModalProvider.provider}
+          isSuccess={success === configModalProvider.provider}
+          visibleSecrets={visibleSecrets}
+          testingConnection={testingConnection}
+          testResult={testResult}
+          copiedWebhook={copiedWebhook}
+          connectingXero={connectingXero}
+          tenant={tenant}
+          onUpdateConfig={(key, value) => updateLocalConfig(configModalProvider.provider, key, value)}
+          onToggleEnabled={() => toggleEnabled(configModalProvider.provider)}
+          onToggleSecretVisibility={toggleSecretVisibility}
+          onSave={() => handleSave(configModalProvider)}
+          onTestEmailConnection={() => handleTestEmailConnection(configModalProvider.provider)}
+          onTestChatWebhook={() => handleTestChatWebhook(configModalProvider)}
+          onConnectXero={handleConnectXero}
+          onCopyWebhookUrl={() => copyWebhookUrl(configModalProvider.provider)}
+          onNavigateXeroMatching={() => navigate('/admin/xero-matching')}
+          onClose={() => setConfigModalProvider(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// CONFIGURE MODAL
+// ============================================================
+
+function ConfigureModal({
+  providerDef,
+  config,
+  isEnabled,
+  saving,
+  isSuccess,
+  visibleSecrets,
+  testingConnection,
+  testResult,
+  copiedWebhook,
+  connectingXero,
+  tenant,
+  onUpdateConfig,
+  onToggleEnabled,
+  onToggleSecretVisibility,
+  onSave,
+  onTestEmailConnection,
+  onTestChatWebhook,
+  onConnectXero,
+  onCopyWebhookUrl,
+  onNavigateXeroMatching,
+  onClose,
+}: {
+  providerDef: ProviderDef;
+  config: Record<string, string>;
+  isEnabled: boolean;
+  saving: boolean;
+  isSuccess: boolean;
+  visibleSecrets: Set<string>;
+  testingConnection: Provider | null;
+  testResult: { provider: Provider; listCount: number } | null;
+  copiedWebhook: string | null;
+  connectingXero: boolean;
+  tenant: any;
+  onUpdateConfig: (key: string, value: string) => void;
+  onToggleEnabled: () => void;
+  onToggleSecretVisibility: (fieldKey: string) => void;
+  onSave: () => void;
+  onTestEmailConnection: () => void;
+  onTestChatWebhook: () => void;
+  onConnectXero: () => void;
+  onCopyWebhookUrl: () => void;
+  onNavigateXeroMatching: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-slate-700">
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 bg-gradient-to-br ${providerDef.color} rounded-lg flex items-center justify-center text-white text-sm font-bold`}>
+              {providerDef.iconText}
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Configure {providerDef.label}
+            </h3>
+          </div>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-gray-500 dark:text-slate-400">{providerDef.description}</p>
+
+          {/* Config Fields */}
+          {providerDef.fields.map((field) => {
+            const fieldUid = `${providerDef.provider}.${field.key}`;
+            const isSecret = field.type === 'secret';
+            const isTextarea = field.type === 'textarea';
+            const isVisible = visibleSecrets.has(fieldUid);
 
             return (
-              <div
-                key={providerDef.provider}
-                className={`bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden ${providerDef.comingSoon ? 'opacity-60' : ''}`}
-              >
-                {/* Card Header */}
-                <div
-                  className={`flex items-center justify-between p-4 transition-colors ${providerDef.comingSoon ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-750'}`}
-                  onClick={() => !providerDef.comingSoon && setExpandedProvider(isExpanded ? null : providerDef.provider)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 bg-gradient-to-br ${providerDef.color} rounded-lg flex items-center justify-center text-white text-sm font-bold`}>
-                      {providerDef.iconText}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium text-gray-900 dark:text-white">{providerDef.label}</h3>
-                        {providerDef.comingSoon && (
-                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                            Coming Soon
-                          </span>
-                        )}
-                        {!providerDef.comingSoon && isEnabled && (
-                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                            Connected
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-slate-400">{providerDef.description}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {isSuccess && (
-                      <span className="flex items-center gap-1 text-green-600 dark:text-green-400 text-sm">
-                        <CheckCircle2 className="w-4 h-4" />
-                        Saved
-                      </span>
-                    )}
-                    {!providerDef.comingSoon && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleEnabled(providerDef.provider); }}
-                        className="flex-shrink-0"
-                        title={isEnabled ? 'Disable' : 'Enable'}
-                      >
-                        {isEnabled
-                          ? <ToggleRight className="w-7 h-7 text-green-500" />
-                          : <ToggleLeft className="w-7 h-7 text-gray-400" />}
-                      </button>
-                    )}
-                  </div>
+              <div key={field.key}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  {field.label}
+                </label>
+                <div className="relative">
+                  {isTextarea ? (
+                    <textarea
+                      value={config[field.key] || field.defaultValue || ''}
+                      onChange={(e) => onUpdateConfig(field.key, e.target.value)}
+                      placeholder={field.placeholder}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm"
+                    />
+                  ) : (
+                    <input
+                      type={isSecret && !isVisible ? 'password' : 'text'}
+                      value={config[field.key] || field.defaultValue || ''}
+                      onChange={(e) => onUpdateConfig(field.key, e.target.value)}
+                      placeholder={field.placeholder}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-10"
+                    />
+                  )}
+                  {isSecret && !isTextarea && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleSecretVisibility(fieldUid)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300"
+                    >
+                      {isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  )}
                 </div>
-
-                {/* Expanded Config */}
-                {isExpanded && !providerDef.comingSoon && (
-                  <div className="border-t border-gray-200 dark:border-slate-700 p-4">
-                    <div className="space-y-4">
-                      {providerDef.fields.map((field) => {
-                        const fieldUid = `${providerDef.provider}.${field.key}`;
-                        const isSecret = field.type === 'secret';
-                        const isTextarea = field.type === 'textarea';
-                        const isVisible = visibleSecrets.has(fieldUid);
-
-                        return (
-                          <div key={field.key}>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                              {field.label}
-                            </label>
-                            <div className="relative">
-                              {isTextarea ? (
-                                <textarea
-                                  value={config[field.key] || field.defaultValue || ''}
-                                  onChange={(e) => updateLocalConfig(providerDef.provider, field.key, e.target.value)}
-                                  placeholder={field.placeholder}
-                                  rows={4}
-                                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm"
-                                />
-                              ) : (
-                                <input
-                                  type={isSecret && !isVisible ? 'password' : 'text'}
-                                  value={config[field.key] || field.defaultValue || ''}
-                                  onChange={(e) => updateLocalConfig(providerDef.provider, field.key, e.target.value)}
-                                  placeholder={field.placeholder}
-                                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-10"
-                                />
-                              )}
-                              {isSecret && !isTextarea && (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleSecretVisibility(fieldUid)}
-                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300"
-                                >
-                                  {isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
-                              )}
-                            </div>
-                            {field.helpText && (
-                              <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{field.helpText}</p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Save Button */}
-                    <div className="mt-6 flex items-center gap-3">
-                      <button
-                        onClick={() => handleSave(providerDef)}
-                        disabled={isSaving}
-                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-colors disabled:opacity-50"
-                      >
-                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        Save {providerDef.label}
-                      </button>
-                    </div>
-
-                    {/* Xero-specific actions */}
-                    {providerDef.provider === 'xero' && isEnabled && (
-                      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700 flex items-center gap-3">
-                        {!config.accessToken ? (
-                          <button
-                            onClick={handleConnectXero}
-                            disabled={connectingXero}
-                            className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl transition-colors disabled:opacity-50"
-                          >
-                            {connectingXero ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
-                            Connect to Xero
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => navigate('/admin/xero-matching')}
-                            className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl transition-colors"
-                          >
-                            <Link2 className="w-4 h-4" />
-                            Match Contacts
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Chat provider actions (Slack / Mattermost) — Test Message */}
-                    {(providerDef.provider === 'slack' || providerDef.provider === 'mattermost') && isEnabled && (
-                      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={async () => {
-                              setTestingConnection(providerDef.provider);
-                              setError(null);
-                              try {
-                                const webhookUrl = config.webhookUrl;
-                                if (!webhookUrl) {
-                                  setError(`Please configure a webhook URL for ${providerDef.label}`);
-                                  return;
-                                }
-                                const res = await fetch(webhookUrl, {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify(
-                                    providerDef.provider === 'slack'
-                                      ? { blocks: [
-                                          { type: 'header', text: { type: 'plain_text', text: 'Test Notification' } },
-                                          { type: 'section', text: { type: 'mrkdwn', text: 'This is a test message from IntelliSales CRM.' } },
-                                        ] }
-                                      : { text: '**Test Notification**\nThis is a test message from IntelliSales CRM.' }
-                                  ),
-                                });
-                                if (res.ok) {
-                                  setSuccess(providerDef.provider);
-                                  setTimeout(() => setSuccess((prev) => (prev === providerDef.provider ? null : prev)), 3000);
-                                } else {
-                                  setError(`${providerDef.label} webhook returned status ${res.status}`);
-                                }
-                              } catch (err: any) {
-                                setError(err?.message || `Failed to send test to ${providerDef.label}`);
-                              } finally {
-                                setTestingConnection(null);
-                              }
-                            }}
-                            disabled={testingConnection === providerDef.provider}
-                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-colors disabled:opacity-50"
-                          >
-                            {testingConnection === providerDef.provider
-                              ? <Loader2 className="w-4 h-4 animate-spin" />
-                              : <ExternalLink className="w-4 h-4" />}
-                            Send Test Message
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Email marketing provider actions (MailerLite / Mailchimp) */}
-                    {(providerDef.provider === 'mailerlite' || providerDef.provider === 'mailchimp') && (
-                      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700 space-y-4">
-                        {/* Test Connection */}
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => handleTestEmailConnection(providerDef.provider)}
-                            disabled={testingConnection === providerDef.provider}
-                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-colors disabled:opacity-50"
-                          >
-                            {testingConnection === providerDef.provider
-                              ? <Loader2 className="w-4 h-4 animate-spin" />
-                              : <ExternalLink className="w-4 h-4" />}
-                            Test Connection
-                          </button>
-                          {testResult?.provider === providerDef.provider && (
-                            <span className="flex items-center gap-1 text-green-600 dark:text-green-400 text-sm">
-                              <CheckCircle2 className="w-4 h-4" />
-                              Connected — {testResult.listCount} list{testResult.listCount !== 1 ? 's' : ''} found
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Webhook URL */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                            Webhook URL
-                          </label>
-                          <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">
-                            Configure this URL in your {providerDef.label} webhook settings to receive subscription updates.
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              readOnly
-                              value={`${window.location.origin}/api/webhooks/${providerDef.provider}?tenant=${tenant?.id || 'YOUR_TENANT_ID'}`}
-                              className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-700/50 text-gray-600 dark:text-slate-300 text-sm font-mono cursor-text"
-                            />
-                            <button
-                              onClick={() => copyWebhookUrl(providerDef.provider)}
-                              className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-300 rounded-lg transition-colors text-sm"
-                            >
-                              {copiedWebhook === providerDef.provider
-                                ? <><Check className="w-4 h-4 text-green-500" /> Copied</>
-                                : <><Copy className="w-4 h-4" /> Copy</>}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                {field.helpText && (
+                  <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{field.helpText}</p>
                 )}
               </div>
             );
           })}
-        </div>
-      )}
 
-      {/* ════════════════════════════════════════════════════════════ */}
-      {/* EMBEDDED APPS SECTION                                       */}
-      {/* ════════════════════════════════════════════════════════════ */}
-      {!loading && <EmbeddedAppsSection />}
+          {/* Enabled Toggle */}
+          <div className="flex items-center gap-3 pt-2">
+            <button type="button" onClick={onToggleEnabled}>
+              {isEnabled
+                ? <ToggleRight className="w-7 h-7 text-green-500" />
+                : <ToggleLeft className="w-7 h-7 text-gray-400" />}
+            </button>
+            <span className="text-sm text-gray-700 dark:text-slate-300">Enabled</span>
+          </div>
+
+          {/* Xero-specific actions */}
+          {providerDef.provider === 'xero' && isEnabled && (
+            <div className="pt-2 border-t border-gray-200 dark:border-slate-700 flex items-center gap-3">
+              {!config.accessToken ? (
+                <button
+                  onClick={onConnectXero}
+                  disabled={connectingXero}
+                  className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {connectingXero ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                  Connect to Xero
+                </button>
+              ) : (
+                <button
+                  onClick={onNavigateXeroMatching}
+                  className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl transition-colors"
+                >
+                  <Link2 className="w-4 h-4" />
+                  Match Contacts
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Chat provider actions (Slack / Mattermost) — Test Message */}
+          {(providerDef.provider === 'slack' || providerDef.provider === 'mattermost') && isEnabled && (
+            <div className="pt-2 border-t border-gray-200 dark:border-slate-700">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={onTestChatWebhook}
+                  disabled={testingConnection === providerDef.provider}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {testingConnection === providerDef.provider
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <ExternalLink className="w-4 h-4" />}
+                  Send Test Message
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Email marketing provider actions (MailerLite / Mailchimp) */}
+          {(providerDef.provider === 'mailerlite' || providerDef.provider === 'mailchimp') && (
+            <div className="pt-2 border-t border-gray-200 dark:border-slate-700 space-y-4">
+              {/* Test Connection */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={onTestEmailConnection}
+                  disabled={testingConnection === providerDef.provider}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {testingConnection === providerDef.provider
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <ExternalLink className="w-4 h-4" />}
+                  Test Connection
+                </button>
+                {testResult?.provider === providerDef.provider && (
+                  <span className="flex items-center gap-1 text-green-600 dark:text-green-400 text-sm">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Connected — {testResult.listCount} list{testResult.listCount !== 1 ? 's' : ''} found
+                  </span>
+                )}
+              </div>
+
+              {/* Webhook URL */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  Webhook URL
+                </label>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">
+                  Configure this URL in your {providerDef.label} webhook settings to receive subscription updates.
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}/api/webhooks/${providerDef.provider}?tenant=${tenant?.id || 'YOUR_TENANT_ID'}`}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-700/50 text-gray-600 dark:text-slate-300 text-sm font-mono cursor-text"
+                  />
+                  <button
+                    onClick={onCopyWebhookUrl}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-300 rounded-lg transition-colors text-sm"
+                  >
+                    {copiedWebhook === providerDef.provider
+                      ? <><Check className="w-4 h-4 text-green-500" /> Copied</>
+                      : <><Copy className="w-4 h-4" /> Copy</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-slate-700">
+          <div>
+            {isSuccess && (
+              <span className="flex items-center gap-1 text-green-600 dark:text-green-400 text-sm">
+                <CheckCircle2 className="w-4 h-4" />
+                Saved successfully
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onSave}
+              disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-colors disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -724,7 +932,7 @@ function EmbeddedAppsSection() {
   };
 
   return (
-    <div className="mt-8">
+    <div>
       {/* Section Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">

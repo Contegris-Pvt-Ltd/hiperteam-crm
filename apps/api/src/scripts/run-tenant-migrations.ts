@@ -3968,6 +3968,49 @@ async function runTenantMigrations() {
             `,
           },
 
+          {
+            name: '062_fix_tenant_integrations',
+            sql: `
+              -- Add tenant_schema column to tenant_integrations for schema-based lookups
+              ALTER TABLE public.tenant_integrations
+                ADD COLUMN IF NOT EXISTS tenant_schema VARCHAR(100);
+
+              -- Populate tenant_schema from master.tenants
+              UPDATE public.tenant_integrations ti
+              SET tenant_schema = t.schema_name
+              FROM master.tenants t
+              WHERE ti.tenant_id = t.id AND ti.tenant_schema IS NULL;
+
+              -- Drop the old restrictive CHECK constraint on provider
+              DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_tenant_integration_provider') THEN
+                  ALTER TABLE public.tenant_integrations DROP CONSTRAINT chk_tenant_integration_provider;
+                END IF;
+              END $$;
+
+              -- Migrate legacy SMTP config from notification_settings to tenant_integrations
+              DO $$
+              DECLARE
+                smtp_cfg JSONB;
+                t_id UUID;
+              BEGIN
+                SELECT setting_value INTO smtp_cfg
+                FROM "${schema}".notification_settings
+                WHERE setting_key = 'smtp_config';
+
+                IF smtp_cfg IS NOT NULL AND smtp_cfg->>'host' IS NOT NULL AND (smtp_cfg->>'host') != '' THEN
+                  SELECT id INTO t_id FROM master.tenants WHERE schema_name = '${schema}' LIMIT 1;
+                  IF t_id IS NOT NULL THEN
+                    INSERT INTO public.tenant_integrations (tenant_id, tenant_schema, provider, is_enabled, config)
+                    VALUES (t_id, '${schema}', 'custom_smtp', true, smtp_cfg)
+                    ON CONFLICT (tenant_id, provider) DO UPDATE SET
+                      config = smtp_cfg, tenant_schema = '${schema}', is_enabled = true, updated_at = NOW();
+                  END IF;
+                END IF;
+              END $$;
+            `,
+          },
+
         ];
 
         // ── Execute pending migrations ────────────────────────────

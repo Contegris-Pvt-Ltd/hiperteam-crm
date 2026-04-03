@@ -50,12 +50,14 @@ export class EmailChannel {
           return this.sendViaAwsSes(config, payload);
         }
         case 'custom_smtp': {
-          const config = await this.getSmtpConfig(schemaName);
-          if (!config.host) {
+          // Check integrations first (new), then notification_settings (legacy)
+          const integrationConfig = await this.getIntegrationConfig(schemaName, 'custom_smtp');
+          const smtpConfig = integrationConfig.host ? integrationConfig : await this.getSmtpConfig(schemaName);
+          if (!smtpConfig.host) {
             this.logger.warn('Custom SMTP selected but not configured, falling back to system default');
             return this.sendViaGlobalSmtp(payload);
           }
-          return this.sendViaCustomSmtp(schemaName, config, payload);
+          return this.sendViaCustomSmtp(schemaName, smtpConfig, payload);
         }
         case 'system_default':
         default:
@@ -91,9 +93,9 @@ export class EmailChannel {
   // ============================================================
   // VERIFY CONNECTION (for current provider)
   // ============================================================
-  async verify(schemaName: string): Promise<{ success: boolean; error?: string; source?: string }> {
+  async verify(schemaName: string, providerOverride?: string): Promise<{ success: boolean; error?: string; source?: string }> {
     try {
-      const provider = await this.getEmailProvider(schemaName);
+      const provider = providerOverride || await this.getEmailProvider(schemaName);
 
       switch (provider) {
         case 'sendgrid': {
@@ -115,8 +117,9 @@ export class EmailChannel {
           return { success: true, source: 'aws_ses' };
         }
         case 'custom_smtp': {
-          const config = await this.getSmtpConfig(schemaName);
-          if (!config.host) return { success: false, error: 'Custom SMTP not configured' };
+          const intConfig = await this.getIntegrationConfig(schemaName, 'custom_smtp');
+          const config = intConfig.host ? intConfig : await this.getSmtpConfig(schemaName);
+          if (!config.host) return { success: false, error: 'Custom SMTP not configured. Configure it in Admin → Integrations.' };
           const transporter = await this.getTransporter(schemaName, config);
           await transporter.verify();
           return { success: true, source: 'custom_smtp' };

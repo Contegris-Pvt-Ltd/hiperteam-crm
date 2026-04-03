@@ -222,8 +222,8 @@ export const notificationsApi = {
   },
 
   // ---- Verification (admin) ----
-  verifySmtp: async (): Promise<{ success: boolean; error?: string }> => {
-    const response = await api.post('/notifications/verify/smtp');
+  verifySmtp: async (provider?: string): Promise<{ success: boolean; error?: string; source?: string }> => {
+    const response = await api.post('/notifications/verify/smtp', null, { params: provider ? { provider } : undefined });
     return response.data;
   },
 

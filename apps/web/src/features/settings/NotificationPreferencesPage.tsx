@@ -376,7 +376,7 @@ export function NotificationPreferencesPage() {
                 value={channelProviders.email || 'system_default'}
                 onChange={v => setChannelProviders(p => ({ ...p, email: v }))}
                 options={[
-                  { value: 'system_default', label: 'System Default (.env)' },
+                  { value: 'system_default', label: 'System Default' },
                   { value: 'custom_smtp', label: 'Custom SMTP' },
                   { value: 'sendgrid', label: 'SendGrid' },
                   { value: 'aws_ses', label: 'AWS SES' },
@@ -387,7 +387,7 @@ export function NotificationPreferencesPage() {
                   setTestingProvider('email');
                   setProviderMessage(null);
                   try {
-                    const result = await notificationsApi.verifySmtp();
+                    const result = await notificationsApi.verifySmtp(channelProviders.email);
                     setProviderMessage(result.success
                       ? { type: 'success', text: `Email provider verified (${result.source || channelProviders.email})` }
                       : { type: 'error', text: result.error || 'Verification failed' });
