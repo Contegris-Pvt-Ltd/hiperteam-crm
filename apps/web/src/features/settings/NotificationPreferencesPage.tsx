@@ -35,8 +35,6 @@ export function NotificationPreferencesPage() {
   const [activeTab, setActiveTab] = useState<'preferences' | 'channels' | 'templates'>('preferences');
 
   // Channel settings
-  const [smtpConfig, setSmtpConfig] = useState<any>({});
-  const [twilioConfig, setTwilioConfig] = useState<any>({});
   const [pushConfig, setPushConfig] = useState<any>({});
   const [pushSubscribed, setPushSubscribed] = useState(false);
 
