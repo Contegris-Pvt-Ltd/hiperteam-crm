@@ -74,6 +74,32 @@ One pipeline per module can be marked as the **default**. When users create a ne
 Keep one pipeline as default for the common sales flow. Create additional pipelines only for distinct processes (e.g., a separate pipeline for partner-sourced deals with different stages).
 :::
 
+## Stage Movement Mode
+
+Each pipeline has a **stage movement** setting that controls how records move between stages:
+
+| Mode | Behavior |
+|------|----------|
+| **Free Movement** (default) | Records can jump to any stage in any order |
+| **Sequential** | Records can only move to the immediately next or previous stage — skipping stages is blocked |
+
+### Configuring Stage Movement
+
+1. Open the Pipelines tab in Lead Settings or Opportunity Settings.
+2. Find the pipeline you want to configure.
+3. Click the **Free Movement** / **Sequential** toggle button on the pipeline row.
+4. The setting takes effect immediately for all new stage changes.
+
+### How Sequential Mode Works
+
+- **Kanban drag-and-drop**: dropping a card more than one column away is silently rejected
+- **Stage journey bar**: non-adjacent stages are dimmed and unclickable, with a tooltip explaining the restriction
+- **API enforcement**: the `changeStage` endpoint returns a `400 Bad Request` error if a non-adjacent stage is targeted
+
+:::tip
+Use **Sequential** mode for compliance-heavy processes where every stage must be visited (e.g., regulated onboarding flows). Use **Free Movement** for flexible sales processes where reps need to skip stages based on context.
+:::
+
 ## Managing Stages
 
 ### Creating a Stage

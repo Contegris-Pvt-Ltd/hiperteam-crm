@@ -80,10 +80,15 @@ export function StageJourneyBar({
   const isDisqualified = !!lead.disqualifiedAt;
   const isTerminal = isConverted || isDisqualified;
 
+  const isSequential = lead.pipeline?.stageMovement === 'sequential';
+
   // ── Main stage click handler ──
   const handleStageClick = async (stage: LeadStage, index: number) => {
     if (disabled || changingStage || loadingFields || isTerminal) return;
     if (stage.id === lead.stageId) return;
+
+    // Block non-adjacent moves in sequential pipelines
+    if (isSequential && currentStageIndex >= 0 && Math.abs(index - currentStageIndex) > 1) return;
 
     // Check backward movement lock
     if (index < currentStageIndex && stageSettings?.lockPreviousStages) {
@@ -208,7 +213,8 @@ export function StageJourneyBar({
           {/* Pipeline Stages */}
           {pipelineStages.map((stage, index) => {
             const state = getStageState(stage, index);
-            const isClickable = !isTerminal && !disabled && !changingStage && !loadingFields && stage.id !== lead.stageId;
+            const isBlocked = isSequential && currentStageIndex >= 0 && Math.abs(index - currentStageIndex) > 1;
+            const isClickable = !isTerminal && !disabled && !changingStage && !loadingFields && stage.id !== lead.stageId && !isBlocked;
             const isBackward = index < currentStageIndex;
             const isLocked = isBackward && stageSettings?.lockPreviousStages;
 
@@ -232,7 +238,7 @@ export function StageJourneyBar({
                     color: state === 'current' ? '#fff' : state === 'completed' ? stage.color : '#6b7280',
                     boxShadow: state === 'current' ? `0 0 0 2px white, 0 0 0 4px ${stage.color}` : 'none',
                   }}
-                  title={isLocked ? 'Stage locked — click to unlock' : stage.name}
+                  title={isBlocked ? 'Sequential pipeline — move to adjacent stages only' : isLocked ? 'Stage locked — click to unlock' : stage.name}
                 >
                   {state === 'completed' ? (
                     <Check size={12} />

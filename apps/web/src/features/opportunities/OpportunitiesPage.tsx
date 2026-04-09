@@ -180,6 +180,18 @@ export function OpportunitiesPage() {
 
   const handleKanbanStageDrop = async (oppId: string, newStageId: string) => {
     try {
+      // Enforce sequential pipeline movement
+      const currentPipeline = pipelines.find(p => p.id === selectedPipelineId);
+      if (currentPipeline?.stageMovement === 'sequential') {
+        const sortedStages = stages.filter(s => !s.isWon && !s.isLost).sort((a, b) => a.sortOrder - b.sortOrder);
+        const opp = kanbanData?.flatMap((col: any) => col.opportunities || col.items || []).find((o: any) => o.id === oppId);
+        if (opp) {
+          const currentIdx = sortedStages.findIndex(s => s.id === opp.stageId);
+          const targetIdx = sortedStages.findIndex(s => s.id === newStageId);
+          if (currentIdx >= 0 && targetIdx >= 0 && Math.abs(targetIdx - currentIdx) > 1) return;
+        }
+      }
+
       const stageFields = await opportunitySettingsApi.getStageFields(newStageId);
       const requiredFields = (Array.isArray(stageFields) ? stageFields : []).filter((f: any) => f.isRequired);
 

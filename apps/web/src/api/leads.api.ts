@@ -49,6 +49,7 @@ export interface Pipeline {
   isDefault: boolean;
   isActive: boolean;
   sortOrder: number;
+  stageMovement: 'sequential' | 'free';
   leadStageCount: number;
   oppStageCount: number;
   leadCount: number;
@@ -144,7 +145,7 @@ export interface Lead {
   source: string | null;
   sourceDetails: Record<string, any>;
   pipelineId: string | null;
-  pipeline: { id: string; name: string } | null;
+  pipeline: { id: string; name: string; stageMovement?: 'sequential' | 'free' } | null;
   stageId: string | null;
   stage: LeadStage | null;
   priorityId: string | null;

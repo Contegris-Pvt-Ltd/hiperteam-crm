@@ -706,7 +706,7 @@ export class LeadsService {
               ls.sort_order as stage_sort_order, ls.is_won as stage_is_won, ls.is_lost as stage_is_lost,
               ls.lock_previous_fields as stage_lock_previous,
               lp.name as priority_name, lp.color as priority_color, lp.icon as priority_icon,
-              pl.name as pipeline_name,
+              pl.name as pipeline_name, pl.stage_movement,
               cu.first_name as created_by_first_name, cu.last_name as created_by_last_name,
               lqf.name as framework_name, lqf.slug as framework_slug,
               dr.name as disqualification_reason_name,
@@ -967,6 +967,20 @@ export class LeadsService {
       `SELECT * FROM "${schemaName}".pipeline_stages WHERE id = $1`,
       [lead.stageId],
     );
+
+    // Enforce sequential stage movement if pipeline requires it
+    if (currentStage) {
+      const [pipeline] = await this.dataSource.query(
+        `SELECT stage_movement FROM "${schemaName}".pipelines WHERE id = $1`,
+        [targetStage.pipeline_id],
+      );
+      if (pipeline?.stage_movement === 'sequential') {
+        const diff = Math.abs(targetStage.sort_order - currentStage.sort_order);
+        if (diff > 1) {
+          throw new BadRequestException('This pipeline requires sequential stage progression. You cannot skip stages.');
+        }
+      }
+    }
 
     // Check if moving backward and lock_previous_fields is enabled
     if (currentStage && targetStage.sort_order < currentStage.sort_order) {
@@ -2083,6 +2097,7 @@ export class LeadsService {
       pipeline: lead.pipeline_name ? {
         id: lead.pipeline_id,
         name: lead.pipeline_name,
+        stageMovement: lead.stage_movement || 'free',
       } : null,
       stageId: lead.stage_id,
       stageName: (lead.stage_name as string) || null,

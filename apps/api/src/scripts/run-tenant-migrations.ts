@@ -4026,6 +4026,13 @@ async function runTenantMigrations() {
             `,
           },
           {
+            name: '065_pipeline_stage_movement',
+            sql: `
+              ALTER TABLE "${schema}".pipelines
+                ADD COLUMN IF NOT EXISTS stage_movement VARCHAR(20) DEFAULT 'free';
+            `,
+          },
+          {
             name: '064_backfill_lead_qualification_framework',
             sql: `
               -- Backfill qualification_framework_id for leads that don't have one

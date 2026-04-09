@@ -796,6 +796,23 @@ function PipelinesTab({ pipelines, onReload }: { pipelines: Pipeline[]; onReload
                     </span>
                   </div>
 
+                  {/* Stage movement toggle */}
+                  <button
+                    onClick={() => handleUpdate(pipeline.id, {
+                      stageMovement: pipeline.stageMovement === 'sequential' ? 'free' : 'sequential',
+                    })}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                      pipeline.stageMovement === 'sequential'
+                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400'
+                        : 'bg-gray-50 dark:bg-slate-700 border-gray-200 dark:border-slate-600 text-gray-500 dark:text-gray-400'
+                    }`}
+                    title={pipeline.stageMovement === 'sequential'
+                      ? 'Sequential: stages must be followed in order'
+                      : 'Free movement: can jump to any stage'}
+                  >
+                    {pipeline.stageMovement === 'sequential' ? 'Sequential' : 'Free Movement'}
+                  </button>
+
                   {/* Actions */}
                   <div className="flex items-center gap-1">
                     {!pipeline.isDefault && (

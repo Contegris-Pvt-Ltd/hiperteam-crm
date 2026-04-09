@@ -58,6 +58,7 @@ export interface Pipeline {
   isDefault: boolean;
   isActive: boolean;
   sortOrder: number;
+  stageMovement: 'sequential' | 'free';
   leadStageCount: number;
   oppStageCount: number;
   leadCount: number;

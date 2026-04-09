@@ -70,8 +70,8 @@ export class LeadSettingsService {
     );
 
     const [pipeline] = await this.dataSource.query(
-      `INSERT INTO "${schemaName}".pipelines (name, description, is_default, is_active, sort_order, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO "${schemaName}".pipelines (name, description, is_default, is_active, sort_order, stage_movement, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
         data.name,
@@ -79,6 +79,7 @@ export class LeadSettingsService {
         data.isDefault || false,
         data.isActive ?? true,
         data.sortOrder ?? maxOrder.next_order,
+        data.stageMovement || 'free',
         userId,
       ],
     );
@@ -113,6 +114,7 @@ export class LeadSettingsService {
     const fields: Record<string, string> = {
       name: 'name', description: 'description',
       isActive: 'is_active', sortOrder: 'sort_order',
+      stageMovement: 'stage_movement',
     };
 
     for (const [key, col] of Object.entries(fields)) {
@@ -979,6 +981,7 @@ export class LeadSettingsService {
       isDefault: p.is_default,
       isActive: p.is_active,
       sortOrder: p.sort_order,
+      stageMovement: p.stage_movement || 'free',
       leadStageCount: parseInt(p.lead_stage_count || '0', 10),
       oppStageCount: parseInt(p.opp_stage_count || '0', 10),
       leadCount: parseInt(p.lead_count || '0', 10),

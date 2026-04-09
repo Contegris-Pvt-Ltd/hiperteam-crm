@@ -892,6 +892,24 @@ export class OpportunitiesService {
     if (targetStage.is_won) throw new BadRequestException('Use the Close Won endpoint instead');
     if (targetStage.is_lost) throw new BadRequestException('Use the Close Lost endpoint instead');
 
+    // Enforce sequential stage movement if pipeline requires it
+    if (opp.stageId) {
+      const [currentStage] = await this.dataSource.query(
+        `SELECT sort_order FROM "${schemaName}".pipeline_stages WHERE id = $1`,
+        [opp.stageId],
+      );
+      const [pipeline] = await this.dataSource.query(
+        `SELECT stage_movement FROM "${schemaName}".pipelines WHERE id = $1`,
+        [targetStage.pipeline_id],
+      );
+      if (pipeline?.stage_movement === 'sequential' && currentStage) {
+        const diff = Math.abs(targetStage.sort_order - currentStage.sort_order);
+        if (diff > 1) {
+          throw new BadRequestException('This pipeline requires sequential stage progression. You cannot skip stages.');
+        }
+      }
+    }
+
     // Get required fields from pipeline_stage_fields table (same as leads)
     const stageFields = await this.dataSource.query(
       `SELECT field_key FROM "${schemaName}".pipeline_stage_fields

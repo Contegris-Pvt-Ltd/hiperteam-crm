@@ -273,6 +273,20 @@ export function LeadsPage() {
 
   const handleKanbanStageDrop = async (leadId: string, newStageId: string) => {
     try {
+      // 0. Enforce sequential pipeline movement
+      const currentPipeline = pipelines.find(p => p.id === selectedPipelineId);
+      if (currentPipeline?.stageMovement === 'sequential') {
+        const sortedStages = stages.filter(s => !s.isWon && !s.isLost).sort((a, b) => a.sortOrder - b.sortOrder);
+        const lead = kanbanData?.flatMap((col: any) => col.leads || col.items || []).find((l: any) => l.id === leadId);
+        if (lead) {
+          const currentIdx = sortedStages.findIndex(s => s.id === lead.stageId);
+          const targetIdx = sortedStages.findIndex(s => s.id === newStageId);
+          if (currentIdx >= 0 && targetIdx >= 0 && Math.abs(targetIdx - currentIdx) > 1) {
+            return; // silently reject non-adjacent drop
+          }
+        }
+      }
+
       // 1. Fetch required fields for the target stage
       const stageFields = await leadSettingsApi.getStageFields(newStageId);
       const requiredFields = (Array.isArray(stageFields) ? stageFields : []).filter((f: any) => f.isRequired);
