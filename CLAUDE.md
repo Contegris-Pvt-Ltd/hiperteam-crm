@@ -595,3 +595,434 @@ cd apps/api && npx ts-node src/scripts/run-tenant-migrations.ts
 **One session = one layer. Never mix layers:**
 - ❌ Migration + service + frontend all in one session
 - ✅ Session 1: DB only · Session 2: service · Session 3: controller · Session 4: API · Session 5: UI
+
+---
+
+## 18. Workflow Engine
+
+### Trigger System
+Workflows fire on entity events. The `trigger()` method matches `trigger_module` + `trigger_type` + evaluates `trigger_filters` (condition group).
+
+**Trigger modules:** `leads` · `contacts` · `accounts` · `opportunities` · `tasks` · `projects`
+
+**Payload structure:**
+```typescript
+{
+  triggerModule: string,
+  triggerType: string,     // e.g. 'lead_created', 'lead_stage_changed'
+  entityId: string,
+  entity: Record<string, any>,  // raw DB row (snake_case)
+  customFields: Record<string, any>,
+  previousValues: Record<string, any>,
+  meta: Record<string, any>,
+}
+```
+
+### Action Types (15)
+
+| Action | Config Keys | Returns |
+|--------|------------|---------|
+| `assign_owner` | `algorithm`, `pool[]`, `weights[]` | `{ assignedUserId, payloadMerge: { owner_id } }` |
+| `create_task` | `title`, `description`, `assignedTo` (owner/trigger_user/specific), `dueOffsetDays`, `startOffsetDays`, `estimatedMinutes`, `tags` | `{ created, title, assignedTo }` |
+| `update_field` | `entity`, `fieldKey`, `value` | `{ updated: { field: value } }` |
+| `add_tag` | `tag` | `{ tag }` |
+| `send_notification` | `to` (owner/specificUserId), `title`, `message` | `{ sentTo }` |
+| `send_email` | `to` (record_email/owner_email/custom), `subject`, `body`, `cc`, `bcc` | `{ sent, to }` |
+| `send_whatsapp` | `to` (record_phone/owner_phone/custom), `message` | `{ sent, to }` |
+| `send_sms` | `to` (record_phone/owner_phone/custom), `message` | `{ sent, to }` |
+| `webhook` | `url`, `method`, `bodyType` (json/form-data/raw/none), `headers[]`, `params[]`, `verifySsl`, `timeoutSeconds` | `{ statusCode, ok, responseBody }` |
+| `wait` | `hours`, `minutes` (sync ≤5s only) | `{ waited }` |
+| `branch` | `condition` (ConditionGroup) | `{ branch: 'yes'\|'no', conditionMet }` |
+| `create_opportunity` | `name` | `{ created }` |
+| `create_project` | `name`, `description`, `templateId` | `{ created, projectId }` |
+| `add_to_email_list` | `listId`, `listName`, `contactSelector` | `{ added, total }` |
+| `remove_from_email_list` | `listId`, `contactSelector` | `{ removed, total }` |
+
+### Template Interpolation
+`{{trigger.fieldName}}` — replaced from `payload.entity` (auto camelCase → snake_case).
+
+### Payload Merge
+Actions return `payloadMerge` to update the in-memory entity for downstream actions. Example: `assign_owner` sets `owner_id`, then `create_task` with `assignedTo: 'owner'` reads it.
+
+### Condition Engine
+Nested groups with `match: 'all' | 'any'`:
+```
+Operators: equals, not_equals, contains, not_contains, starts_with,
+           is_empty, is_not_empty, greater_than, less_than,
+           greater_or_equal, less_or_equal, in, not_in,
+           changed_to, changed_from, any_change
+```
+
+### Routing Algorithms (assign_owner)
+
+| Algorithm | Logic | State |
+|-----------|-------|-------|
+| `round_robin` | Cycles through pool, picks next after last assigned | `workflow_assignment_log` table |
+| `weighted` | Random selection weighted by `weights[]` config | Stateless |
+| `load_based` | User with fewest open records in module table | Stateless |
+| `territory` | Matches entity `country`/`city` to user `territory_tags` | Stateless |
+| `skill_match` | Matches entity `industry` to user `skill_tags` | Stateless |
+| `sticky` | Same owner as linked account/contact | Stateless |
+
+**Tables:**
+- `workflows` — id, name, trigger_module, trigger_type, trigger_filters, is_active, version
+- `workflow_actions` — workflow_id, action_type, config (JSONB), sort_order, parent_action_id, branch
+- `workflow_runs` — workflow_id, trigger_entity_id, trigger_payload, status, error, started_at, finished_at
+- `workflow_run_steps` — run_id, action_id, action_type, status, result (JSONB), error
+- `workflow_assignment_log` — action_id, user_id, entity_type, entity_id, assigned_at
+
+**Endpoints:**
+- `GET/POST     /workflows` · `GET/PUT/DELETE /workflows/:id`
+- `PATCH        /workflows/:id/toggle`
+- `GET          /workflows/:id/runs` · `GET /workflows/runs/:runId`
+
+---
+
+## 19. Forms & Engagement
+
+### Form Types
+- `standard` — regular web form
+- `meeting_booking` — scheduling/booking form
+- `landing_page` — with SEO/metadata config
+
+### Submit Actions (chained, context-passing)
+Each action passes `context` with created entity IDs to the next:
+
+| Action | Creates | Workflow Trigger |
+|--------|---------|-----------------|
+| `create_lead` | Lead with full fields + defaults (pipeline, stage, priority, qualification framework) | `lead_created` |
+| `create_contact` | Contact, links to `context.accountId` | `contact_created` |
+| `create_account` | Account with type `'prospect'` | `account_created` |
+| `webhook` | HTTP POST to configured URL | — |
+| `send_email` | Email to submitter with `{{fieldName}}` interpolation | — |
+
+### Phone Formatting
+`formatPhoneE164(raw, defaultCountry?)` — strips separators, tries: raw parse → country parse → `+` prefix for international. Falls back to tenant `base_country` from `company_settings`.
+
+### Field Mapping
+CRM fields mapped via `fieldMapping` config. Custom fields use `cf_` prefix (e.g., `cf_lead_score` → `custom_fields.lead_score`).
+
+### reCAPTCHA
+Optional v3 verification with score threshold 0.5. Requires `RECAPTCHA_SECRET_KEY` env var.
+
+**Tables:**
+- `forms` — name, type, status, token, fields (JSONB), submit_actions (JSONB), settings, branding, submission_count
+- `form_submissions` — form_id, data, metadata, action_results (JSONB), ip_address, user_agent
+
+**Public endpoints (no auth):**
+- `GET  /forms/public/:tenantSlug/:token` · `POST /forms/public/:tenantSlug/:token/submit`
+
+---
+
+## 20. Lead Scoring
+
+### Rule-Based Engine
+Templates with ordered rules. Each rule contributes `score_delta` if matched.
+
+**Operators:** `equals` · `not_equals` · `contains` · `contains_any` · `in` · `is_empty` · `is_not_empty` · `greater_than` · `less_than` · `older_than` (date decay, N days)
+
+**Field resolution:** `qualification.xxx` (JSONB) · `custom.xxx` (JSONB) · direct lead fields (auto camelToSnake)
+
+**Score:** clamped to `[0, max_score]`, stored with breakdown JSONB for debugging.
+
+**`rescoreAll(schemaName)`** — bulk rescore all active leads when rules change.
+
+**Tables:**
+- `lead_scoring_templates` — max_score, is_active, is_default
+- `lead_scoring_rules` — template_id, category, field_key, operator, value, score_delta, sort_order
+
+---
+
+## 21. SLA (Service Level Agreements)
+
+### Configuration (`lead_settings` key `'sla'`)
+```
+enabled, firstContactHours, workingHoursStart/End ("09:00"/"18:00"),
+workingDays ([1,2,3,4,5] = Mon-Fri), timezone ("UTC"),
+escalationEnabled, escalationHours,
+breachNotifyOwner, breachNotifyManager, escalationNotifyAdmin
+```
+
+### Working Hours Calculation
+`calculateDueDate()` — advances through business hours only, skipping non-working days. Timezone-aware via `Intl.DateTimeFormat`. Safety: max 365*24 iterations.
+
+### SLA Lifecycle
+1. **On lead creation:** `setSlaDueDate()` → sets `sla_first_contact_due_at`
+2. **On first activity:** `markSlaMet()` → sets `sla_first_contact_met_at`, calculates response minutes
+3. **Scheduled check:** `checkBreaches()` → marks breached/escalated leads, returns notification targets
+
+### Status Values
+`no_sla` · `on_track` · `at_risk` (≤25% time remaining) · `breached` · `escalated` · `met` · `met_late`
+
+**Lead columns:** `sla_first_contact_due_at`, `sla_first_contact_met_at`, `sla_breached`, `sla_breached_at`, `sla_escalated`, `sla_escalated_at`
+
+---
+
+## 22. Notifications
+
+### WebSocket Gateway
+- **Namespace:** `/notifications` · **Transports:** websocket + polling
+- **Auth:** JWT from `handshake.auth.token` or `Authorization` header
+- **Rooms:** `user:{userId}`
+
+**Server → Client events:**
+- `notification` — `{ id, type, title, body, icon, actionUrl, entityType, entityId }`
+- `unread_count` — `{ count }`
+
+**Client → Server events:**
+- `mark_read` · `mark_all_read` · `dismiss`
+
+### Channels
+- `email.channel.ts` — Nodemailer (system_default, custom_smtp, sendgrid, aws_ses)
+- `sms-whatsapp.channel.ts` — Twilio (SMS + WhatsApp)
+- `browser-push.channel.ts` — Web Push API
+- `chat.channel.ts` — Slack / Mattermost webhooks
+
+### Templates & Preferences
+- **Templates:** Handlebars-based, per `eventType`, cached in memory
+- **Preferences:** Per user × event type, toggles per channel (inApp, email, browserPush, sms, whatsapp)
+- **Event types:** `task_assigned`, `task_due_reminder`, `task_overdue`, `task_completed`, `meeting_reminder`, `meeting_booked`, `meeting_cancelled`, `meeting_rescheduled`, `lead_assigned`, `mention`
+
+---
+
+## 23. Projects
+
+### Core Structure
+Projects → Phases → Tasks (with subtasks via `parent_task_id`)
+
+**Health:** `on_track` · `at_risk` · `off_track`
+**Dependencies:** `finish_to_start` · `start_to_start`
+
+### Templates
+Templates define reusable phase/task structures. `saveTemplateStructure()` saves nested hierarchy. `createFromOpportunity()` creates project from won opportunity with template.
+
+### Features
+- Task dependencies with type
+- Time tracking (`project_time_entries`)
+- Task comments with `@mentions`
+- Project milestones
+- Client portal (public token access)
+- Kanban + Gantt views
+- Project/task approvals (via shared Approval Engine)
+
+**Key endpoints:**
+- `GET/POST /projects` · `GET/PUT/DELETE /projects/:id`
+- `GET /projects/:id/kanban` · `GET /projects/:id/gantt`
+- `POST /projects/:id/tasks` · `PUT/DELETE /projects/:id/tasks/:taskId`
+- `POST /projects/:id/tasks/:taskId/time` · `GET /projects/:id/time-report`
+- `POST /projects/:id/portal-token` · `GET /portal/:tenantSlug/:token` (public)
+- `POST /projects/from-opportunity`
+
+**Tables:** `projects`, `project_statuses`, `project_phases`, `project_tasks`, `project_task_statuses`, `project_templates`, `project_template_phases`, `project_template_tasks`, `project_task_dependencies`, `project_task_comments`, `project_time_entries`, `project_milestones`, `project_members`, `project_portal_tokens`
+
+---
+
+## 24. Proposals
+
+### Lifecycle
+`draft` → `published` → `sent` → `viewed` → `accepted` / `declined` / `expired`
+
+### Features
+- Line items with products, quantity, pricing, discounts
+- PDF generation
+- View tracking (`proposal_views` — IP, user agent, timestamp)
+- Public accept/decline by token
+- Approval gate: if discount exceeds rule threshold, requires approval before publish
+
+**Endpoints:**
+- `GET/POST /opportunities/:oppId/proposals` · `GET/PUT/DELETE .../proposals/:id`
+- `POST .../proposals/:id/publish` · `POST .../proposals/:id/send-email`
+- `GET /proposals/public/:tenantId/:token` · `POST .../accept` · `POST .../decline` (public)
+
+---
+
+## 25. Contracts
+
+### Lifecycle
+`draft` → `sent_for_signing` → `partially_signed` → `fully_signed` → `active` / `terminated` / `expired`
+
+### Signing Workflow
+Sequential signing via `contract_signatories` (sign_order). Supports internal signing (token-based) and DocuSign integration.
+
+- `sendForSigning()` — auto-detects DocuSign or internal flow
+- `sign(token, signatureData, ipAddress)` — marks signatory, auto-advances to next
+- `decline(token, reason)` — terminates entire contract
+- Document upload (PDF/DOCX)
+
+**Number format:** `CNT-XXXXXX` (auto-sequence)
+
+**Endpoints:**
+- Under `/opportunities/:oppId/contracts/...`
+- Public: `GET/POST /contracts/public/:token` (view, sign, decline)
+- DocuSign webhook: `POST /contracts/public/docusign/webhook`
+
+---
+
+## 26. Invoices
+
+### Lifecycle
+`draft` → `sent` → `partially_paid` / `paid` / `overdue` / `cancelled` / `void`
+
+### Features
+- Line items with quantity, unit price, discount (% or fixed), tax
+- Payment tracking (`invoice_payments`)
+- Recurring invoices (interval: monthly/quarterly/yearly, auto next date)
+- PDF generation (pdfkit)
+- Email delivery
+- Xero accounting integration (`pushToXero()`)
+- Auto mark overdue (scheduled job)
+
+**Endpoints:**
+- `GET/POST /invoices` · `GET/PUT/DELETE /invoices/:id`
+- `POST /invoices/:id/send` · `POST /invoices/:id/cancel`
+- `GET /invoices/:id/pdf` · `POST /invoices/:id/send-email`
+- `POST /invoices/:id/payments` · `GET /invoices/:id/payments`
+- `POST /invoices/:id/push-xero`
+
+---
+
+## 27. Approval Engine (Shared)
+
+Multi-step approval workflow used by proposals, projects, and contracts.
+
+### Rule Structure
+`approval_rules` → `approval_rule_steps` (ordered steps with approver type: `user` or `role`)
+
+### Request Flow
+1. `createRequest(entityType, entityId, triggerEvent)` — creates request + steps from rule
+2. First approver notified
+3. `approve(requestId, userId, comment)` — advances to next step or marks fully approved
+4. `reject(requestId, userId, comment)` — marks entire request rejected
+5. Post-approval action executed on entity
+
+**Trigger events:** `publish` (proposals) · `discount_threshold` (proposals) · `project_completion` (projects)
+
+**Tables:** `approval_rules`, `approval_rule_steps`, `approval_requests`, `approval_request_steps`
+
+---
+
+## 28. Email Inbox
+
+### Account Management
+IMAP/SMTP accounts with AES-256-CBC encrypted passwords. Supports shared accounts.
+
+### Features
+- Email sync (incremental via sync tokens)
+- Conversation threading
+- Send with inline image extraction (base64 → S3)
+- Open tracking (1x1 tracking pixel, HMAC-signed)
+- Draft management
+
+### Rules Engine
+Auto-processing rules with priority ordering:
+- **Conditions:** field (from/to/subject/body/has_attachments), operator (contains/equals/starts_with/regex)
+- **Actions:** mark_read, star, label, link_contact, link_lead, link_opportunity, link_account, forward, auto_reply, delete
+
+---
+
+## 29. Email Marketing
+
+### Provider Integrations
+- **MailerLite** — subscriber management via REST API
+- **Mailchimp** — member management with datacenter routing
+
+Config stored in `public.tenant_integrations` (provider, api_key, datacenter).
+
+### Features
+- `getLists()` — fetch mailing lists (1hr cache)
+- `addContactToList()` / `removeContactFromList()`
+- `testConnection()` — verify provider connectivity
+- Webhook processing: subscribe, unsubscribe, bounce, spam, open, click events
+- Contact status tracking: `email_marketing_status`, `email_bounced_at`, `last_email_opened_at`
+
+### Workflow Integration
+Actions `add_to_email_list` and `remove_from_email_list` in workflow engine.
+
+---
+
+## 30. Calendar Sync
+
+### Google Calendar (2-way)
+- **OAuth2 flow:** consent → callback → token storage + refresh
+- **CRM → Google:** pushes tasks with due dates as calendar events
+- **Google → CRM:** pulls events with incremental sync (syncToken)
+- **Meeting booking:** creates events with Google Meet links
+
+**Sync direction:** bidirectional by default. Avoids duplicates by tracking `source: 'crm' | 'google'`.
+
+**Tables:** `calendar_connections` (tokens, sync state) · `calendar_events` (provider_event_id, task_id mapping)
+
+---
+
+## 31. Scheduling & Booking
+
+Meeting booking system integrated with forms module.
+
+- Form type `meeting_booking` with `meeting_config` JSONB
+- `form_booking_availability` — per day-of-week windows (start_time, end_time)
+- Available date calculation with `maxDaysAhead` config
+- Confirmation flow with calendar integration
+
+---
+
+## 32. Customer 360
+
+### Subscriptions
+Full CRUD for account subscriptions with MRR calculation.
+- Billing frequency: monthly, quarterly, yearly, one-time
+- Auto-renewal with reminder days
+- Source tracking: opportunity_id, invoice_id, contract_id
+- Workflow trigger: `subscription_created`
+
+### Usage & Health
+- `account_usage_sources` — API/webhook/integration usage tracking
+- Health scoring service with churn prediction
+- Scheduled cron for score updates
+
+---
+
+## 33. Dashboard
+
+### Scope Model
+`'own'` (current user) · `'team'` (user's team) · `'all'` (tenant-wide)
+
+`buildOwnerFilter()` constructs WHERE clauses per scope. Analytics computed from leads, opportunities, tasks, activities.
+
+### Layout Customization
+`dashboard-layout.service.ts` — user-specific widget layouts with position/size.
+
+---
+
+## 34. General Settings
+
+### Company Settings
+`company_settings` table (singleton per tenant): company_name, tagline, email, phone, website, logo_url, address fields, tax_id, registration_no, base_country, base_city, default_currency, timezone.
+
+Auto-creates on first read if missing.
+
+### Currencies
+`currencies` table: code, name, symbol, decimal_places, is_active, is_default, sort_order.
+
+---
+
+## 35. API Keys
+
+Service account tokens for programmatic access.
+
+- Generated email: `api-{slug}-{suffix}@service.local`
+- Expiry options: 30d, 90d, 1y, never (100yr JWT)
+- Full RBAC: inherits role permissions, record access, field permissions
+- `api_last_used_at` tracking
+- Regenerate token without recreating account
+
+**User columns:** `is_api_user`, `api_key_label`, `api_key_description`, `api_token_expires_at`, `api_last_used_at`
+
+---
+
+## 36. Global Search
+
+Cross-entity search across 6 types with ILIKE matching (min 2 chars).
+
+**Searched entities:** contacts, accounts, leads, opportunities, projects, tasks
+
+Returns: `{ id, type, title, subtitle, url }` — limited to `ceil(limit/6)` per type, default 20 total.
