@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import * as XLSX from 'xlsx';
+import { XLSX } from '../../common/utils/xlsx-compat';
 import { CreateContactDto, UpdateContactDto, QueryContactsDto } from './dto';
 import { formatPhoneE164 } from '../../common/utils/phone.util';
 import { AuditService } from '../shared/audit.service';
@@ -703,7 +703,7 @@ export class ContactsService {
     const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Contacts');
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = await XLSX.writeAsync(wb);
 
     const date = new Date().toISOString().split('T')[0];
     return { buffer, fileName: `contacts-export-${date}.xlsx` };

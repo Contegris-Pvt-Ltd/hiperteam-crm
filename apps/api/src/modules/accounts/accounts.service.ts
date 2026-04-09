@@ -4,7 +4,7 @@
 // ============================================================
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import * as XLSX from 'xlsx';
+import { XLSX } from '../../common/utils/xlsx-compat';
 import { CreateAccountDto, UpdateAccountDto, QueryAccountsDto } from './dto';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
@@ -717,7 +717,7 @@ export class AccountsService {
     const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Accounts');
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = await XLSX.writeAsync(wb);
 
     const date = new Date().toISOString().split('T')[0];
     return { buffer, fileName: `accounts-export-${date}.xlsx` };

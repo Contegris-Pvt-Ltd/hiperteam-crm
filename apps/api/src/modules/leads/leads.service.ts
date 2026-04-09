@@ -13,6 +13,7 @@ import { RecordTeamService } from '../shared/record-team.service';
 import { FieldValidationService } from '../shared/field-validation.service';
 import { SlaService } from './sla.service';
 import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
+import { XLSX } from '../../common/utils/xlsx-compat';
 import { NotificationService } from '../notifications/notification.service';
 
 @Injectable()
@@ -2410,11 +2411,10 @@ export class LeadsService {
       return row;
     });
 
-    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Leads');
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = await XLSX.writeAsync(wb);
 
     const date = new Date().toISOString().split('T')[0];
     return { buffer, fileName: `leads-export-${date}.xlsx` };

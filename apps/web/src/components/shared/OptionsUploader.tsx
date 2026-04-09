@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { FileText, FileSpreadsheet, AlertCircle, CheckCircle, X, Download } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 interface Option {
   label: string;
@@ -263,13 +263,17 @@ export function OptionsUploader({
   const parseXLSX = async (file: File): Promise<ParseResult> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
-          const data = e.target?.result;
-          const workbook = XLSX.read(data, { type: 'binary' });
-          const sheetName = workbook.SheetNames[0];
-          const sheet = workbook.Sheets[sheetName];
-          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
+          const buffer = e.target?.result as ArrayBuffer;
+          const wb = new ExcelJS.Workbook();
+          await wb.xlsx.load(buffer);
+          const sheet = wb.worksheets[0];
+          const rows: unknown[][] = [];
+          sheet?.eachRow({ includeEmpty: true }, (row) => {
+            const vals = row.values as any[];
+            rows.push(vals.slice(1)); // exceljs is 1-indexed
+          });
 
           const valid: Option[] | ConditionalOption[] = [];
           const errors: string[] = [];
@@ -363,7 +367,7 @@ export function OptionsUploader({
           resolve({ valid: [], errors: ['Failed to parse Excel file'], warnings: [] });
         }
       };
-      reader.readAsBinaryString(file);
+      reader.readAsArrayBuffer(file);
     });
   };
 

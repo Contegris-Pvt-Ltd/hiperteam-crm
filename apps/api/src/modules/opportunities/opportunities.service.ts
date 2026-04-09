@@ -12,6 +12,7 @@
 // ============================================================
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { XLSX } from '../../common/utils/xlsx-compat';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
 import { ApprovalService } from '../shared/approval.service';
@@ -590,11 +591,10 @@ export class OpportunitiesService {
       return row;
     });
 
-    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Opportunities');
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = await XLSX.writeAsync(wb);
 
     const date = new Date().toISOString().split('T')[0];
     return { buffer, fileName: `opportunities-export-${date}.xlsx` };

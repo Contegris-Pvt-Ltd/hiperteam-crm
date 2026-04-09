@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { DataSource } from 'typeorm';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-import * as XLSX from 'xlsx';
+import { XLSX } from '../../common/utils/xlsx-compat';
 import * as path from 'path';
 import * as fs from 'fs';
 import { StartImportDto } from './dto/start-import.dto';
@@ -105,7 +105,7 @@ export class LeadImportService {
 
     try {
       // Parse the file
-      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const workbook = await XLSX.readAsync(file.buffer);
       const sheetName = workbook.SheetNames[0];
       if (!sheetName) {
         throw new BadRequestException('File contains no sheets');
@@ -212,7 +212,7 @@ export class LeadImportService {
     const filePath = path.join(this.uploadDir, matchingFile);
 
     // Parse to get total rows
-    const workbook = XLSX.read(fs.readFileSync(filePath), { type: 'buffer' });
+    const workbook = await XLSX.readAsync(fs.readFileSync(filePath));
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const jsonData: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
     const totalRows = jsonData.length - 1;
@@ -368,7 +368,7 @@ export class LeadImportService {
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     XLSX.utils.book_append_sheet(wb, ws, 'Failed Records');
 
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = await XLSX.writeAsync(wb);
 
     return {
       buffer,

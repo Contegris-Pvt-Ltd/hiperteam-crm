@@ -2,7 +2,7 @@ import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
 import { DataSource } from 'typeorm';
-import * as XLSX from 'xlsx';
+import { XLSX } from '../../common/utils/xlsx-compat';
 import * as fs from 'fs';
 import { isValidPhoneNumber, parsePhoneNumber } from 'libphonenumber-js';
 import { NotificationService } from '../notifications/notification.service';
@@ -67,7 +67,7 @@ export class AccountImportProcessor {
         throw new Error(`Import file not found at: ${filePath}`);
       }
 
-      const workbook = XLSX.read(fs.readFileSync(filePath), { type: 'buffer' });
+      const workbook = await XLSX.readAsync(fs.readFileSync(filePath));
       const rawMapping = importJob.column_mapping || {};
       const settings = importJob.settings || {};
 

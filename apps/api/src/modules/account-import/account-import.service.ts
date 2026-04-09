@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { DataSource } from 'typeorm';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-import * as XLSX from 'xlsx';
+import { XLSX } from '../../common/utils/xlsx-compat';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -157,7 +157,7 @@ export class AccountImportService {
     fs.writeFileSync(savedFilePath, file.buffer);
 
     try {
-      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const workbook = await XLSX.readAsync(file.buffer);
 
       if (workbook.SheetNames.length < 1) {
         throw new BadRequestException('File contains no sheets');
@@ -287,7 +287,7 @@ export class AccountImportService {
     const filePath = path.join(this.uploadDir, matchingFile);
 
     // Parse to get total rows across all sheets
-    const workbook = XLSX.read(fs.readFileSync(filePath), { type: 'buffer' });
+    const workbook = await XLSX.readAsync(fs.readFileSync(filePath));
     let totalRows = 0;
     for (const wsName of workbook.SheetNames) {
       const sheet = workbook.Sheets[wsName];
@@ -473,7 +473,7 @@ export class AccountImportService {
       XLSX.utils.book_append_sheet(wb, ws, `Failed - ${sheetName}`.substring(0, 31));
     }
 
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = await XLSX.writeAsync(wb);
 
     return {
       buffer,
@@ -540,7 +540,7 @@ export class AccountImportService {
     const subWs = XLSX.utils.aoa_to_sheet(subWsData);
     XLSX.utils.book_append_sheet(wb, subWs, 'Subscriptions');
 
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = await XLSX.writeAsync(wb);
 
     return {
       buffer,

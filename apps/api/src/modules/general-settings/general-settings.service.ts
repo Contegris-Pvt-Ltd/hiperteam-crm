@@ -6,7 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import * as XLSX from 'xlsx';
+import { XLSX } from '../../common/utils/xlsx-compat';
 
 @Injectable()
 export class GeneralSettingsService {
@@ -501,7 +501,7 @@ export class GeneralSettingsService {
       }
     }
 
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buf = await XLSX.writeAsync(wb);
     const dateStr = new Date().toISOString().slice(0, 10);
     return { buffer: Buffer.from(buf), fileName: `crm-data-export-${dateStr}.xlsx` };
   }
