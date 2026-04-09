@@ -143,11 +143,26 @@ Advance the record to a specific pipeline stage.
 
 ### Assign Owner
 
-Change the record's owner.
+Automatically assign a record owner using one of six routing algorithms.
 
-- **Assignment type** — specific user, round-robin within team, role-based
-- **Team** — for round-robin assignment
-- **Notify new owner** — send assignment notification
+- **Algorithm** — the assignment strategy (see table below)
+- **User Pool** — the list of users to assign from
+- **Weights** — (weighted algorithm only) relative weights per user
+
+#### Routing Algorithms
+
+| Algorithm | Description |
+|-----------|-------------|
+| **Round Robin** | Cycles through the user pool in order. Tracks assignments in a log table to ensure fair distribution even across server restarts. |
+| **Weighted** | Random selection weighted by configured values. Higher weight = more assignments. |
+| **Load Based** | Assigns to the user with the fewest open records in the module. |
+| **Territory** | Matches the entity's country/city to users' territory tags. Falls back to the first user in the pool. |
+| **Skill Match** | Matches the entity's industry to users' skill tags. Falls back to the first user in the pool. |
+| **Sticky** | Assigns to the same owner as the linked account or contact, if that owner is in the pool. |
+
+:::tip
+Round Robin is the most commonly used algorithm. It guarantees even distribution and tracks each assignment in the `workflow_assignment_log` table for auditing.
+:::
 
 ### Send Notification
 
@@ -171,6 +186,79 @@ Make an HTTP request to an external service.
 :::tip
 Use webhooks to integrate with external systems that do not have native integrations. For example, post a message to Slack when a deal closes, or update an external ERP system when a project starts.
 :::
+
+### Wait / Delay
+
+Pause the workflow before executing the next action.
+
+- **Hours** — number of hours to wait
+- **Minutes** — number of minutes to wait
+
+:::note
+Currently supports synchronous delays up to 5 seconds for testing. Longer delays are planned for production via background job queues.
+:::
+
+### Branch (If/Else)
+
+Split the workflow into conditional paths.
+
+- **Condition** — a condition group (same syntax as trigger filters)
+- **Yes path** — actions to execute if the condition is true
+- **No path** — actions to execute if the condition is false
+
+Branch children can contain any action type, including nested branches.
+
+### Create Opportunity
+
+Automatically create an opportunity from a lead.
+
+- **Name** — opportunity name (supports `{{trigger.fieldName}}` interpolation)
+- Inherits `account_id` and `owner_id` from the trigger entity
+
+### Create Project
+
+Automatically create a project (e.g., from a won opportunity).
+
+- **Name** — project name with interpolation support
+- **Description** — optional description
+- **Template** — select a project template to apply phases and tasks automatically
+
+### Add to Email List
+
+Subscribe the entity's contacts to an email marketing list.
+
+- **List** — select a mailing list from MailerLite or Mailchimp
+- **Contact selector** — which contacts to subscribe (primary, all, or owner)
+
+### Remove from Email List
+
+Unsubscribe contacts from an email marketing list.
+
+- Same configuration as "Add to Email List"
+
+### Send WhatsApp
+
+Send a WhatsApp message via Twilio.
+
+- **Recipient** — record phone, owner phone, or custom number
+- **Message** — message text with `{{trigger.fieldName}}` interpolation
+
+### Send SMS
+
+Send an SMS message via Twilio.
+
+- **Recipient** — record phone, owner phone, or custom number
+- **Message** — message text with interpolation
+
+### Variable Interpolation
+
+Use `{{trigger.fieldName}}` placeholders in action configurations (task titles, email subjects, webhook bodies, etc.) to insert live values from the trigger entity.
+
+**Examples:**
+- `"Follow up with {{trigger.firstName}} {{trigger.lastName}}"` → "Follow up with John Smith"
+- `"New lead from {{trigger.company}}"` → "New lead from Acme Corp"
+
+Both camelCase (`{{trigger.firstName}}`) and snake_case (`{{trigger.first_name}}`) are supported.
 
 ## Testing Workflows
 

@@ -99,3 +99,120 @@ Click **Reset** to restore the original tab order, field order, and visibility f
 :::warning
 Resetting will undo all customizations for that module. This cannot be undone.
 :::
+
+---
+
+## Engagement Form Builder
+
+The Engagement Form Builder (`Engagement > Forms`) lets you create web forms that capture data and trigger CRM actions.
+
+### Form Types
+
+| Type | Description |
+|------|-------------|
+| **Standard** | Collect data and execute CRM actions (create leads, contacts, accounts) |
+| **Meeting Booking** | Let visitors book meetings directly on your calendar |
+| **Landing Page** | Full-page form with SEO metadata and custom branding |
+
+### Creating a Form
+
+1. Navigate to **Engagement > Forms**.
+2. Click **New Form** or **New Booking Page**.
+3. Enter form name and description.
+4. Use the drag-and-drop builder to add fields.
+
+### Field Types
+
+The field palette includes:
+
+| Type | Description |
+|------|-------------|
+| Text | Single-line text input |
+| Email | Email with validation |
+| Phone | Phone number input |
+| Number | Numeric input |
+| Text Area | Multi-line text |
+| Dropdown | Select from predefined options |
+| Radio | Single choice from options |
+| Checkbox | Boolean toggle |
+| Date | Date picker |
+| File Upload | File attachment |
+| Heading | Section heading (non-input) |
+| Paragraph | Descriptive text (non-input) |
+| Divider | Visual separator (non-input) |
+
+### Submit Actions
+
+Configure what happens when a form is submitted. Actions execute in order, and each action can use data from previous ones (e.g., create a contact first, then create a lead linked to that contact).
+
+#### Create Lead
+Maps form fields to CRM lead fields. Automatically:
+- Resolves the default pipeline and first stage
+- Assigns the default qualification framework (BANT/CHAMP)
+- Sets the default priority
+- Formats phone numbers to E.164 international format
+- Fires the `lead_created` workflow trigger
+
+#### Create Contact
+Maps form fields to CRM contact fields. If a previous "Create Account" action ran, the contact is automatically linked to that account.
+
+#### Create Account
+Creates a new account with type "prospect" from form data.
+
+#### Webhook
+Sends the form submission data to an external URL via HTTP POST.
+- Payload includes: `formId`, `formName`, `data`, `submittedAt`
+- Response status and body are logged in submission results
+
+#### Send Email to Submitter
+Sends a confirmation email to the submitter.
+- Uses the email field mapped in the form
+- Supports `{{field_name}}` placeholders in subject and body
+
+### Field Mapping
+
+Each CRM action has a field mapping section. Map form fields to CRM fields:
+
+1. Select an action type (e.g., Create Lead).
+2. For each CRM field, select the corresponding form field from the dropdown.
+3. Fields left as "-- skip --" are not mapped.
+
+**Custom Fields:** Custom fields from the CRM appear in a separate "Custom Fields" section with a `cf_` prefix. They are stored in the lead's `custom_fields` JSONB column.
+
+### reCAPTCHA Protection
+
+Enable Google reCAPTCHA v3 to prevent spam submissions:
+
+1. Go to the **Settings** tab of your form.
+2. Toggle **Require CAPTCHA**.
+3. Ensure `RECAPTCHA_SECRET_KEY` is configured on the server.
+
+Submissions with a score below 0.5 are rejected.
+
+### Embedding Forms
+
+Forms can be embedded on external websites:
+
+- **iFrame** — embed the form directly in an iframe
+- **JavaScript snippet** — load the form dynamically
+- **Popup modal** — trigger the form from a button click
+
+Copy the embed code from the form's **Share** tab.
+
+### Submission Tracking
+
+Every submission is recorded with:
+- Form data and metadata
+- Action results (success/error per action)
+- IP address and user agent
+- Timestamp
+
+View submissions under the form's **Submissions** tab with filtering by date range and action status.
+
+### Phone Number Formatting
+
+Phone numbers submitted through forms are automatically formatted to E.164 international format:
+1. Tries parsing the raw input directly
+2. Falls back to the mapped country code field
+3. Falls back to the tenant's base country from company settings
+4. If all fail, stores the raw input as-is

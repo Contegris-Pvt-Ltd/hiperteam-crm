@@ -83,6 +83,8 @@ title: Workflows API
 | branch | If/else conditional split |
 | create_opportunity | Create opportunity from lead |
 | create_project | Create project from opportunity |
+| add_to_email_list | Subscribe contacts to email marketing list |
+| remove_from_email_list | Remove contacts from email marketing list |
 
 ## Condition Operators
 
@@ -91,3 +93,134 @@ title: Workflows API
 ## Variable Interpolation
 
 Use `{{trigger.fieldName}}` in action configs to reference the trigger entity's fields. Both snake_case and camelCase are supported.
+
+## Action Config Reference
+
+### assign_owner
+
+```json
+{
+  "algorithm": "round_robin",
+  "pool": ["userId1", "userId2", "userId3"],
+  "weights": [{"userId": "userId1", "weight": 2}]
+}
+```
+
+Algorithms: `round_robin`, `weighted`, `load_based`, `territory`, `skill_match`, `sticky`
+
+### create_task
+
+```json
+{
+  "title": "Follow up with {{trigger.firstName}}",
+  "description": "...",
+  "assignedTo": "owner",
+  "dueOffsetDays": 3,
+  "startOffsetDays": 0,
+  "estimatedMinutes": 30,
+  "tags": "follow-up, workflow"
+}
+```
+
+`assignedTo` values: `owner` (default), `trigger_user`, `specific` (with `specificUserId`)
+
+### webhook
+
+```json
+{
+  "url": "https://api.example.com/webhook",
+  "method": "POST",
+  "bodyType": "json",
+  "bodyJson": "{\"leadId\": \"{{trigger.id}}\"}",
+  "headers": [{"key": "Authorization", "value": "Bearer xxx", "enabled": true}],
+  "params": [{"key": "source", "value": "crm", "enabled": true}],
+  "verifySsl": true,
+  "timeoutSeconds": 30
+}
+```
+
+### send_email / send_whatsapp / send_sms
+
+```json
+{
+  "to": "record_email",
+  "subject": "Welcome {{trigger.firstName}}",
+  "body": "<p>Hello {{trigger.firstName}},</p>",
+  "cc": "manager@example.com",
+  "bcc": ""
+}
+```
+
+`to` values: `record_email`/`record_phone`, `owner_email`/`owner_phone`, or a literal address/number
+
+### branch
+
+```json
+{
+  "condition": {
+    "match": "all",
+    "items": [
+      {"field": "score", "operator": "greater_than", "value": "80"}
+    ]
+  }
+}
+```
+
+Child actions use `parentActionId` + `branch: "yes"` or `branch: "no"`.
+
+### add_to_email_list / remove_from_email_list
+
+```json
+{
+  "listId": "uuid",
+  "listName": "Newsletter",
+  "contactSelector": "primary"
+}
+```
+
+`contactSelector` values: `primary`, `all`, `owner`
+
+## Run History Endpoints
+
+### GET `/workflows/:id/runs`
+
+Query params: `page` (default 1), `limit` (default 25)
+
+Response:
+```json
+{
+  "data": [{
+    "id": "uuid",
+    "workflowId": "uuid",
+    "triggerModule": "leads",
+    "triggerType": "lead_created",
+    "triggerEntityId": "uuid",
+    "status": "completed",
+    "error": null,
+    "startedAt": "ISO",
+    "finishedAt": "ISO"
+  }],
+  "total": 42,
+  "page": 1,
+  "limit": 25
+}
+```
+
+### GET `/workflows/runs/:runId`
+
+Response includes `steps` array:
+```json
+{
+  "id": "uuid",
+  "status": "completed",
+  "steps": [{
+    "id": "uuid",
+    "actionType": "assign_owner",
+    "status": "completed",
+    "result": {"assignedUserId": "uuid"},
+    "error": null,
+    "startedAt": "ISO",
+    "finishedAt": "ISO"
+  }]
+}
+```

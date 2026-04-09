@@ -187,6 +187,46 @@ Upload and manage project-related files — specifications, designs, contracts, 
 
 A timeline of all project activity — phase completions, task updates, team changes, time entries, and document uploads. See [Activity Timeline](./activity-timeline.md).
 
+## Project Templates
+
+Project templates define reusable structures that can be applied when creating new projects.
+
+### What Templates Include
+
+A template contains:
+- **Phases** — predefined project phases (e.g., Planning, Development, Testing, Launch)
+- **Tasks** — predefined tasks within each phase with titles, descriptions, priorities, and estimated hours
+- **Subtasks** — predefined subtasks within tasks
+- **Assignee Roles** — suggested roles for each task (e.g., "Developer", "QA")
+
+### Using a Template
+
+1. When creating a new project, select a **Template** from the dropdown.
+2. The project is created with all the template's phases and tasks pre-populated.
+3. You can then customize the generated structure (rename phases, add/remove tasks, adjust dates).
+
+### Managing Templates (Admin)
+
+Administrators manage templates under **Admin > Project Settings > Templates**:
+
+1. Click **Create Template**.
+2. Enter template name and description.
+3. Use **Save Structure** to define the nested hierarchy of phases, tasks, and subtasks.
+4. Each task can include: title, description, priority, estimated hours, due days from start, and assignee role.
+
+### Creating from Opportunity
+
+When an opportunity is won, you can create a project directly:
+
+1. Open the won opportunity.
+2. Click **Create Project**.
+3. Select a template (optional).
+4. The project is created and linked to the opportunity, inheriting the account and owner.
+
+:::tip
+Create templates for your most common project types (e.g., "Website Redesign", "Software Implementation", "Consulting Engagement"). This ensures consistent project structure and nothing is forgotten.
+:::
+
 ## Client Portal
 
 The client portal provides external stakeholders with read-only access to project progress without requiring a CRM account.

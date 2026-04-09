@@ -103,6 +103,57 @@ Lead routing automatically assigns new leads to users based on configurable rule
 If no routing rules match, the lead remains unassigned. Always create a **default rule** (no conditions) as the last rule to catch everything.
 :::
 
+## SLA (Service Level Agreements)
+
+Configure time-based rules that enforce first-contact deadlines for new leads.
+
+1. Switch to the **SLA** tab (or find SLA settings under the lead settings).
+2. Toggle **Enable SLA** to activate.
+
+### Configuration Options
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| **First Contact Hours** | Maximum hours allowed before first contact | 4 |
+| **Working Hours Start** | Start of business day | 09:00 |
+| **Working Hours End** | End of business day | 18:00 |
+| **Working Days** | Which days count as business days | Mon-Fri |
+| **Timezone** | Timezone for working hours calculation | UTC |
+| **Exclude Weekends** | Skip weekends in due date calculation | Yes |
+
+### Escalation
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| **Escalation Enabled** | Escalate breached leads to managers | Yes |
+| **Escalation Hours** | Hours after breach before escalation triggers | 8 |
+
+### Notifications
+
+| Setting | Description |
+|---------|-------------|
+| **Breach Notify Owner** | Notify the lead owner when SLA is breached |
+| **Breach Notify Manager** | Notify the owner's manager on breach |
+| **Escalation Notify Manager** | Notify manager on escalation |
+| **Escalation Notify Admin** | Notify admins on escalation |
+
+### How SLA Due Dates Work
+
+The system calculates the SLA due date using **business hours only**:
+- If a lead is created at 4:00 PM on Friday with a 4-hour SLA, the deadline is 10:00 AM Monday (skipping the weekend).
+- The calculation respects the configured timezone, working hours, and working days.
+
+### SLA Lifecycle
+
+1. **Lead created** — SLA due date is calculated and stored
+2. **First activity logged** — SLA is marked as met, response time calculated
+3. **Deadline passes** — lead is marked as breached, notifications sent
+4. **Escalation window passes** — lead is escalated, manager/admin notified
+
+:::tip
+Review SLA breach rates in the dashboard. A high breach rate may indicate you need more staff or longer SLA windows.
+:::
+
 ## Qualification
 
 Qualification frameworks provide structured criteria for determining whether a lead is ready to become an opportunity.

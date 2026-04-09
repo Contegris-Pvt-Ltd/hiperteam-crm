@@ -105,3 +105,37 @@ Notifications are sent via the channels configured in your [Notification Prefere
 :::warning
 SLA breaches may be tracked in reports and affect performance metrics. Respond to SLA warning notifications promptly to avoid breaches.
 :::
+
+## SLA Configuration (Admin)
+
+Administrators configure SLA rules under **Admin > Lead Settings > SLA**. Key settings include:
+
+- **First Contact Hours** — the maximum time allowed before initial outreach (e.g., 4 hours)
+- **Working Hours** — only business hours count toward the deadline (e.g., 09:00-18:00)
+- **Working Days** — select which days are business days (typically Mon-Fri)
+- **Timezone** — all calculations use this timezone
+- **Escalation** — optionally escalate breached leads after additional hours pass
+
+### SLA Status Lifecycle
+
+| Status | Meaning |
+|--------|---------|
+| **On Track** | Plenty of time remaining |
+| **At Risk** | Less than 25% of time remaining |
+| **Breached** | Deadline passed without first contact |
+| **Escalated** | Breach persisted beyond escalation window |
+| **Met** | First contact made within deadline |
+| **Met Late** | First contact made, but after the deadline |
+
+### Response Time Tracking
+
+When you log your first activity on a lead (call, email, meeting), the system records:
+- The exact timestamp of first contact
+- The response time in minutes
+- Whether the SLA was met or breached
+
+This data feeds into dashboard reports and can be used in performance reviews.
+
+:::tip
+To meet SLAs consistently, use the **SLA filter** on the leads list page to sort by "At Risk" status and prioritize those leads.
+:::
