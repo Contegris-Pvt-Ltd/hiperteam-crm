@@ -547,6 +547,13 @@ export class TasksService {
 
     formatted.subtasks = subtasks.map((s: any) => this.formatTask(s));
 
+    // Resolve related entity name for display
+    if (formatted.relatedEntityType && formatted.relatedEntityId) {
+      formatted.relatedEntityName = await this.resolveEntityName(
+        schemaName, formatted.relatedEntityType, formatted.relatedEntityId,
+      );
+    }
+
     return formatted;
   }
 
@@ -1387,5 +1394,36 @@ export class TasksService {
       level: p.level, isDefault: p.is_default, isSystem: p.is_system,
       isActive: p.is_active, sortOrder: p.sort_order,
     };
+  }
+
+  private async resolveEntityName(
+    schemaName: string, entityType: string, entityId: string,
+  ): Promise<string | null> {
+    try {
+      let query: string;
+      switch (entityType) {
+        case 'leads':
+          query = `SELECT CONCAT(first_name, ' ', last_name) AS name FROM "${schemaName}".leads WHERE id = $1`;
+          break;
+        case 'contacts':
+          query = `SELECT CONCAT(first_name, ' ', last_name) AS name FROM "${schemaName}".contacts WHERE id = $1`;
+          break;
+        case 'accounts':
+          query = `SELECT name FROM "${schemaName}".accounts WHERE id = $1`;
+          break;
+        case 'opportunities':
+          query = `SELECT name FROM "${schemaName}".opportunities WHERE id = $1`;
+          break;
+        case 'projects':
+          query = `SELECT name FROM "${schemaName}".projects WHERE id = $1`;
+          break;
+        default:
+          return null;
+      }
+      const [row] = await this.dataSource.query(query, [entityId]);
+      return row?.name?.trim() || null;
+    } catch {
+      return null;
+    }
   }
 }

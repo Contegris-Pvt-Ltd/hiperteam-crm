@@ -22,6 +22,7 @@ import { SlaInlineBadge } from './components/SlaIndicator';
 import ImportWizardModal from './components/ImportWizardModal';
 import BulkUpdateModal from './components/BulkUpdateModal';
 import { StageAssignmentModal } from '../../components/shared/StageAssignmentModal';
+import { StageFieldInput } from '../../components/shared/StageFieldInput';
 
 // Priority icon map
 const PRIORITY_ICONS: Record<string, any> = {
@@ -107,7 +108,7 @@ export function LeadsPage() {
     leadId: string;
     stageId: string;
     stageName: string;
-    missingFields: { fieldKey: string; fieldLabel: string; fieldType: string; sortOrder: number }[];
+    missingFields: { fieldKey: string; fieldLabel: string; fieldType: string; fieldOptions?: { label: string; value: string }[]; sortOrder: number }[];
   } | null>(null);
   const [kanbanFieldValues, setKanbanFieldValues] = useState<Record<string, any>>({});
   const [kanbanFieldErrors, setKanbanFieldErrors] = useState<Record<string, string>>({});
@@ -315,6 +316,7 @@ export function LeadsPage() {
           fieldKey: f.fieldKey,
           fieldLabel: f.fieldLabel,
           fieldType: f.fieldType || 'text',
+          fieldOptions: f.fieldOptions || [],
           sortOrder: f.sortOrder || 0,
         })),
       });
@@ -954,112 +956,16 @@ export function LeadsPage() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       {field.fieldLabel} <span className="text-red-500">*</span>
                     </label>
-                    {field.fieldType === 'textarea' ? (
-                      <textarea
-                        value={kanbanFieldValues[field.fieldKey] || ''}
-                        onChange={(e) => {
-                          setKanbanFieldValues(prev => ({ ...prev, [field.fieldKey]: e.target.value }));
-                          setKanbanFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; });
-                        }}
-                        rows={2}
-                        className={`w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${
-                          kanbanFieldErrors[field.fieldKey] ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'
-                        }`}
-                        placeholder={`Enter ${field.fieldLabel.toLowerCase()}`}
-                      />
-                    ) : field.fieldType === 'checkbox' ? (
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={kanbanFieldValues[field.fieldKey] || false}
-                          onChange={(e) => {
-                            setKanbanFieldValues(prev => ({ ...prev, [field.fieldKey]: e.target.checked }));
-                            setKanbanFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; });
-                          }}
-                          className="rounded text-blue-600"
-                        />
-                        <span className="text-sm text-gray-700 dark:text-slate-300">{field.fieldLabel}</span>
-                      </label>
-                    ) : field.fieldType === 'file' ? (
-                      <div>
-                        <label
-                          className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                            kanbanFieldErrors[field.fieldKey]
-                              ? 'border-red-400 bg-red-50 dark:bg-red-900/10'
-                              : 'border-gray-300 dark:border-slate-600 hover:border-blue-400 bg-gray-50 dark:bg-slate-800'
-                          }`}
-                        >
-                          {kanbanFieldValues[field.fieldKey] ? (
-                            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                              <span className="truncate max-w-[200px]">
-                                {typeof kanbanFieldValues[field.fieldKey] === 'string'
-                                  ? kanbanFieldValues[field.fieldKey].split('/').pop()
-                                  : kanbanFieldValues[field.fieldKey]?.name || 'File selected'}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  setKanbanFieldValues(prev => ({ ...prev, [field.fieldKey]: '' }));
-                                }}
-                                className="ml-1 text-red-500 hover:text-red-700"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="text-center">
-                              <Plus className="w-6 h-6 text-gray-400 mx-auto mb-1" />
-                              <span className="text-xs text-gray-500 dark:text-slate-400">Click to upload</span>
-                            </div>
-                          )}
-                          <input
-                            type="file"
-                            className="hidden"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              try {
-                                const formDataUpload = new FormData();
-                                formDataUpload.append('file', file);
-                                const { data: uploadResult } = await (await import('../../api/contacts.api')).api.post('/uploads', formDataUpload, {
-                                  headers: { 'Content-Type': 'multipart/form-data' },
-                                });
-                                const fileUrl = uploadResult.url || uploadResult.path || uploadResult.fileUrl;
-                                setKanbanFieldValues(prev => ({ ...prev, [field.fieldKey]: fileUrl }));
-                                setKanbanFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; });
-                              } catch (err) {
-                                console.error('File upload failed:', err);
-                                setKanbanFieldErrors(prev => ({ ...prev, [field.fieldKey]: 'Upload failed' }));
-                              }
-                            }}
-                          />
-                        </label>
-                      </div>
-                    ) : (
-                      <input
-                        type={
-                          field.fieldType === 'email' ? 'email' :
-                          field.fieldType === 'number' ? 'number' :
-                          field.fieldType === 'date' ? 'date' :
-                          field.fieldType === 'phone' ? 'tel' :
-                          field.fieldType === 'url' ? 'url' : 'text'
-                        }
-                        value={kanbanFieldValues[field.fieldKey] || ''}
-                        onChange={(e) => {
-                          setKanbanFieldValues(prev => ({ ...prev, [field.fieldKey]: e.target.value }));
-                          setKanbanFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; });
-                        }}
-                        className={`w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${
-                          kanbanFieldErrors[field.fieldKey] ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'
-                        }`}
-                        placeholder={`Enter ${field.fieldLabel.toLowerCase()}`}
-                      />
-                    )}
-                    {kanbanFieldErrors[field.fieldKey] && (
-                      <p className="text-xs text-red-500 mt-1">{kanbanFieldErrors[field.fieldKey]}</p>
-                    )}
+                    <StageFieldInput
+                      fieldKey={field.fieldKey}
+                      fieldLabel={field.fieldLabel}
+                      fieldType={field.fieldType}
+                      fieldOptions={field.fieldOptions}
+                      value={kanbanFieldValues[field.fieldKey]}
+                      error={kanbanFieldErrors[field.fieldKey]}
+                      onChange={(val) => setKanbanFieldValues(prev => ({ ...prev, [field.fieldKey]: val }))}
+                      onClearError={() => setKanbanFieldErrors(prev => { const n = { ...prev }; delete n[field.fieldKey]; return n; })}
+                    />
                   </div>
                 ))}
             </div>

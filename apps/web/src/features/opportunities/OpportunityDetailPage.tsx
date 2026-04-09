@@ -76,7 +76,7 @@ export function OpportunityDetailPage() {
   const [requiredFieldsModal, setRequiredFieldsModal] = useState<{
     stageId: string;
     stageName: string;
-    missingFields: { fieldKey: string; fieldLabel: string; fieldType: string; sortOrder: number }[];
+    missingFields: { fieldKey: string; fieldLabel: string; fieldType: string; fieldOptions?: { label: string; value: string }[]; sortOrder: number }[];
   } | null>(null);
   const [stageFieldValues, setStageFieldValues] = useState<Record<string, any>>({});
   const [stageFieldErrors, setStageFieldErrors] = useState<Record<string, string>>({});
@@ -815,6 +815,7 @@ export function OpportunityDetailPage() {
                     fieldKey={field.fieldKey}
                     fieldLabel={field.fieldLabel}
                     fieldType={field.fieldType}
+                    fieldOptions={field.fieldOptions}
                     value={stageFieldValues[field.fieldKey]}
                     error={stageFieldErrors[field.fieldKey]}
                     onChange={(val) => setStageFieldValues(prev => ({ ...prev, [field.fieldKey]: val }))}

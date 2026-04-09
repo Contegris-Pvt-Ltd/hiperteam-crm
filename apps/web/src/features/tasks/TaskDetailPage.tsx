@@ -277,6 +277,17 @@ export function TaskDetailPage() {
             ) : <span className="text-sm text-gray-400">Unassigned</span>}
           </div>
 
+          {/* Owner */}
+          <div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Owner</p>
+            {task.owner ? (
+              <div className="flex items-center gap-1.5">
+                <User size={14} className="text-gray-400" />
+                <span className="text-sm text-gray-700 dark:text-gray-300">{task.owner.firstName} {task.owner.lastName}</span>
+              </div>
+            ) : <span className="text-sm text-gray-400">—</span>}
+          </div>
+
           {/* Entity link */}
           {task.relatedEntityType && task.relatedEntityId && (
             <div className="col-span-2">
@@ -284,7 +295,7 @@ export function TaskDetailPage() {
               <Link to={`${ENTITY_ROUTES[task.relatedEntityType] || ''}/${task.relatedEntityId}`}
                 className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700">
                 <LinkIcon size={14} />
-                {task.relatedEntityType.replace(/s$/, '')} →
+                {task.relatedEntityType.replace(/s$/, '')} → {task.relatedEntityName || task.relatedEntityId}
               </Link>
             </div>
           )}

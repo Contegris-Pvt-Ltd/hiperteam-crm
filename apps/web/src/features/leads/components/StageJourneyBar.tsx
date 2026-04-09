@@ -20,6 +20,7 @@ interface StageField {
   fieldKey: string;
   fieldLabel: string;
   fieldType: string;
+  fieldOptions?: { label: string; value: string }[];
   isRequired: boolean;
   sortOrder: number;
 }
@@ -338,6 +339,7 @@ export function StageJourneyBar({
                       fieldKey={field.fieldKey}
                       fieldLabel={field.fieldLabel}
                       fieldType={field.fieldType}
+                      fieldOptions={field.fieldOptions}
                       value={fieldValues[field.fieldKey]}
                       error={fieldErrors[field.fieldKey]}
                       onChange={(val) => setFieldValues(prev => ({ ...prev, [field.fieldKey]: val }))}

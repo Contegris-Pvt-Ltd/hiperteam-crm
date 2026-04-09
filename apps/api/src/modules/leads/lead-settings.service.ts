@@ -568,38 +568,86 @@ export class LeadSettingsService {
        ORDER BY sf.sort_order ASC`,
       [stageId],
     );
-    // For custom fields, resolve actual field type from custom_field_definitions
-    // if stored as default 'text'
+
+    // ── Enrich custom fields: resolve field_type AND field_options ──
     const customFieldKeys = fields
-      .filter((f: any) => f.field_key.startsWith('custom.') && (!f.field_type || f.field_type === 'text'))
+      .filter((f: any) => f.field_key.startsWith('custom.'))
       .map((f: any) => f.field_key.replace('custom.', ''));
 
-    let customFieldTypes: Record<string, string> = {};
+    let customFieldMeta: Record<string, { fieldType: string; fieldOptions: any[] }> = {};
     if (customFieldKeys.length > 0) {
       try {
         const cfRows = await this.dataSource.query(
-          `SELECT field_key, field_type FROM "${schemaName}".custom_field_definitions
+          `SELECT field_key, field_type, field_options
+           FROM "${schemaName}".custom_field_definitions
            WHERE field_key = ANY($1)`,
           [customFieldKeys],
         );
-        customFieldTypes = Object.fromEntries(cfRows.map((r: any) => [r.field_key, r.field_type]));
+        customFieldMeta = Object.fromEntries(
+          cfRows.map((r: any) => [r.field_key, {
+            fieldType: r.field_type,
+            fieldOptions: r.field_options || [],
+          }]),
+        );
+      } catch { /* ignore */ }
+    }
+
+    // ── Enrich qualification fields: resolve from lead_qualification_fields ──
+    const qualKeys = fields
+      .filter((f: any) => f.field_key.startsWith('qualification.'))
+      .map((f: any) => f.field_key.replace('qualification.', ''));
+
+    let qualFieldMeta: Record<string, { fieldType: string; fieldOptions: any[] }> = {};
+    if (qualKeys.length > 0) {
+      try {
+        // Get active framework's fields
+        const qfRows = await this.dataSource.query(
+          `SELECT qf.field_key, qf.field_type, qf.field_options
+           FROM "${schemaName}".lead_qualification_fields qf
+           JOIN "${schemaName}".lead_qualification_frameworks fw ON qf.framework_id = fw.id
+           WHERE fw.is_active = true AND qf.field_key = ANY($1)`,
+          [qualKeys],
+        );
+        qualFieldMeta = Object.fromEntries(
+          qfRows.map((r: any) => [r.field_key, {
+            fieldType: r.field_type,
+            fieldOptions: r.field_options || [],
+          }]),
+        );
       } catch { /* ignore */ }
     }
 
     return fields.map((f: any) => {
       let fieldType = f.field_type || 'text';
-      // Resolve custom field type if stored as default 'text'
-      if (f.field_key.startsWith('custom.') && fieldType === 'text') {
+      let fieldOptions = f.field_options || [];
+
+      // Resolve custom field type + options
+      if (f.field_key.startsWith('custom.')) {
         const cfKey = f.field_key.replace('custom.', '');
-        if (customFieldTypes[cfKey]) fieldType = customFieldTypes[cfKey];
+        const meta = customFieldMeta[cfKey];
+        if (meta) {
+          if (!fieldType || fieldType === 'text') fieldType = meta.fieldType;
+          if (!fieldOptions.length) fieldOptions = meta.fieldOptions;
+        }
       }
+
+      // Resolve qualification field type + options
+      if (f.field_key.startsWith('qualification.')) {
+        const qKey = f.field_key.replace('qualification.', '');
+        const meta = qualFieldMeta[qKey];
+        if (meta) {
+          fieldType = meta.fieldType;
+          fieldOptions = meta.fieldOptions;
+        }
+      }
+
       return {
         id: f.id,
         stageId: f.stage_id,
         fieldKey: f.field_key,
         fieldLabel: f.field_label,
         fieldType,
-        fieldOptions: f.field_options || [],
+        fieldOptions,
         isRequired: f.is_required,
         isVisible: f.is_visible,
         sortOrder: f.sort_order,

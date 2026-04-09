@@ -7,8 +7,7 @@ import { UsersService } from './users.service';
 import { CreateUserDto, InviteUserDto, UpdateUserDto, QueryUsersDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
-import { PermissionGuard } from '../../common/guards/permissions.guard';
-import { RequirePermission } from '../../common/guards/permissions.guard';
+import { PermissionGuard, RequirePermission, AdminOnly } from '../../common/guards/permissions.guard';
 import { TenantService } from '../tenant/tenant.service';
 
 @ApiTags('Users')
@@ -172,6 +171,19 @@ export class UsersController {
   // ============================================================
   // UPDATE USER
   // ============================================================
+  @Put(':id/reset-password')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Admin reset password for a user' })
+  async resetPassword(
+    @Request() req: { user: JwtPayload },
+    @Param('id') id: string,
+    @Body() body: { newPassword: string },
+  ) {
+    return this.usersService.adminResetPassword(
+      req.user.tenantSchema, id, body.newPassword, req.user.sub,
+    );
+  }
+
   @Put(':id')
   @RequirePermission('users', 'edit')
   @ApiOperation({ summary: 'Update user profile, role, or org assignment' })

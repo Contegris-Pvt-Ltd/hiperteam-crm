@@ -4010,6 +4010,37 @@ async function runTenantMigrations() {
               END $$;
             `,
           },
+          {
+            name: '063_workflow_assignment_log',
+            sql: `
+              CREATE TABLE IF NOT EXISTS "${schema}".workflow_assignment_log (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                action_id UUID NOT NULL,
+                user_id UUID NOT NULL,
+                entity_type VARCHAR(50),
+                entity_id UUID,
+                assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+              CREATE INDEX IF NOT EXISTS idx_wal_action_id
+                ON "${schema}".workflow_assignment_log(action_id, assigned_at DESC);
+            `,
+          },
+          {
+            name: '064_backfill_lead_qualification_framework',
+            sql: `
+              -- Backfill qualification_framework_id for leads that don't have one
+              UPDATE "${schema}".leads
+              SET qualification_framework_id = (
+                SELECT lqf.id
+                FROM "${schema}".lead_qualification_frameworks lqf
+                WHERE lqf.is_active = true
+                ORDER BY lqf.sort_order ASC
+                LIMIT 1
+              )
+              WHERE qualification_framework_id IS NULL
+                AND deleted_at IS NULL;
+            `,
+          },
 
         ];
 

@@ -1388,12 +1388,22 @@ function ScoringTab({ templates, onReload }: { templates: ScoringTemplate[]; onR
   const [ruleForm, setRuleForm] = useState({
     name: '', category: 'demographic', type: 'field_check', fieldKey: '', operator: 'equals', value: '', scoreDelta: 10,
   });
+  const [qualFields, setQualFields] = useState<string[]>([]);
+
+  useEffect(() => {
+    leadSettingsApi.getQualificationFrameworks().then((frameworks: any[]) => {
+      const active = frameworks.find((f: any) => f.isActive);
+      if (active?.fields) {
+        setQualFields(active.fields.map((f: any) => `qualification.${f.fieldKey}`));
+      }
+    }).catch(() => {});
+  }, []);
 
   const CATEGORIES = ['demographic', 'qualification', 'engagement', 'decay'];
   const OPERATORS = ['equals', 'not_equals', 'contains', 'not_contains', 'greater_than', 'less_than', 'in', 'not_in', 'is_empty', 'is_not_empty', 'older_than'];
   const FIELDS = [
     'email', 'phone', 'company', 'jobTitle', 'city', 'country', 'source',
-    'qualification.budget', 'qualification.authority', 'qualification.need', 'qualification.timeline',
+    ...qualFields,
     'lastActivityAt', 'tags',
   ];
 

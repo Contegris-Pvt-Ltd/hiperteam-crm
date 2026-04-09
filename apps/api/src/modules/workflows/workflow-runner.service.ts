@@ -221,13 +221,24 @@ export class WorkflowRunnerService {
       ? new Date(Date.now() + config.startOffsetDays * 86400000).toISOString()
       : null;
 
-    // Resolve assignee
+    // Resolve assignee — default to 'owner' when not configured
+    // (the UI defaults the dropdown to 'owner' but may not persist it)
+    const assignMode = config.assignedTo || 'owner';
     let assignedTo: string | null = null;
-    if (config.assignedTo === 'owner') {
+    if (assignMode === 'owner') {
+      // Try in-memory entity first (may have been updated by a prior assign_owner action),
+      // then always re-read from DB to get the latest owner
       assignedTo = entity.owner_id ?? entity.ownerId ?? null;
-    } else if (config.assignedTo === 'trigger_user') {
+      if (!assignedTo && payload.entityId) {
+        const table = this.tableForModule(payload.triggerModule);
+        const [fresh] = await this.dataSource.query(
+          `SELECT owner_id FROM "${schema}".${table} WHERE id = $1`, [payload.entityId],
+        );
+        assignedTo = fresh?.owner_id ?? null;
+      }
+    } else if (assignMode === 'trigger_user') {
       assignedTo = payload.userId ?? entity.created_by ?? null;
-    } else if (config.assignedTo === 'specific') {
+    } else if (assignMode === 'specific') {
       assignedTo = config.specificUserId ?? null;
     }
 

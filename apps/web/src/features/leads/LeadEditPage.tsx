@@ -5,7 +5,7 @@
 // matching Contacts/Accounts edit page pattern.
 // ============================================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Save, Loader2, AlertTriangle,
@@ -24,7 +24,7 @@ import { useModuleLayout } from '../../hooks/useModuleLayout';
 // ===============================================
 import { moduleSettingsApi } from '../../api/module-settings.api';
 import type { FieldValidationConfig } from '../../api/module-settings.api';
-import { validateFields } from '../../utils/field-validation';
+import { validateFields, errorsToFieldMap } from '../../utils/field-validation';
 import { LeadProductsTab } from './components/LeadProductsTab';
 import { PhoneInput } from '../../components/shared/PhoneInput';
 import { CountrySelect } from '../../components/shared/CountrySelect';
@@ -509,6 +509,11 @@ export function LeadEditPage() {
       setError('Last name is required');
       return;
     }
+    if (!phoneValid.phone || !phoneValid.mobile) {
+      setError('Please fix invalid phone number(s) before saving');
+      setActiveTab('basic');
+      return;
+    }
     if (!formData.pipelineId) {
       setError('Pipeline is required');
       setActiveTab('lead-details');
@@ -642,6 +647,13 @@ export function LeadEditPage() {
     );
   };
 
+  // Live field validation errors
+  const fieldErrors = useMemo(() => {
+    if (!fieldValidationConfig?.rules?.length) return {};
+    const errors = validateFields(fieldValidationConfig, formData as Record<string, any>, formData.customFields as Record<string, any>);
+    return errorsToFieldMap(errors);
+  }, [formData, fieldValidationConfig]);
+
   // Build tabs including custom tabs
   const allTabs: { id: TabType; label: string }[] = [
     ...STANDARD_TABS,
@@ -666,7 +678,14 @@ export function LeadEditPage() {
   }
 
   // ── Shared input class ──
-  const inputClass = "w-full border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow";
+  const baseInputClass = "w-full rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow";
+  const inputClass = baseInputClass + " border border-gray-200 dark:border-slate-700";
+  const inputClassFor = (fieldKey: string) =>
+    fieldErrors[fieldKey]
+      ? baseInputClass + " border-2 border-red-400 dark:border-red-500"
+      : inputClass;
+  const fieldError = (fieldKey: string) =>
+    fieldErrors[fieldKey] ? <p className="text-xs text-red-500 mt-1">{fieldErrors[fieldKey]}</p> : null;
 
   return (
     <div className="animate-fadeIn max-w-4xl mx-auto p-6">
@@ -686,7 +705,7 @@ export function LeadEditPage() {
           </h1>
           <button
             onClick={handleSave}
-            disabled={saving || !phoneValid.phone || !phoneValid.mobile}
+            disabled={saving}
             className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 text-sm font-medium transition-colors"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
@@ -694,6 +713,14 @@ export function LeadEditPage() {
           </button>
         </div>
       </div>
+
+      {/* Validation warnings */}
+      {Object.keys(fieldErrors).length > 0 && !error && (
+        <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl text-sm text-amber-700 dark:text-amber-400 flex items-center gap-2">
+          <AlertTriangle size={14} />
+          <span>{Object.keys(fieldErrors).length} field{Object.keys(fieldErrors).length !== 1 ? 's' : ''} need{Object.keys(fieldErrors).length === 1 ? 's' : ''} attention before saving</span>
+        </div>
+      )}
 
       {/* Error */}
       {error && (
@@ -720,19 +747,28 @@ export function LeadEditPage() {
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-slate-700 mb-6">
         <nav className="flex gap-1 overflow-x-auto pb-px">
-          {visibleTabs.map((tab) => (
+          {visibleTabs.map((tab) => {
+            const BASIC_FIELDS = ['firstName', 'lastName', 'email', 'phone', 'mobile', 'company', 'jobTitle', 'website'];
+            const LEAD_DETAIL_FIELDS = ['source', 'pipelineId', 'stageId', 'priorityId', 'ownerId', 'teamId', 'industry'];
+            const ADDRESS_FIELDS = ['addressLine1', 'addressLine2', 'city', 'state', 'postalCode', 'country'];
+            const tabFieldMap: Record<string, string[]> = { basic: BASIC_FIELDS, 'lead-details': LEAD_DETAIL_FIELDS, address: ADDRESS_FIELDS };
+            const tabFields = tabFieldMap[tab.id] || [];
+            const hasTabError = tabFields.some(f => fieldErrors[f]);
+            return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-1.5 ${
                 activeTab === tab.id
                   ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
               {tab.label}
+              {hasTabError && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />}
             </button>
-          ))}
+            );
+          })}
         </nav>
       </div>
 
@@ -747,7 +783,8 @@ export function LeadEditPage() {
               {bo.visible.has('firstName') && (
               <div style={{ order: bo.idx('firstName') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">First Name</label>
-                <input type="text" value={formData.firstName || ''} onChange={(e) => handleChange('firstName', e.target.value)} className={inputClass} />
+                <input type="text" value={formData.firstName || ''} onChange={(e) => handleChange('firstName', e.target.value)} className={inputClassFor('firstName')} />
+                {fieldError('firstName')}
               </div>
               )}
               {bo.visible.has('lastName') && (
@@ -755,13 +792,15 @@ export function LeadEditPage() {
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">
                   Last Name <span className="text-red-500">*</span>
                 </label>
-                <input type="text" value={formData.lastName || ''} onChange={(e) => handleChange('lastName', e.target.value)} className={inputClass} />
+                <input type="text" value={formData.lastName || ''} onChange={(e) => handleChange('lastName', e.target.value)} className={inputClassFor('lastName')} />
+                {fieldError('lastName')}
               </div>
               )}
               {bo.visible.has('email') && (
               <div style={{ order: bo.idx('email') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Email</label>
-                <input type="email" value={formData.email || ''} onChange={(e) => handleChange('email', e.target.value)} className={inputClass} />
+                <input type="email" value={formData.email || ''} onChange={(e) => handleChange('email', e.target.value)} className={inputClassFor('email')} />
+                {fieldError('email')}
               </div>
               )}
               {bo.visible.has('phone') && (
@@ -780,19 +819,22 @@ export function LeadEditPage() {
               {bo.visible.has('company') && (
               <div style={{ order: bo.idx('company') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Company</label>
-                <input type="text" value={formData.company || ''} onChange={(e) => handleChange('company', e.target.value)} className={inputClass} />
+                <input type="text" value={formData.company || ''} onChange={(e) => handleChange('company', e.target.value)} className={inputClassFor('company')} />
+                {fieldError('company')}
               </div>
               )}
               {bo.visible.has('jobTitle') && (
               <div style={{ order: bo.idx('jobTitle') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Job Title</label>
-                <input type="text" value={formData.jobTitle || ''} onChange={(e) => handleChange('jobTitle', e.target.value)} className={inputClass} />
+                <input type="text" value={formData.jobTitle || ''} onChange={(e) => handleChange('jobTitle', e.target.value)} className={inputClassFor('jobTitle')} />
+                {fieldError('jobTitle')}
               </div>
               )}
               {bo.visible.has('website') && (
               <div style={{ order: bo.idx('website') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Website</label>
-                <input type="text" value={formData.website || ''} onChange={(e) => handleChange('website', e.target.value)} className={inputClass} />
+                <input type="text" value={formData.website || ''} onChange={(e) => handleChange('website', e.target.value)} className={inputClassFor('website')} />
+                {fieldError('website')}
               </div>
               )}
 
@@ -921,13 +963,14 @@ export function LeadEditPage() {
                   <select
                     value={formData.pipelineId || ''}
                     onChange={(e) => handlePipelineChange(e.target.value)}
-                    className={inputClass}
+                    className={inputClassFor('pipelineId')}
                   >
                     <option value="">Select pipeline...</option>
                     {pipelines.filter(p => p.isActive).map((p) => (
                       <option key={p.id} value={p.id}>{p.name}{p.isDefault ? ' (Default)' : ''}</option>
                     ))}
                   </select>
+                  {fieldError('pipelineId')}
                 </div>
               )}
               {lo.visible.has('stageId') && (
@@ -938,7 +981,7 @@ export function LeadEditPage() {
                     value={formData.stageId || ''}
                     onChange={(e) => handleStageChange(e.target.value)}
                     disabled={stageChangeLoading}
-                    className={inputClass}
+                    className={inputClassFor('stageId')}
                   >
                     <option value="">Select stage...</option>
                     {stages.map((s) => (
@@ -956,34 +999,37 @@ export function LeadEditPage() {
               {lo.visible.has('priorityId') && (
               <div style={{ order: lo.idx('priorityId') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Priority</label>
-                <select value={formData.priorityId || ''} onChange={(e) => handleChange('priorityId', e.target.value)} className={inputClass}>
+                <select value={formData.priorityId || ''} onChange={(e) => handleChange('priorityId', e.target.value)} className={inputClassFor('priorityId')}>
                   <option value="">Select priority...</option>
                   {priorities.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
+                {fieldError('priorityId')}
               </div>
               )}
               {lo.visible.has('source') && (
               <div style={{ order: lo.idx('source') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Source</label>
-                <select value={formData.source || ''} onChange={(e) => handleChange('source', e.target.value)} className={inputClass}>
+                <select value={formData.source || ''} onChange={(e) => handleChange('source', e.target.value)} className={inputClassFor('source')}>
                   <option value="">Select source...</option>
                   {sources.map((s) => (
                     <option key={s.id} value={s.name}>{s.name}</option>
                   ))}
                 </select>
+                {fieldError('source')}
               </div>
               )}
               {lo.visible.has('industry') && (
               <div style={{ order: lo.idx('industry') }}>
                 <label className="text-sm text-gray-600 dark:text-slate-400 mb-1 block">Industry</label>
-                <select value={formData.industry || ''} onChange={(e) => handleChange('industry', e.target.value)} className={inputClass}>
+                <select value={formData.industry || ''} onChange={(e) => handleChange('industry', e.target.value)} className={inputClassFor('industry')}>
                   <option value="">Select industry...</option>
                   {industries.map((i) => (
                     <option key={i.id} value={i.name}>{i.name}</option>
                   ))}
                 </select>
+                {fieldError('industry')}
               </div>
               )}
               {lo.visible.has('ownerId') && (

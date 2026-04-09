@@ -76,6 +76,7 @@ export interface Task {
   assignee: TaskAssignee | null;
   relatedEntityType: string | null;
   relatedEntityId: string | null;
+  relatedEntityName?: string | null;
   parentTaskId: string | null;
   isRecurring: boolean;
   recurrenceRule: RecurrenceRule | null;

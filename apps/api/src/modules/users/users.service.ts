@@ -814,4 +814,41 @@ export class UsersService {
       },
     };
   }
+
+  // ============================================================
+  // ADMIN RESET PASSWORD
+  // ============================================================
+  async adminResetPassword(
+    schema: string,
+    targetUserId: string,
+    newPassword: string,
+    adminUserId: string,
+  ): Promise<{ message: string }> {
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('New password must be at least 8 characters');
+    }
+
+    const [user] = await this.dataSource.query(
+      `SELECT id, email, first_name FROM "${schema}".users WHERE id = $1 AND deleted_at IS NULL`,
+      [targetUserId],
+    );
+    if (!user) throw new NotFoundException('User not found');
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.dataSource.query(
+      `UPDATE "${schema}".users SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+      [passwordHash, targetUserId],
+    );
+
+    await this.auditService.log(schema, {
+      entityType: 'user',
+      entityId: targetUserId,
+      action: 'password_reset',
+      changes: {},
+      newValues: { resetBy: adminUserId },
+      performedBy: adminUserId,
+    });
+
+    return { message: 'Password reset successfully' };
+  }
 }

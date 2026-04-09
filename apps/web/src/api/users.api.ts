@@ -97,4 +97,8 @@ export const usersApi = {
     const { data } = await api.post('/auth/change-password', { currentPassword, newPassword });
     return data;
   },
+  resetPassword: async (userId: string, newPassword: string): Promise<{ message: string }> => {
+    const { data } = await api.put(`/users/${userId}/reset-password`, { newPassword });
+    return data;
+  },
 };

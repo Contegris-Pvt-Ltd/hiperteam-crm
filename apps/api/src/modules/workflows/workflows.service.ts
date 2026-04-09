@@ -144,7 +144,20 @@ export class WorkflowsService {
        WHERE run_id = $1 ORDER BY started_at ASC`,
       [runId],
     );
-    return { ...this.mapRun(run), steps };
+    return {
+      ...this.mapRun(run),
+      steps: steps.map((s: any) => ({
+        id: s.id,
+        runId: s.run_id,
+        actionId: s.action_id,
+        actionType: s.action_type,
+        status: s.status,
+        result: typeof s.result === 'string' ? JSON.parse(s.result) : (s.result || null),
+        error: s.error,
+        startedAt: s.started_at,
+        finishedAt: s.finished_at,
+      })),
+    };
   }
 
   // ── INTERNAL: replace action list atomically ──────────────────

@@ -28,6 +28,8 @@ import {
   Clock,
 } from 'lucide-react';
 import { formsApi } from '../../api/forms.api';
+import { adminApi } from '../../api/admin.api';
+import type { CustomField } from '../../api/admin.api';
 import type { FormRecord, FormField, FormSubmitAction, FormSettings, FormBranding } from '../../api/forms.api';
 import { schedulingApi } from '../../api/scheduling.api';
 import type { MeetingConfig, BookingAvailabilityWindow } from '../../api/scheduling.api';
@@ -50,21 +52,75 @@ const FIELD_TYPES = [
   { type: 'divider', label: 'Divider', icon: Minus },
 ] as const;
 
-const CRM_FIELD_OPTIONS = [
+const CRM_FIELD_OPTIONS_LEAD = [
+  { value: 'first_name', label: 'First Name' },
+  { value: 'last_name', label: 'Last Name' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'mobile', label: 'Mobile' },
+  { value: 'company', label: 'Company' },
+  { value: 'job_title', label: 'Job Title' },
+  { value: 'website', label: 'Website' },
+  { value: 'industry', label: 'Industry' },
+  { value: 'source', label: 'Source' },
+  { value: 'source_details', label: 'Source Details' },
+  { value: 'address_line1', label: 'Address Line 1' },
+  { value: 'address_line2', label: 'Address Line 2' },
+  { value: 'city', label: 'City' },
+  { value: 'state', label: 'State' },
+  { value: 'postal_code', label: 'Postal Code' },
+  { value: 'country', label: 'Country' },
+  { value: 'country_code', label: 'Country Code' },
+  { value: 'phone_country_code', label: 'Phone Country Code' },
+  { value: 'mobile_country_code', label: 'Mobile Country Code' },
+  { value: 'tags', label: 'Tags' },
+  { value: 'notes', label: 'Notes' },
+];
+
+const CRM_FIELD_OPTIONS_CONTACT = [
   { value: 'first_name', label: 'First Name' },
   { value: 'last_name', label: 'Last Name' },
   { value: 'email', label: 'Email' },
   { value: 'phone', label: 'Phone' },
   { value: 'company', label: 'Company' },
-  { value: 'name', label: 'Name (Account)' },
-  { value: 'website', label: 'Website' },
   { value: 'job_title', label: 'Job Title' },
+  { value: 'website', label: 'Website' },
   { value: 'address', label: 'Address' },
   { value: 'city', label: 'City' },
   { value: 'state', label: 'State' },
   { value: 'country', label: 'Country' },
   { value: 'notes', label: 'Notes' },
 ];
+
+const CRM_FIELD_OPTIONS_ACCOUNT = [
+  { value: 'name', label: 'Name' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'website', label: 'Website' },
+  { value: 'address', label: 'Address' },
+  { value: 'city', label: 'City' },
+  { value: 'state', label: 'State' },
+  { value: 'country', label: 'Country' },
+  { value: 'notes', label: 'Notes' },
+];
+
+function getCrmFieldOptions(actionType: string) {
+  switch (actionType) {
+    case 'create_lead': return CRM_FIELD_OPTIONS_LEAD;
+    case 'create_contact': return CRM_FIELD_OPTIONS_CONTACT;
+    case 'create_account': return CRM_FIELD_OPTIONS_ACCOUNT;
+    default: return CRM_FIELD_OPTIONS_CONTACT;
+  }
+}
+
+function getModuleForAction(actionType: string): string | null {
+  switch (actionType) {
+    case 'create_lead': return 'leads';
+    case 'create_contact': return 'contacts';
+    case 'create_account': return 'accounts';
+    default: return null;
+  }
+}
 
 type Tab = 'fields' | 'actions' | 'settings' | 'branding' | 'meeting';
 
@@ -620,6 +676,13 @@ function ActionEditor({
   onRemove: () => void;
 }) {
   const inputFields = formFields.filter((f) => !['heading', 'paragraph', 'divider'].includes(f.type));
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+
+  const moduleName = getModuleForAction(action.type);
+  useEffect(() => {
+    if (!moduleName) { setCustomFields([]); return; }
+    adminApi.getCustomFields(moduleName).then(setCustomFields).catch(() => setCustomFields([]));
+  }, [moduleName]);
 
   return (
     <div className="border border-gray-200 dark:border-slate-700 rounded-xl p-3 space-y-3">
@@ -700,9 +763,9 @@ function ActionEditor({
         <div>
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Field Mapping</label>
           <div className="space-y-1.5">
-            {CRM_FIELD_OPTIONS.map((crm) => (
+            {getCrmFieldOptions(action.type).map((crm) => (
               <div key={crm.value} className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400 w-24 truncate">{crm.label}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 w-24 truncate" title={crm.label}>{crm.label}</span>
                 <span className="text-xs text-gray-400">←</span>
                 <select
                   value={action.fieldMapping?.[crm.value] || ''}
@@ -725,6 +788,37 @@ function ActionEditor({
               </div>
             ))}
           </div>
+          {customFields.length > 0 && (
+            <>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 mt-3">Custom Fields</label>
+              <div className="space-y-1.5">
+                {customFields.filter(cf => cf.isActive !== false).map((cf) => (
+                  <div key={cf.id} className="flex items-center gap-2">
+                    <span className="text-xs text-purple-500 dark:text-purple-400 w-24 truncate" title={cf.fieldLabel}>{cf.fieldLabel}</span>
+                    <span className="text-xs text-gray-400">←</span>
+                    <select
+                      value={action.fieldMapping?.[`cf_${cf.fieldKey}`] || ''}
+                      onChange={(e) => {
+                        const mapping = { ...(action.fieldMapping || {}) };
+                        if (e.target.value) {
+                          mapping[`cf_${cf.fieldKey}`] = e.target.value;
+                        } else {
+                          delete mapping[`cf_${cf.fieldKey}`];
+                        }
+                        onChange({ fieldMapping: mapping });
+                      }}
+                      className="flex-1 text-xs border border-gray-200 dark:border-slate-600 rounded px-1.5 py-1 bg-white dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="">-- skip --</option>
+                      {inputFields.map((f) => (
+                        <option key={f.id} value={f.name}>{f.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

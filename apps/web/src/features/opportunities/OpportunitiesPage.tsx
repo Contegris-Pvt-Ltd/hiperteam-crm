@@ -93,7 +93,7 @@ export function OpportunitiesPage() {
     oppId: string;
     stageId: string;
     stageName: string;
-    missingFields: { fieldKey: string; fieldLabel: string; fieldType: string; sortOrder: number }[];
+    missingFields: { fieldKey: string; fieldLabel: string; fieldType: string; fieldOptions?: { label: string; value: string }[]; sortOrder: number }[];
   } | null>(null);
   const [kanbanFieldValues, setKanbanFieldValues] = useState<Record<string, any>>({});
   const [kanbanFieldErrors, setKanbanFieldErrors] = useState<Record<string, string>>({});
@@ -693,6 +693,7 @@ export function OpportunitiesPage() {
                     fieldKey={f.fieldKey}
                     fieldLabel={f.fieldLabel}
                     fieldType={f.fieldType}
+                    fieldOptions={f.fieldOptions}
                     value={kanbanFieldValues[f.fieldKey]}
                     error={kanbanFieldErrors[f.fieldKey]}
                     onChange={(val) => setKanbanFieldValues(prev => ({ ...prev, [f.fieldKey]: val }))}

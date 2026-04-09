@@ -180,10 +180,8 @@ export function UserDetailPage() {
     { key: 'availability', label: 'Availability' },
     { key: 'bookings', label: 'Bookings' },
     ...(canViewPerformance ? [{ key: 'performance' as Tab, label: 'Performance' }] : []),
-    ...(isOwnProfile ? [
-      { key: 'security' as Tab, label: 'Security' },
-      { key: 'email' as Tab, label: 'Email & Calendar' },
-    ] : []),
+    ...((isOwnProfile || isAdmin) ? [{ key: 'security' as Tab, label: 'Security' }] : []),
+    ...(isOwnProfile ? [{ key: 'email' as Tab, label: 'Email & Calendar' }] : []),
   ];
 
   return (
@@ -644,6 +642,9 @@ export function UserDetailPage() {
       {tab === 'security' && isOwnProfile && (
         <PasswordChangeCard />
       )}
+      {tab === 'security' && !isOwnProfile && isAdmin && id && (
+        <AdminResetPasswordCard userId={id} userName={user?.firstName || 'User'} />
+      )}
 
       {/* ── Email & Calendar Tab ── */}
       {tab === 'email' && isOwnProfile && (
@@ -832,6 +833,125 @@ function PasswordChangeCard() {
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
             Change Password
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Admin Reset Password Card ────────────────────────────────
+function AdminResetPasswordCard({ userId, userName }: { userId: string; userName: string }) {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const generatePassword = () => {
+    const chars = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%';
+    let pw = '';
+    for (let i = 0; i < 12; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+    setNewPassword(pw);
+    setConfirmPassword(pw);
+    setShowPassword(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage(null);
+
+    if (newPassword.length < 8) {
+      setMessage({ type: 'error', text: 'Password must be at least 8 characters' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setMessage({ type: 'error', text: 'Passwords do not match' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await usersApi.resetPassword(userId, newPassword);
+      setMessage({ type: 'success', text: 'Password reset successfully' });
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.response?.data?.message || 'Failed to reset password' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls = 'w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 text-sm dark:text-white pr-10';
+
+  return (
+    <div className="max-w-lg">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-amber-50 dark:bg-amber-900/20 rounded-xl flex items-center justify-center">
+            <Shield className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Reset Password</h3>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Set a new password for {userName}</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">New Password</label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  placeholder="Minimum 8 characters"
+                  className={inputCls}
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <button type="button" onClick={generatePassword}
+                className="px-3 py-2 text-xs font-medium text-purple-600 hover:text-purple-700 border border-purple-200 dark:border-purple-800 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 whitespace-nowrap">
+                Generate
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Confirm Password</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 text-sm dark:text-white"
+            />
+          </div>
+
+          {message && (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${
+              message.type === 'success'
+                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+            }`}>
+              {message.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+              {message.text}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={saving || !newPassword || !confirmPassword}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-xl disabled:opacity-50 transition-colors"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
+            Reset Password
           </button>
         </form>
       </div>

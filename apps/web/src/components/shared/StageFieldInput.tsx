@@ -11,6 +11,7 @@ interface StageFieldInputProps {
   fieldKey: string;
   fieldLabel: string;
   fieldType: string;
+  fieldOptions?: { label: string; value: string }[];
   value: any;
   error?: string;
   onChange: (value: any) => void;
@@ -20,7 +21,7 @@ interface StageFieldInputProps {
 const inputClass = 'w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none';
 
 export function StageFieldInput({
-  fieldLabel, fieldType, value, error, onChange, onClearError,
+  fieldLabel, fieldType, fieldOptions, value, error, onChange, onClearError,
 }: StageFieldInputProps) {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -176,6 +177,25 @@ export function StageFieldInput({
           />
           <span className="text-sm text-gray-700 dark:text-slate-300">{fieldLabel}</span>
         </label>
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+      </div>
+    );
+  }
+
+  // ── Select ──
+  if (fieldType === 'select' && fieldOptions?.length) {
+    return (
+      <div>
+        <select
+          value={value || ''}
+          onChange={(e) => { onChange(e.target.value); onClearError(); }}
+          className={`${inputClass} ${errorClass}`}
+        >
+          <option value="">Select...</option>
+          {fieldOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
         {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       </div>
     );

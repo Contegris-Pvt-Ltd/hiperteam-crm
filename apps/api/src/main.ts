@@ -5,6 +5,22 @@ import helmet from 'helmet';
 import * as compression from 'compression';
 import { AppModule } from './app.module';
 import { IoAdapter } from '@nestjs/platform-socket.io';
+import type { ServerOptions } from 'socket.io';
+
+const CORS_ORIGINS = process.env.CORS_ORIGINS?.split(',') || [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://hiperteam.intellicon.io',
+];
+
+class CorsIoAdapter extends IoAdapter {
+  createIOServer(port: number, options?: ServerOptions): any {
+    return super.createIOServer(port, {
+      ...options,
+      cors: { origin: CORS_ORIGINS, credentials: true },
+    });
+  }
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -20,14 +36,11 @@ async function bootstrap() {
   // Security
   app.use(helmet());
   app.use(compression());
-  app.useWebSocketAdapter(new IoAdapter(app));
+  app.useWebSocketAdapter(new CorsIoAdapter(app));
 
   // CORS
   app.enableCors({
-    origin: process.env.CORS_ORIGINS?.split(',') || [
-      'http://localhost:5173',
-      'https://hiperteam.intellicon.io',
-    ],
+    origin: CORS_ORIGINS,
     credentials: true,
   });
 

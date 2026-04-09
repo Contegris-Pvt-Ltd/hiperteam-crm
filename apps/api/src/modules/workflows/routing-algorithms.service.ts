@@ -15,12 +15,12 @@ export class RoutingAlgorithmsService {
     config: any,
     payload: any,
   ): Promise<string | null> {
-    const { algorithm, pool = [], weights = [] } = config;
+    const { algorithm = 'round_robin', pool = [], weights = [] } = config;
 
     if (!pool.length) return null;
 
     switch (algorithm) {
-      case 'round_robin':  return this.roundRobin(schema, actionId, pool);
+      case 'round_robin':  return this.roundRobin(schema, actionId, pool, payload);
       case 'weighted':     return this.weighted(pool, weights);
       case 'load_based':   return this.loadBased(schema, pool, payload);
       case 'territory':    return this.territory(schema, pool, payload);
@@ -31,24 +31,42 @@ export class RoutingAlgorithmsService {
   }
 
   // ── Round Robin ──────────────────────────────────────────────
-  private async roundRobin(schema: string, actionId: string, pool: string[]): Promise<string> {
-    // Use workflow_actions config to store the counter (avoids a separate table)
-    const [row] = await this.dataSource.query(
-      `SELECT config FROM "${schema}".workflow_actions WHERE id = $1`,
+  private async roundRobin(
+    schema: string, actionId: string, pool: string[], payload: any,
+  ): Promise<string> {
+    // 1. Get the last assigned user from the log table
+    const [lastRow] = await this.dataSource.query(
+      `SELECT user_id FROM "${schema}".workflow_assignment_log
+       WHERE action_id = $1
+       ORDER BY assigned_at DESC LIMIT 1`,
       [actionId],
     );
-    const current = row?.config ?? {};
-    const index = (current.round_robin_index ?? 0) % pool.length;
-    const userId = pool[index];
 
+    const lastUser: string | null = lastRow?.user_id ?? null;
+
+    // 2. Find where the last user sits in the pool, pick the next one
+    let chosen: string;
+    if (!lastUser || !pool.includes(lastUser)) {
+      chosen = pool[0];
+    } else {
+      const lastIndex = pool.indexOf(lastUser);
+      chosen = pool[(lastIndex + 1) % pool.length];
+    }
+
+    // 3. Log this assignment
     await this.dataSource.query(
-      `UPDATE "${schema}".workflow_actions
-       SET config = config || $1::jsonb
-       WHERE id = $2`,
-      [JSON.stringify({ round_robin_index: index + 1 }), actionId],
+      `INSERT INTO "${schema}".workflow_assignment_log
+         (action_id, user_id, entity_type, entity_id)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        actionId,
+        chosen,
+        payload.triggerModule || null,
+        payload.entityId || null,
+      ],
     );
 
-    return userId;
+    return chosen;
   }
 
   // ── Weighted Random ──────────────────────────────────────────

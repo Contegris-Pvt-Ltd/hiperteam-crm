@@ -11,7 +11,7 @@ import { leadSettingsApi } from '../../api/leads.api';
 import { adminApi } from '../../api/admin.api';
 import type { CustomField } from '../../api/admin.api';
 
-// System lead fields
+// System lead fields (qualification fields are loaded dynamically)
 const SYSTEM_FIELDS = [
   { key: 'firstName', label: 'First Name', type: 'text', section: 'Basic Info' },
   { key: 'lastName', label: 'Last Name', type: 'text', section: 'Basic Info' },
@@ -29,10 +29,6 @@ const SYSTEM_FIELDS = [
   { key: 'state', label: 'State', type: 'text', section: 'Address' },
   { key: 'postalCode', label: 'Postal Code', type: 'text', section: 'Address' },
   { key: 'country', label: 'Country', type: 'text', section: 'Address' },
-  { key: 'qualification.budget', label: 'Budget (BANT)', type: 'text', section: 'Qualification' },
-  { key: 'qualification.authority', label: 'Authority (BANT)', type: 'text', section: 'Qualification' },
-  { key: 'qualification.need', label: 'Need (BANT)', type: 'text', section: 'Qualification' },
-  { key: 'qualification.timeline', label: 'Timeline (BANT)', type: 'text', section: 'Qualification' },
 ];
 
 const FIELD_TYPE_ICONS: Record<string, typeof Type> = {
@@ -83,14 +79,15 @@ export function StageFieldsModal({ isOpen, stage, onClose, onSave }: StageFields
     if (!stage) return;
     setLoading(true);
     try {
-      const [stageFieldsData, customFieldsData] = await Promise.all([
+      const [stageFieldsData, customFieldsData, frameworks] = await Promise.all([
         leadSettingsApi.getStageFields(stage.id),
         adminApi.getCustomFields('leads'),
+        leadSettingsApi.getQualificationFrameworks(),
       ]);
 
       setFields(Array.isArray(stageFieldsData) ? stageFieldsData : []);
 
-      // Merge system + custom fields into available list
+      // Merge system + custom + active qualification fields into available list
       const customEntries = customFieldsData
         .filter((f: CustomField) => f.isActive)
         .map((f: CustomField) => ({
@@ -100,7 +97,15 @@ export function StageFieldsModal({ isOpen, stage, onClose, onSave }: StageFields
           section: 'Custom Fields',
         }));
 
-      setAllAvailable([...SYSTEM_FIELDS, ...customEntries]);
+      const activeFw = (frameworks || []).find((f: any) => f.isActive);
+      const qualEntries = activeFw?.fields?.map((f: any) => ({
+        key: `qualification.${f.fieldKey}`,
+        label: `${f.fieldLabel} (${activeFw.name})`,
+        type: f.fieldType || 'select',
+        section: `Qualification (${activeFw.name})`,
+      })) || [];
+
+      setAllAvailable([...SYSTEM_FIELDS, ...qualEntries, ...customEntries]);
     } catch (err) {
       console.error('Failed to load stage fields:', err);
       setFields([]);

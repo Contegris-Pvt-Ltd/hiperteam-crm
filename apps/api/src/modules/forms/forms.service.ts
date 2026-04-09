@@ -3,8 +3,36 @@ import { DataSource } from 'typeorm';
 import { AuditService } from '../shared/audit.service';
 import { ActivityService } from '../shared/activity.service';
 import { WorkflowRunnerService } from '../workflows/workflow-runner.service';
+import { LeadScoringService } from '../leads/lead-scoring.service';
 import { EmailService } from '../email/email.service';
 import { randomBytes } from 'crypto';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
+
+function formatPhoneE164(raw: string | null | undefined, defaultCountry?: string): string | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/[\s\-().]/g, '');
+  try {
+    // 1. Try parsing as-is (works for numbers with + prefix)
+    let parsed = parsePhoneNumberFromString(cleaned);
+    if (parsed?.isValid()) return parsed.format('E.164');
+
+    // 2. Try with explicit country if provided
+    if (defaultCountry) {
+      parsed = parsePhoneNumberFromString(cleaned, defaultCountry.toUpperCase() as any);
+      if (parsed?.isValid()) return parsed.format('E.164');
+    }
+
+    // 3. Try adding + prefix in case it's a full international number without +
+    if (/^\d{10,15}$/.test(cleaned) && !cleaned.startsWith('0')) {
+      parsed = parsePhoneNumberFromString(`+${cleaned}`);
+      if (parsed?.isValid()) return parsed.format('E.164');
+    }
+
+    return raw;
+  } catch {
+    return raw;
+  }
+}
 
 @Injectable()
 export class FormsService {
@@ -15,6 +43,7 @@ export class FormsService {
     private readonly auditService: AuditService,
     private readonly activityService: ActivityService,
     private readonly workflowRunner: WorkflowRunnerService,
+    private readonly scoringService: LeadScoringService,
     private readonly emailService: EmailService,
   ) {}
 
@@ -575,32 +604,130 @@ export class FormsService {
     data: Record<string, any>,
     context: Record<string, string>,
   ) {
-    // Build custom_fields with linked entity references from earlier actions
-    const customFields: Record<string, string> = {};
+    // Build custom_fields from cf_ prefixed mappings and linked entity references
+    const customFields: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (key.startsWith('cf_') && value !== undefined && value !== null && value !== '') {
+        customFields[key.substring(3)] = value;
+      }
+    }
     if (context.contactId) customFields.source_contact_id = context.contactId;
     if (context.accountId) customFields.source_account_id = context.accountId;
 
+    // Resolve default pipeline and stage
+    let pipelineId: string | null = null;
+    let stageId: string | null = null;
+    const [defaultPl] = await this.dataSource.query(
+      `SELECT id FROM "${schemaName}".pipelines WHERE is_default = true AND is_active = true LIMIT 1`,
+    );
+    pipelineId = defaultPl?.id || null;
+    if (pipelineId) {
+      const [defaultStage] = await this.dataSource.query(
+        `SELECT id FROM "${schemaName}".pipeline_stages
+         WHERE pipeline_id = $1 AND module = 'leads'
+           AND is_active = true AND is_won = false AND is_lost = false
+         ORDER BY sort_order ASC LIMIT 1`,
+        [pipelineId],
+      );
+      stageId = defaultStage?.id || null;
+    }
+
+    // Resolve default qualification framework
+    let qualFrameworkId: string | null = null;
+    const [generalSettings] = await this.dataSource.query(
+      `SELECT setting_value FROM "${schemaName}".lead_settings WHERE setting_key = 'general'`,
+    );
+    const generalConfig = generalSettings?.setting_value || {};
+    if (generalConfig.activeQualificationFramework) {
+      const [fw] = await this.dataSource.query(
+        `SELECT id FROM "${schemaName}".lead_qualification_frameworks
+         WHERE slug = $1 AND is_active = true LIMIT 1`,
+        [generalConfig.activeQualificationFramework],
+      );
+      qualFrameworkId = fw?.id || null;
+    }
+
+    // Resolve tenant base country for phone formatting
+    let baseCountry: string | undefined;
+    const [companySettings] = await this.dataSource.query(
+      `SELECT base_country FROM "${schemaName}".company_settings LIMIT 1`,
+    ).catch(() => [undefined]);
+    baseCountry = companySettings?.base_country || undefined;
+
+    // Resolve default priority
+    let priorityId: string | null = null;
+    const [defaultPriority] = await this.dataSource.query(
+      `SELECT id FROM "${schemaName}".lead_priorities
+       WHERE is_default = true AND is_active = true LIMIT 1`,
+    );
+    priorityId = defaultPriority?.id || null;
+
+    // Parse tags if provided as comma-separated string
+    let tags: string[] = [];
+    if (data.tags) {
+      tags = Array.isArray(data.tags)
+        ? data.tags
+        : String(data.tags).split(',').map((t: string) => t.trim()).filter(Boolean);
+    }
+
     const [row] = await this.dataSource.query(
       `INSERT INTO "${schemaName}".leads
-        (first_name, last_name, email, phone, company, source, status, custom_fields)
-       VALUES ($1, $2, $3, $4, $5, 'web_form', 'new', $6)
+        (first_name, last_name, email, phone, mobile,
+         company, job_title, website, industry,
+         source, source_details,
+         address_line1, address_line2, city, state, postal_code, country,
+         country_code, phone_country_code, mobile_country_code,
+         tags, custom_fields,
+         pipeline_id, stage_id, stage_entered_at,
+         qualification_framework_id, priority_id)
+       VALUES ($1, $2, $3, $4, $5,
+               $6, $7, $8, $9,
+               $10, $11,
+               $12, $13, $14, $15, $16, $17,
+               $18, $19, $20,
+               $21, $22,
+               $23, $24, NOW(),
+               $25, $26)
        RETURNING *`,
       [
         data.first_name || data.firstName || '',
         data.last_name || data.lastName || '',
-        data.email || null,
-        data.phone || null,
+        data.email ? String(data.email).toLowerCase().trim() : null,
+        formatPhoneE164(data.phone, data.country_code || data.countryCode || baseCountry),
+        formatPhoneE164(data.mobile, data.country_code || data.countryCode || baseCountry),
         data.company || null,
+        data.job_title || data.jobTitle || null,
+        data.website || null,
+        data.industry || null,
+        data.source || 'web_form',
+        data.source_details ? JSON.stringify(data.source_details) : null,
+        data.address_line1 || data.address || null,
+        data.address_line2 || null,
+        data.city || null,
+        data.state || null,
+        data.postal_code || data.postalCode || null,
+        data.country || null,
+        data.country_code || data.countryCode || null,
+        data.phone_country_code || data.phoneCountryCode || null,
+        data.mobile_country_code || data.mobileCountryCode || null,
+        tags.length > 0 ? JSON.stringify(tags) : null,
         Object.keys(customFields).length > 0
           ? JSON.stringify(customFields)
           : null,
+        pipelineId,
+        stageId,
+        qualFrameworkId,
+        priorityId,
       ],
     );
+
+    // Score the lead (profile completion, demographic, qualification rules)
+    await this.scoringService.scoreLead(schemaName, row.id);
 
     // Fire workflow trigger for lead creation (fire-and-forget)
     this.workflowRunner
       .trigger(schemaName, 'leads', 'lead_created', row.id, row)
-      .catch(() => {});
+      .catch((err) => this.logger.error(`Workflow trigger failed for lead ${row.id}: ${err.message}`));
 
     return { entityType: 'lead', entityId: row.id };
   }
@@ -631,7 +758,7 @@ export class FormsService {
     // Fire workflow trigger for contact creation (fire-and-forget)
     this.workflowRunner
       .trigger(schemaName, 'contacts', 'contact_created', row.id, row)
-      .catch(() => {});
+      .catch((err) => this.logger.error(`Workflow trigger failed for contact ${row.id}: ${err.message}`));
 
     return { entityType: 'contact', entityId: row.id };
   }
@@ -656,7 +783,7 @@ export class FormsService {
     // Fire workflow trigger for account creation (fire-and-forget)
     this.workflowRunner
       .trigger(schemaName, 'accounts', 'account_created', row.id, row)
-      .catch(() => {});
+      .catch((err) => this.logger.error(`Workflow trigger failed for account ${row.id}: ${err.message}`));
 
     return { entityType: 'account', entityId: row.id };
   }
